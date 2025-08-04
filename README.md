@@ -1,7 +1,7 @@
 # workshoppro_manager
 
 BMIT2073 Mobile Application Development Assignment
-Testingfhuewbfubijehtegioer
+Testin
 
 ## Getting Started
 
