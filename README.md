@@ -20,8 +20,8 @@ BMIT2073 Mobile Application Development Assignment
 3. Write a meaningful commit message in the message box
 4. **`Commit and Push`**
    1. Click **`Commit and Push`**
-   2. Click **`Push`**
-5. Click **`Create pull request`** at bottom-right pop-up
+   2. Click **`Push`** in the pop-up window
+5. Click **`Create pull request`** at bottom-right pop-up window
 6. Click **`Create Pull Request`** at the **Pull Request** window
 7. Merge
    1. Method 1: Request Reviewer before merge
