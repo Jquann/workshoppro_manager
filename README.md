@@ -18,7 +18,9 @@ BMIT2073 Mobile Application Development Assignment
 1. Navigate to the **Commit** window at the left navigation bar
 2. Select the files you want to commit (check the boxes)
 3. Write a meaningful commit message in the message box
-4. Click **`Commit and Push`**
+4. **`Commit and Push`**
+   1. Click **`Commit and Push`**
+   2. Click **`Push`**
 5. Click **`Create pull request`** at bottom-right pop-up
 6. Click **`Create Pull Request`** at the **Pull Request** window
 7. Merge
