@@ -1,17 +1,35 @@
 # workshoppro_manager
 
 BMIT2073 Mobile Application Development Assignment
-Testing
 
-## Getting Started
+# GitHub Manual (Android Studio - GUI)
 
-This project is a starting point for a Flutter application.
+## Update File (Sync `my_branch` with latest `master`)
+1. Click the upper-left `my_branch`
+2. Merge latest from `master`:
+   1. Click the `master`
+   2. Merge `master` into `my_branch`
+3. Click the upper-left `my_branch` again
+4. Click `Push`
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Commit File (Add/Edit/Delete Files)
+1. Navigate to the **Commit** window at the left navigation bar
+2. Select the files you want to commit (check the boxes)
+3. Write a meaningful commit message in the message box
+4. **`Commit and Push`**
+   1. Click **`Commit and Push`**
+   2. Click **`Push`** in the pop-up window
+5. Click **`Create pull request`** at bottom-right pop-up window
+6. Click **`Create Pull Request`** at the **Pull Request** window
+7. Merge
+   1. Method 1: Request Reviewer before merge
+      1. Click **`Request Reviewer`**
+      2. Select the reviewer you want (check the boxes)
+   2. Method 2: Self Merge (Must Confirm no error before merge)
+      1. Click **`More`** (3 dot beside Request Reviewer)
+      2. Click **`Merge Review`**
+      3. Click **`Merge`**
+      4. Write **`Merge commit message`**
+      5. Click **`Merge`**
