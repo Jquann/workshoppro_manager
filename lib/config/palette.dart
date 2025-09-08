@@ -1,1 +1,0 @@
-//todo: Colors used in the app
