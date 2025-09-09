@@ -5,11 +5,12 @@ BMIT2073 Mobile Application Development Assignment
 # GitHub Manual (Android Studio - GUI)
 
 ## Update File (Sync `my_branch` with latest `master`)
-1. Click the upper-left `my_branch`
-2. Merge latest from `master`:
-   1. Click the `master`
-   2. Merge `master` into `my_branch`
-3. Click the upper-left `my_branch` again
+- `my_branch` is your name
+1. Click the top-left `my_branch`
+2. Merge latest from github master:
+   1. Click the `Remote` > `origin` > `master`
+   2. Merge `origin/master` into `my_branch`
+3. Click the top-left `my_branch` again
 4. Click `Push`
 
 ---
