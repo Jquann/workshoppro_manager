@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/pages/crm/crm.dart';
+import 'package:workshoppro_manager/pages/inventory_control/inventory_overview.dart';
 import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
 
 class MainNavigationPage extends StatefulWidget {
@@ -32,12 +33,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     // CRM Page
     CRMPage(scaffoldKey: widget.scaffoldKey),
     // Inventory Page
-    Center(
-      child: Text(
-        'Inventory',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    ),
+    InventoryScreen(),
+
     // Invoices Page - Now shows the Invoice Dashboard with scaffoldKey
     InvoiceDashboard(scaffoldKey: widget.scaffoldKey),
   ];
