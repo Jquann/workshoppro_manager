@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/pages/crm/crm.dart';
 import 'package:workshoppro_manager/pages/inventory_control/inventory_overview.dart';
 import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
+import 'package:workshoppro_manager/pages/vehicles/vehicle.dart';
 
 class MainNavigationPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -18,10 +19,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   List<Widget> get _pages => [
     // Vehicles Page
     Center(
-      child: Text(
-        'Vehicles',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
+      child: VehiclesPage(scaffoldKey: widget.scaffoldKey),
     ),
     // Schedule Page
     Center(
