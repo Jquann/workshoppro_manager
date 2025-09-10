@@ -10,8 +10,6 @@ class CustomerProfilePage extends StatefulWidget {
 }
 
 class _CustomerProfilePageState extends State<CustomerProfilePage> {
-  int _selectedTab = 0;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,568 +35,239 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.edit,
-              color: Colors.black,
-              size: 24,
-            ),
-            onPressed: () {
-              // TODO: Navigate to edit customer page
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Edit customer functionality')),
-              );
-            },
-          ),
-        ],
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // Customer Header
-          Container(
-            color: Colors.white,
-            padding: EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Profile Avatar
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: _getAvatarColor(widget.customer['name']),
-                  child: Text(
-                    widget.customer['name'].substring(0, 1).toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  widget.customer['name'],
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  widget.customer['address'],
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF8E8E93),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tab Buttons
-          Container(
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTabButton('Service History', 0),
-                ),
-                Expanded(
-                  child: _buildTabButton('Communication History', 1),
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: 16),
-
-          // Content based on selected tab
-          Expanded(
-            child: _selectedTab == 0 ? _buildServiceHistoryTab() : _buildCommunicationHistoryTab(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabButton(String title, int index) {
-    bool isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTab = index;
-        });
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? Color(0xFF007AFF) : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildServiceHistoryTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Contact Information Card
-          _buildInfoCard(
-            title: 'Contact Information',
-            children: [
-              _buildInfoRow(Icons.phone_outlined, 'Phone', widget.customer['phone'] ?? '(60+) 12-3456 789'),
-              _buildInfoRow(Icons.email_outlined, 'Email', widget.customer['email'] ?? 'customer@email.com'),
-              _buildInfoRow(Icons.location_on_outlined, 'Address', widget.customer['address']),
-              _buildInfoRow(Icons.access_time_outlined, 'Last Contact', '2 days ago'),
-            ],
-          ),
-
-          SizedBox(height: 16),
-
-          // Vehicle Information Card
-          _buildInfoCard(
-            title: 'Vehicle Owned',
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Color(0xFFF5F5F7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF34C759),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.directions_car,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Customer A',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '2018 Toyota Camry',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF8E8E93),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: Color(0xFF8E8E93),
-                      size: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 16),
-
-          // Service History Card
-          _buildInfoCard(
-            title: 'Recent Services',
-            children: [
-              _buildServiceItem(
-                'Oil Change & Filter',
-                'Jan 15, 2024',
-                '\$89.99',
-                'Completed',
-                Colors.green,
-              ),
-              _buildServiceItem(
-                'Brake Inspection',
-                'Dec 22, 2023',
-                '\$150.00',
-                'Completed',
-                Colors.green,
-              ),
-              _buildServiceItem(
-                'Tire Rotation',
-                'Nov 10, 2023',
-                '\$45.00',
-                'Completed',
-                Colors.green,
-              ),
-            ],
-          ),
-
-          SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCommunicationHistoryTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildInfoCard(
-            title: 'Recent Communications',
-            children: [
-              _buildCommunicationItem(
-                Icons.phone,
-                'Phone Call',
-                'Discussed upcoming service appointment',
-                '2 days ago',
-                Color(0xFF007AFF),
-              ),
-              _buildCommunicationItem(
-                Icons.email,
-                'Email Sent',
-                'Service reminder for oil change',
-                '1 week ago',
-                Color(0xFF34C759),
-              ),
-              _buildCommunicationItem(
-                Icons.sms,
-                'SMS Sent',
-                'Appointment confirmation',
-                '2 weeks ago',
-                Color(0xFFFF9500),
-              ),
-              _buildCommunicationItem(
-                Icons.phone,
-                'Phone Call',
-                'Initial service inquiry',
-                '3 weeks ago',
-                Color(0xFF007AFF),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 16),
-
-          // Quick Actions
-          _buildInfoCard(
-            title: 'Quick Actions',
-            children: [
-              Row(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Customer Header Section
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+              child: Column(
                 children: [
-                  Expanded(
-                    child: _buildActionButton(
-                      Icons.phone,
-                      'Call',
-                      Color(0xFF007AFF),
-                          () => _makeCall(),
+                  // Profile Avatar
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFD4C5B7),
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      size: 50,
+                      color: Color(0xFF8E7B6B),
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _buildActionButton(
-                      Icons.email,
-                      'Email',
-                      Color(0xFF34C759),
-                          () => _sendEmail(),
+                  SizedBox(height: 20),
+                  Text(
+                    widget.customer['name'],
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _buildActionButton(
-                      Icons.sms,
-                      'SMS',
-                      Color(0xFFFF9500),
-                          () => _sendSMS(),
+                  SizedBox(height: 8),
+                  Text(
+                    widget.customer['address'],
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF8E8E93),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-
-          SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({required String title, required List<Widget> children}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
             ),
-          ),
-          ...children,
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Color(0xFF8E8E93),
-          ),
-          SizedBox(width: 12),
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFF8E8E93),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+            SizedBox(height: 24),
 
-  Widget _buildServiceItem(String service, String date, String amount, String status, Color statusColor) {
-    return Container(
-      margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Color(0xFFF5F5F7),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                service,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              Text(
-                amount,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                date,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF8E8E93),
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: statusColor,
-                    fontWeight: FontWeight.w500,
+            // Contact Information Section
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contact Information',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+                  SizedBox(height: 16),
 
-  Widget _buildCommunicationItem(IconData icon, String type, String message, String time, Color iconColor) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              icon,
-              size: 16,
-              color: iconColor,
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  type,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                  // Phone
+                  _buildContactItem(
+                    icon: Icons.phone_outlined,
+                    label: 'Phone',
+                    value: widget.customer['phone'] ?? '(60+) 12-3456 789',
                   ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF8E8E93),
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF8E8E93),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: color,
-            ),
-            SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: color,
+                  SizedBox(height: 12),
+
+                  // Email
+                  _buildContactItem(
+                    icon: Icons.email_outlined,
+                    label: 'Email',
+                    value: widget.customer['email'] ?? 'customer@email.com',
+                  ),
+                ],
               ),
             ),
+
+            SizedBox(height: 32),
+
+            // Vehicle Information Section
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vehicle Owned',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Vehicle Card
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 20,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        // Car Icon
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Color(0xFF2E3A47),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.directions_car,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+
+                        // Vehicle Details
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Customer A',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '2018 Toyota Camry',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Color(0xFF8E8E93),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Color _getAvatarColor(String name) {
-    final colors = [
-      Color(0xFF34C759),
-      Color(0xFFFF9500),
-      Color(0xFF007AFF),
-      Color(0xFFFF3B30),
-      Color(0xFF5856D6),
-    ];
-    return colors[name.hashCode % colors.length];
-  }
-
-  void _makeCall() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Calling ${widget.customer['phone'] ?? 'customer'}')),
-    );
-  }
-
-  void _sendEmail() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening email to ${widget.customer['email'] ?? 'customer'}')),
-    );
-  }
-
-  void _sendSMS() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening SMS to ${widget.customer['phone'] ?? 'customer'}')),
+  Widget _buildContactItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Color(0xFF007AFF).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: Color(0xFF007AFF),
+              size: 24,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF8E8E93),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
