@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1076723570929",
+    "project_id": "workshopmanager-29024",
+    "storage_bucket": "workshopmanager-29024.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1076723570929:android:20a73792506c70fcde7150",
+        "android_client_info": {
+          "package_name": "my.edu.tarumt.workshoppro_manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsxE0-kUiPPp2X9eu9ZxPqn1VGE-GrMCY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

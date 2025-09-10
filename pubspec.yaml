@@ -1,5 +1,6 @@
 name: workshoppro_manager
-description: "BMIT2073 Mobile Application Development Assignment"
+description: "A new Flutter project for workshop management."
+
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +20,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.1
+  sdk: '>=3.8.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -34,6 +35,16 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+
+  # Firebase dependencies for inventory management
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.4
+
+  # Permission handling for barcode scanner
+  permission_handler: ^11.3.1
+
+  # Barcode scanning for inventory
+  mobile_scanner: ^3.5.0
 
 dev_dependencies:
   flutter_test:
@@ -58,8 +69,11 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
   assets:
-     - assets/images/
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
