@@ -41,7 +41,7 @@ class InvoiceDetail extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // TODO: Navigate to edit invoice page
+              // Navigate to edit invoice page (if implemented)
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Edit functionality coming soon')),
               );
@@ -50,7 +50,7 @@ class InvoiceDetail extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.print),
             onPressed: () {
-              // TODO: Print invoice functionality
+              // Print invoice functionality (to be implemented)
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Print functionality coming soon'),
