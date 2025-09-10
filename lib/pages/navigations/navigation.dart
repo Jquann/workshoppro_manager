@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/pages/crm/crm.dart';
+import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
 
 class MainNavigationPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -11,7 +12,7 @@ class MainNavigationPage extends StatefulWidget {
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
-  int _selectedIndex = 2; // CRM tab is selected
+  int _selectedIndex = 2; // default view
 
   List<Widget> get _pages => [
     // Vehicles Page
@@ -37,13 +38,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
       ),
     ),
-    // Invoices Page
-    Center(
-      child: Text(
-        'Invoices',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    ),
+    // Invoices Page - Now shows the Invoice Dashboard with scaffoldKey
+    InvoiceDashboard(scaffoldKey: widget.scaffoldKey),
   ];
 
   final List<String> _pageTitles = [
@@ -56,35 +52,55 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 0.5,
-              offset: Offset(0, -0.5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Container(
-            height: 49,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildBottomNavItem(Icons.local_shipping_outlined, 'Vehicles', 0),
-                _buildBottomNavItem(Icons.calendar_today_outlined, 'Schedule', 1),
-                _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
-                _buildBottomNavItem(Icons.inventory_2_outlined, 'Inventory', 3),
-                _buildBottomNavItem(Icons.description_outlined, 'Invoices', 4),
-              ],
+    return Column(
+      children: [
+        // Main content
+        Expanded(child: _pages[_selectedIndex]),
+        // Bottom Navigation Bar
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 0.5,
+                offset: Offset(0, -0.5),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Container(
+              height: 49,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildBottomNavItem(
+                    Icons.local_shipping_outlined,
+                    'Vehicles',
+                    0,
+                  ),
+                  _buildBottomNavItem(
+                    Icons.calendar_today_outlined,
+                    'Schedule',
+                    1,
+                  ),
+                  _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
+                  _buildBottomNavItem(
+                    Icons.inventory_2_outlined,
+                    'Inventory',
+                    3,
+                  ),
+                  _buildBottomNavItem(
+                    Icons.description_outlined,
+                    'Invoices',
+                    4,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
