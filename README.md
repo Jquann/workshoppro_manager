@@ -6,12 +6,13 @@ BMIT2073 Mobile Application Development Assignment
 
 ## Update File (Sync `my_branch` with latest `master`)
 - `my_branch` is your name
-1. Click the top-left `my_branch`
-2. Merge latest from github master:
+1. Click the top-left 'burger icon' (4 dash line) > Click `Git` > Click `Fetch`
+2. Click the top-left `my_branch`
+3. Merge latest from github master:
    1. Click the `Remote` > `origin` > `master`
    2. Merge `origin/master` into `my_branch`
-3. Click the top-left `my_branch` again
-4. Click `Push`
+4. Click the top-left `my_branch` again
+5. Click `Push`
 
 ---
 
