@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 import 'vehicle_model.dart';
 import 'service_model.dart';
 import 'edit_vehicle.dart';
 import 'view_service.dart';
 import 'add_service.dart';
+
+// MYR currency formatter
+final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
 class ViewVehicle extends StatelessWidget {
   final String vehicleId;
@@ -62,10 +66,12 @@ class ViewVehicle extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit_note, color: Colors.black),
-                onPressed: () =>
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => EditVehicle(vehicle: v),
-                    )),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditVehicle(vehicle: v),
+                  ),
+                ),
               ),
             ],
           ),
@@ -159,8 +165,8 @@ class ViewVehicle extends StatelessWidget {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  ViewService(vehicleId: v.id, record: r),
+                              builder: (_) => ViewService(
+                                  vehicleId: v.id, record: r),
                             ),
                           ),
                           child: Column(
@@ -174,15 +180,18 @@ class ViewVehicle extends StatelessWidget {
                                       _fmt(r.date),
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: (18 * s).clamp(16, 20),
+                                        fontSize:
+                                        (18 * s).clamp(16, 20),
                                       ),
                                     ),
                                   ),
                                   Text(
-                                    '\$${r.total.toStringAsFixed(0)}',
+                                    // Prefer denormalized DB totals if present
+                                    _currency.format(r.displayTotal),
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      fontSize: (18 * s).clamp(16, 20),
+                                      fontSize:
+                                      (18 * s).clamp(16, 20),
                                     ),
                                   ),
                                 ],
@@ -194,7 +203,8 @@ class ViewVehicle extends StatelessWidget {
                                   r.description,
                                   style: TextStyle(
                                     color: _kBlue,
-                                    fontSize: (16 * s).clamp(15, 17),
+                                    fontSize:
+                                    (16 * s).clamp(15, 17),
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),

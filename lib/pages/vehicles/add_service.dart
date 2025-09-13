@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'service_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
+
+final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
 class InventoryPartVM {
   final String category;
@@ -176,7 +179,7 @@ class _AddServiceState extends State<AddService> {
               const _SectionTitle('Labor'),
               _laborEditor(),
               ..._labor.map((l) => _pill(
-                '${l.name}  •  ${l.hours}h @ \$${l.rate.toStringAsFixed(2)}',
+                '${l.name}  •  ${l.hours}h @ ${_currency.format(l.rate)}',
                 onDelete: () => setState(() => _labor.remove(l)),
               )),
 
@@ -276,6 +279,7 @@ class _AddServiceState extends State<AddService> {
             setState(() {
               _selectedPart = p;
               _partName.text = p.name;
+              // keep TextField numeric to avoid parsing issues
               _partPrice.text = p.price.toStringAsFixed(2);
             });
           },
@@ -339,33 +343,33 @@ class _AddServiceState extends State<AddService> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a part')),
       );
-      return;
-    }
-    final q = _toInt(_partQty.text);
-    if (q <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quantity must be greater than 0')),
-      );
-      return;
-    }
-    final stock = _selectedPart!.quantity;
-    if (q > stock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Only $stock in stock for "${_selectedPart!.name}"')),
-      );
-      return;
-    }
+    } else {
+      final q = _toInt(_partQty.text);
+      if (q <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Quantity must be greater than 0')),
+        );
+        return;
+      }
+      final stock = _selectedPart!.quantity;
+      if (q > stock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Only $stock in stock for "${_selectedPart!.name}"')),
+        );
+        return;
+      }
 
-    setState(() {
-      _parts.add(PartLine(
-        name: _selectedPart!.name,
-        quantity: q,
-        unitPrice: _selectedPart!.price,
-      ));
-      final k = _selectedPart!.key;
-      _stockDeltas[k] = (_stockDeltas[k] ?? 0) + q;
-      _partQty.clear();
-    });
+      setState(() {
+        _parts.add(PartLine(
+          name: _selectedPart!.name,
+          quantity: q,
+          unitPrice: _selectedPart!.price,
+        ));
+        final k = _selectedPart!.key;
+        _stockDeltas[k] = (_stockDeltas[k] ?? 0) + q;
+        _partQty.clear();
+      });
+    }
   }
 
   // ---- labor editor (unchanged) ----
@@ -427,30 +431,26 @@ class _AddServiceState extends State<AddService> {
     for (final e in _invIndex.entries) {
       if (e.value.name == p.name) { inv = e.value; break; }
     }
-    final top = '${p.name}  •  ${p.quantity} × \$${p.unitPrice.toStringAsFixed(2)}';
+    final top = '${p.name}  •  ${p.quantity} × ${_currency.format(p.unitPrice)}';
     final k = inv?.key;
     final willDeduct = (k != null) ? (_stockDeltas[k] ?? p.quantity) : p.quantity;
-    final bottom = (inv == null)
-        ? 'Stock: (unknown in inventory)'
-        : 'Stock: ${inv.quantity} ${inv.unit ?? "pcs"}  •  Using: $willDeduct';
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F7F7),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kDivider),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(top, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 4),
-              Text(bottom, style: const TextStyle(fontSize: 12, color: _kGrey)),
             ],
           )),
           IconButton(
@@ -496,7 +496,7 @@ class _AddServiceState extends State<AddService> {
       Expanded(child: Text(k,
           style: TextStyle(fontSize: 15, color: Colors.black,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w600))),
-      Text('\$${v.toStringAsFixed(2)}',
+      Text(_currency.format(v),
           style: TextStyle(fontSize: 15,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w600)),
     ],
