@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle_model.dart';
-import 'pages/vehicles/vehicle.dart'; // remove if unused
 import 'pages/vehicles/service_model.dart';
 import 'package:workshoppro_manager/models/item.dart';
 class FirestoreService {
@@ -8,6 +7,58 @@ class FirestoreService {
 
   CollectionReference get _vc => _db.collection('vehicles');
   CollectionReference get _counters => _db.collection('counters');
+
+  // -------------------- INVENTORY (ADDED) --------------------
+  // inventory_parts collection where each document is a category (e.g. 'Body'),
+  // and each field inside the doc is a part map keyed by the part's display name.
+  CollectionReference get _inventory => _db.collection('inventory_parts');
+
+  /// Read one inventory category document and return its parts as a list of maps.
+  /// Expected doc shape (like your screenshot):
+  /// inventory_parts/{category}:
+  ///   "Cabin Air Filters": { name, price, quantity, unit, category?, ... }
+  Future<List<Map<String, dynamic>>> getPartsByCategory(String category) async {
+    final doc = await _inventory.doc(category).get();
+    if (!doc.exists) return [];
+    final data = doc.data() as Map<String, dynamic>;
+
+    final List<Map<String, dynamic>> out = [];
+    for (final entry in data.entries) {
+      final v = entry.value;
+      if (v is Map<String, dynamic>) {
+        out.add({
+          'name': v['name'] ?? entry.key,          // fall back to field key
+          'price': v['price'] ?? 0,
+          'quantity': v['quantity'] ?? 0,
+          'unit': v['unit'],
+          'category': v['category'] ?? category,   // fall back to doc id
+        });
+      }
+    }
+    return out;
+  }
+
+  /// Atomically decrease stock for a part inside a category document.
+  /// We avoid dot-paths (your keys have spaces/quotes) by updating the whole nested map.
+  Future<void> reduceStock(String category, String partName, int usedQty) async {
+    if (usedQty <= 0) return;
+    final ref = _inventory.doc(category);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final data = (snap.data() as Map<String, dynamic>);
+      if (!data.containsKey(partName)) return;
+
+      final part = Map<String, dynamic>.from(data[partName] as Map);
+      final currentQty = (part['quantity'] ?? 0) as int;
+      final newQty = currentQty - usedQty;
+      part['quantity'] = newQty < 0 ? 0 : newQty;
+
+      // Update only that single field (no dot path)
+      tx.update(ref, { partName: part });
+    });
+  }
+  // ------------------ END INVENTORY (ADDED) ------------------
 
   // ===== ID GENERATOR (transaction-safe) =====
   Future<String> _nextFormattedId(

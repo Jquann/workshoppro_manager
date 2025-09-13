@@ -1,6 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'service_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
+
+final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+
+class InventoryPartVM {
+  final String category;
+  final String name;
+  final double price;
+  final int quantity;
+  final String? unit;
+  const InventoryPartVM({
+    required this.category,
+    required this.name,
+    required this.price,
+    required this.quantity,
+    this.unit,
+  });
+  String get key => '$category|$name';
+}
 
 class AddService extends StatefulWidget {
   final String vehicleId;
@@ -32,6 +51,17 @@ class _AddServiceState extends State<AddService> {
   final List<PartLine> _parts = [];
   final List<LaborLine> _labor = [];
 
+  // ---- Inventory UI state ----
+  static const List<String> _categories = <String>[
+    'Body','Brakes','Consumables','Electrical','Engine',
+    'Exhaust','Maintenance','Suspension','Transmission',
+  ];
+  String? _selectedCategory;
+  List<InventoryPartVM> _availableParts = [];
+  InventoryPartVM? _selectedPart;
+  final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
+  final Map<String, int> _stockDeltas = {}; // "cat|name" -> qty used (to reduce)
+
   @override
   void initState() {
     super.initState();
@@ -53,7 +83,7 @@ class _AddServiceState extends State<AddService> {
     super.dispose();
   }
 
-  // ---- parsing helpers (robust to "12,5" etc.) ----
+  // ---- parsing helpers ----
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
   double _toDouble(String s) =>
       double.tryParse(s.trim().replaceAll(',', '.')) ?? 0.0;
@@ -63,8 +93,7 @@ class _AddServiceState extends State<AddService> {
     hintText: hint,
     hintStyle: const TextStyle(fontSize: 15, color: _kGrey),
     isDense: true,
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     filled: true,
     fillColor: Colors.white,
     border: OutlineInputBorder(
@@ -142,22 +171,19 @@ class _AddServiceState extends State<AddService> {
 
               const SizedBox(height: 18),
               const _SectionTitle('Parts Replaced'),
-              _partEditor(),
-              ..._parts.map((p) => _pill(
-                '${p.name}  •  ${p.quantity} × \$${p.unitPrice.toStringAsFixed(2)}',
-                onDelete: () => setState(() => _parts.remove(p)),
-              )),
+              _inventoryPartEditor(),
+
+              ..._parts.map(_partPillWithStock).toList(),
 
               const SizedBox(height: 18),
               const _SectionTitle('Labor'),
               _laborEditor(),
               ..._labor.map((l) => _pill(
-                '${l.name}  •  ${l.hours}h @ \$${l.rate.toStringAsFixed(2)}',
+                '${l.name}  •  ${l.hours}h @ ${_currency.format(l.rate)}',
                 onDelete: () => setState(() => _labor.remove(l)),
               )),
 
               const SizedBox(height: 18),
-              // ---- Live totals (so you can see before saving) ----
               _totalsCard(),
 
               const SizedBox(height: 18),
@@ -170,36 +196,7 @@ class _AddServiceState extends State<AddService> {
               const SizedBox(height: 24),
               ElevatedButton(
                 style: _primaryBtn,
-                onPressed: () async {
-                  if (!_form.currentState!.validate()) return;
-
-                  // dismiss keyboard
-                  FocusScope.of(context).unfocus();
-
-                  final record = ServiceRecordModel(
-                    id: '',
-                    date: DateTime.parse(_date.text),
-                    description: _desc.text.trim(),
-                    mechanic: _mech.text.trim(),
-                    parts: List.of(_parts),
-                    labor: List.of(_labor),
-                    notes: _notes.text.trim().isEmpty
-                        ? null
-                        : _notes.text.trim(),
-                  );
-
-                  // Debug — verify exactly what's going in
-                  // ignore: avoid_print
-                  final newId = await FirestoreService().addService(widget.vehicleId, record);
-                  print('Saved service docId = $newId');
-                  print(
-                      'Saving service: parts=${record.parts.length} labor=${record.labor.length} '
-                          'partsTotal=${record.partsTotal} laborTotal=${record.laborTotal} total=${record.total}');
-
-                  await FirestoreService().addService(widget.vehicleId, record);
-
-                  if (mounted) Navigator.pop(context);
-                },
+                onPressed: _onSave,
                 child: const Text('Save'),
               ),
             ],
@@ -235,59 +232,156 @@ class _AddServiceState extends State<AddService> {
     if (d != null) _date.text = _fmt(d);
   }
 
-  // ---- editors ----
-  Widget _partEditor() => Row(children: [
-    Expanded(
-        child:
-        TextField(controller: _partName, decoration: _input('Name'))),
-    const SizedBox(width: 8),
-    SizedBox(
-      width: 80,
-      child: TextField(
-        controller: _partQty,
-        decoration: _input('Qty'),
-        keyboardType: TextInputType.number,
-      ),
-    ),
-    const SizedBox(width: 8),
-    SizedBox(
-      width: 120,
-      child: TextField(
-        controller: _partPrice,
-        decoration: _input('Price'),
-        keyboardType:
-        const TextInputType.numberWithOptions(decimal: true),
-      ),
-    ),
-    IconButton(
-      icon: const Icon(Icons.add_circle, color: _kBlue),
-      onPressed: () {
-        final name = _partName.text.trim();
-        final q = _toInt(_partQty.text);
-        final p = _toDouble(_partPrice.text);
-        if (name.isEmpty || q <= 0) return;
-        setState(() {
-          _parts.add(PartLine(name: name, quantity: q, unitPrice: p));
-          _partName.clear();
-          _partQty.clear();
-          _partPrice.clear();
-        });
-      },
-    ),
-  ]);
+  // ---------- Inventory editor ----------
+  Widget _inventoryPartEditor() {
+    final stockLine = (_selectedPart == null)
+        ? null
+        : Text(
+      'Stock: ${_selectedPart!.quantity} ${_selectedPart!.unit ?? "pcs"}',
+      style: const TextStyle(color: _kGrey, fontSize: 13),
+    );
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          decoration: _input('Select Category'),
+          value: _selectedCategory,
+          isExpanded: true,
+          items: _categories
+              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .toList(),
+          onChanged: (cat) async {
+            if (cat == null) return;
+            setState(() {
+              _selectedCategory = cat;
+              _selectedPart = null;
+              _partName.clear();
+              _partPrice.clear();
+              _partQty.clear();
+              _availableParts = [];
+            });
+            final fetched = await _fetchParts(cat);
+            setState(() => _availableParts = fetched);
+          },
+        ),
+        const SizedBox(height: 8),
+
+        DropdownButtonFormField<InventoryPartVM>(
+          decoration: _input('Select Part'),
+          value: _selectedPart,
+          isExpanded: true,
+          items: _availableParts
+              .map((p) => DropdownMenuItem(value: p, child: Text(p.name)))
+              .toList(),
+          onChanged: (p) {
+            if (p == null) return;
+            setState(() {
+              _selectedPart = p;
+              _partName.text = p.name;
+              // keep TextField numeric to avoid parsing issues
+              _partPrice.text = p.price.toStringAsFixed(2);
+            });
+          },
+        ),
+        const SizedBox(height: 6),
+        if (stockLine != null) stockLine,
+
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            SizedBox(
+              width: 96,
+              child: TextField(
+                controller: _partQty,
+                decoration: _input('Qty'),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _partPrice,
+                readOnly: true,
+                decoration: _input('Price (auto)'),
+                keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle, color: _kBlue),
+              onPressed: _onAddPartFromInventory,
+              tooltip: 'Add part line',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Divider(height: 16, color: _kDivider),
+      ],
+    );
+  }
+
+  Future<List<InventoryPartVM>> _fetchParts(String category) async {
+    final rows = await FirestoreService().getPartsByCategory(category);
+    final list = <InventoryPartVM>[];
+    for (final m in rows) {
+      final vm = InventoryPartVM(
+        category: category,
+        name: (m['name'] ?? '') as String,
+        price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
+        quantity: (m['quantity'] ?? 0) as int,
+        unit: m['unit'] as String?,
+      );
+      list.add(vm);
+      _invIndex[vm.key] = vm;
+    }
+    return list;
+  }
+
+  void _onAddPartFromInventory() {
+    if (_selectedPart == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a part')),
+      );
+    } else {
+      final q = _toInt(_partQty.text);
+      if (q <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Quantity must be greater than 0')),
+        );
+        return;
+      }
+      final stock = _selectedPart!.quantity;
+      if (q > stock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Only $stock in stock for "${_selectedPart!.name}"')),
+        );
+        return;
+      }
+
+      setState(() {
+        _parts.add(PartLine(
+          name: _selectedPart!.name,
+          quantity: q,
+          unitPrice: _selectedPart!.price,
+        ));
+        final k = _selectedPart!.key;
+        _stockDeltas[k] = (_stockDeltas[k] ?? 0) + q;
+        _partQty.clear();
+      });
+    }
+  }
+
+  // ---- labor editor (unchanged) ----
   Widget _laborEditor() => Row(children: [
-    Expanded(
-        child:
-        TextField(controller: _laborName, decoration: _input('Name'))),
+    Expanded(child: TextField(controller: _laborName, decoration: _input('Name'))),
     const SizedBox(width: 8),
     SizedBox(
       width: 80,
       child: TextField(
         controller: _laborHours,
         decoration: _input('Hrs'),
-        keyboardType:
-        const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
       ),
     ),
     const SizedBox(width: 8),
@@ -296,8 +390,7 @@ class _AddServiceState extends State<AddService> {
       child: TextField(
         controller: _laborRate,
         decoration: _input('Rate'),
-        keyboardType:
-        const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
       ),
     ),
     IconButton(
@@ -317,7 +410,7 @@ class _AddServiceState extends State<AddService> {
     ),
   ]);
 
-  // ---- chips/pills for added rows ----
+  // ---- pills ----
   Widget _pill(String text, {required VoidCallback onDelete}) => Container(
     margin: const EdgeInsets.only(top: 8),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -328,11 +421,56 @@ class _AddServiceState extends State<AddService> {
     ),
     child: Row(children: [
       Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
-      IconButton(
-          onPressed: onDelete,
+      IconButton(onPressed: onDelete,
           icon: const Icon(Icons.close, size: 18, color: _kGrey))
     ]),
   );
+
+  Widget _partPillWithStock(PartLine p) {
+    InventoryPartVM? inv;
+    for (final e in _invIndex.entries) {
+      if (e.value.name == p.name) { inv = e.value; break; }
+    }
+    final top = '${p.name}  •  ${p.quantity} × ${_currency.format(p.unitPrice)}';
+    final k = inv?.key;
+    final willDeduct = (k != null) ? (_stockDeltas[k] ?? p.quantity) : p.quantity;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F7F7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kDivider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(top, style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 4),
+            ],
+          )),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                if (inv != null) {
+                  final key = inv.key;
+                  final cur = _stockDeltas[key] ?? 0;
+                  final next = cur - p.quantity;
+                  if (next > 0) { _stockDeltas[key] = next; } else { _stockDeltas.remove(key); }
+                }
+                _parts.remove(p);
+              });
+            },
+            icon: const Icon(Icons.close, size: 18, color: _kGrey),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ---- totals card ----
   Widget _totalsCard() => Container(
@@ -355,19 +493,43 @@ class _AddServiceState extends State<AddService> {
 
   Widget _totalRow(String k, double v, {bool bold = false}) => Row(
     children: [
-      Expanded(
-        child: Text(k,
-            style: TextStyle(
-                fontSize: 15,
-                color: Colors.black,
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w600)),
-      ),
-      Text('\$${v.toStringAsFixed(2)}',
-          style: TextStyle(
-              fontSize: 15,
+      Expanded(child: Text(k,
+          style: TextStyle(fontSize: 15, color: Colors.black,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w600))),
+      Text(_currency.format(v),
+          style: TextStyle(fontSize: 15,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w600)),
     ],
   );
+
+  // ---- SAVE: save service + reduce inventory stock ----
+  Future<void> _onSave() async {
+    if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+
+    final record = ServiceRecordModel(
+      id: '',
+      date: DateTime.parse(_date.text),
+      description: _desc.text.trim(),
+      mechanic: _mech.text.trim(),
+      parts: List.of(_parts),
+      labor: List.of(_labor),
+      notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+    );
+
+    final newId = await FirestoreService().addService(widget.vehicleId, record);
+    // print('Saved service docId = $newId');
+
+    for (final e in _stockDeltas.entries) {
+      final parts = e.key.split('|'); // [category, name]
+      if (parts.length != 2) continue;
+      final category = parts[0];
+      final name = parts[1];
+      await FirestoreService().reduceStock(category, name, e.value);
+    }
+
+    if (mounted) Navigator.pop(context);
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -377,7 +539,6 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 10, top: 8),
     child: Text(text,
-        style:
-        const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
   );
 }
