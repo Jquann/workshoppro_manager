@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'all_inv_part.dart';
+import '../../models/part.dart';
 
 class WorkOrderCreateScreen extends StatefulWidget {
   @override
@@ -130,4 +130,3 @@ class _WorkOrderCreateScreenState extends State<WorkOrderCreateScreen> {
     );
   }
 }
-

@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle_model.dart';
 import 'pages/vehicles/vehicle.dart'; // remove if unused
 import 'pages/vehicles/service_model.dart';
-
+import 'package:workshoppro_manager/models/item.dart';
 class FirestoreService {
   final _db = FirebaseFirestore.instance;
 

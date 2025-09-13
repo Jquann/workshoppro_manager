@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:workshoppro_manager/pages/inventory_control/procurement_request.dart';
 import 'add_inv_part.dart';
 import 'all_inv_part.dart';
+import 'inventory_data_manager.dart';
+import '../navigations/drawer.dart';
+import 'procurement_request.dart';
 
 class InventoryScreen extends StatefulWidget {
   @override
@@ -10,6 +14,7 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int totalParts = 0;
   int partsUsed = 0;
   int partsRequested = 0;
@@ -30,68 +35,51 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _fetchInventoryStats();
   }
 
-  // Fetch real-time inventory statistics from Firestore
+  // Fetch all category documents and their parts from Firestore, calculate usage, and show top 5 categories
   Future<void> _fetchInventoryStats() async {
     try {
-      // Get all parts
-      QuerySnapshot partsSnapshot = await _firestore
-          .collection('inventory_parts')
-          .get();
-
+      QuerySnapshot categorySnapshot = await _firestore.collection('inventory_parts').get();
+      Map<String, int> usage = {};
       int total = 0;
       int used = 0;
       int requested = 0;
       int lowStock = 0;
-      Map<String, int> usage = {
-        'Engine': 0,
-        'Brakes': 0,
-        'Tires': 0,
-        'Suspension': 0,
-        'Electrical': 0,
-      };
-
-      for (var doc in partsSnapshot.docs) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-        total++;
-
-        int quantity = data['quantity'] ?? 0;
-        bool isLowStock = data['isLowStock'] ?? false;
-        String category = data['category'] ?? '';
-
-        // Count used parts (assuming parts with quantity < original are "used")
-        if (quantity > 0) {
-          used += (50 - quantity); // Assuming 50 was original quantity
-        }
-
-        // Count low stock parts
-        if (isLowStock) {
-          lowStock++;
-        }
-
-        // Count parts requested (low stock parts need reordering)
-        if (isLowStock) {
-          requested++;
-        }
-
-        // Category usage
-        if (usage.containsKey(category)) {
-          usage[category] = usage[category]! + 1;
-        }
+      for (var categoryDoc in categorySnapshot.docs) {
+        Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
+        int categoryCount = 0;
+        data.forEach((partName, partData) {
+          if (partData is Map<String, dynamic>) {
+            categoryCount++;
+            total++;
+            int quantity = partData['quantity'] ?? 0;
+            bool isLowStock = partData['isLowStock'] ?? false;
+            // Count used parts (assuming parts with quantity < original are "used")
+            if (quantity > 0) {
+              used += (50 - quantity); // Assuming 50 was original quantity
+            }
+            if (isLowStock) {
+              lowStock++;
+              requested++;
+            }
+          }
+        });
+        usage[categoryDoc.id] = categoryCount;
       }
-
+      // Sort usage and get top 5
+      final sortedUsage = Map.fromEntries(
+        usage.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)),
+      );
+      final top5Usage = Map<String, int>.fromEntries(sortedUsage.entries.take(5));
       setState(() {
         totalParts = total;
-        partsUsed = used > 0 ? used : 320; // Default if no calculation
+        partsUsed = used > 0 ? used : 320;
         partsRequested = requested > 0 ? requested : lowStock;
         lowStockParts = lowStock;
-        categoryUsage = usage;
+        categoryUsage = top5Usage;
         _isLoading = false;
       });
-
-      print(
-        '✅ Inventory stats updated: Total: $total, Used: $used, Requested: $requested',
-      );
+      print('✅ Inventory stats updated: Total: $total, Used: $used, Requested: $requested, Top5: $top5Usage');
     } catch (e) {
       print('❌ Error fetching inventory stats: $e');
       setState(() {
@@ -100,10 +88,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  double _getUsageHeight(String category) {
+    int count = categoryUsage[category] ?? 0;
+    int maxCount = categoryUsage.values.fold(0, (max, current) => current > max ? current : max);
+    if (maxCount == 0) return 0.1;
+    return (count / maxCount).clamp(0.1, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      key: _scaffoldKey,
+      backgroundColor: Colors.white,
+      drawer: CustomDrawer(), // Use the drawer from drawer.dart
       body: SafeArea(
         child: Column(
           children: [
@@ -113,13 +110,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Inventory',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.menu, color: Colors.black, size: 28),
+                        onPressed: () {
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Inventory',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                   Row(
                     children: [
@@ -129,12 +137,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: Colors.blue,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.refresh,
-                            color: Colors.white,
+                            color: Colors.black,
                             size: 20,
                           ),
                         ),
@@ -469,7 +477,52 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
 
+                        SizedBox(height: 16),
+                        // View Procurement Requests Button
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProcurementRequestPage(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange[200]!),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'View Procurement Requests',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.assignment,
+                                  color: Colors.orange[700],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                         SizedBox(height: 32), // Space for bottom navigation
+                        SizedBox(height: 16),
+
+                        // Data Import Button
+
                       ],
                     ),
                   ),
@@ -482,13 +535,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+
   Widget _buildOverviewCard(String title, String value, bool isLoading) {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: Colors.grey[300]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,35 +556,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
           SizedBox(height: 8),
-          isLoading
-              ? SizedBox(
-                  width: 40,
-                  height: 32,
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
         ],
       ),
     );
-  }
-
-  double _getUsageHeight(String category) {
-    int count = categoryUsage[category] ?? 0;
-    int maxCount = categoryUsage.values.fold(
-      0,
-      (max, current) => current > max ? current : max,
-    );
-    if (maxCount == 0) return 0.1;
-    return (count / maxCount).clamp(0.1, 1.0);
   }
 
   Widget _buildChartBar(String label, double height, Color color) {
@@ -541,7 +577,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           width: 40,
           height: 120 * height,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.7),
+            color: color,
             borderRadius: BorderRadius.circular(6),
           ),
         ),

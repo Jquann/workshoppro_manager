@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'barcode_scan_screen.dart';
-import 'all_inv_part.dart';
+import '../../models/part.dart';
 
 class AddNewPartScreen extends StatefulWidget {
   final Part? part;
@@ -24,13 +23,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   final _barcodeController = TextEditingController();
 
   String? selectedCategory;
-  final List<String> categories = [
-    'Engine',
-    'Brakes',
-    'Tires',
-    'Suspension',
-    'Electrical',
-  ];
+  List<String> categories = [];
   bool _isLoading = false;
 
   // Firestore instance
@@ -39,6 +32,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   @override
   void initState() {
     super.initState();
+    _fetchCategories();
     _testFirestoreConnection();
     if (widget.part != null) {
       _partNameController.text = widget.part!.name;
@@ -51,6 +45,19 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       if (widget.part!.barcode.isNotEmpty) {
         _barcodeController.text = widget.part!.barcode;
       }
+    }
+  }
+
+  Future<void> _fetchCategories() async {
+    try {
+      QuerySnapshot snapshot = await _firestore.collection('inventory_parts').get();
+      List<String> fetchedCategories = snapshot.docs.map((doc) => doc.id).toList();
+      setState(() {
+        categories = fetchedCategories;
+      });
+    } catch (e) {
+      setState(() {});
+      print('Error fetching categories: $e');
     }
   }
 
@@ -90,20 +97,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   }
 
   // Scan Barcode
-  Future<void> _scanBarcode() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BarcodeScanScreen(
-          onScanned: (barcode) {
-            setState(() {
-              _barcodeController.text = barcode;
-            });
-          },
-        ),
-      ),
-    );
-  }
+
 
   // Add or Edit part in Firestore
   Future<void> _submitPartToFirestore() async {
@@ -492,13 +486,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                           ),
                                         ),
                                       ),
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.qr_code_scanner,
-                                          color: Colors.blue,
-                                        ),
-                                        onPressed: _scanBarcode,
-                                      ),
+
                                     ],
                                   ),
                                 ],
