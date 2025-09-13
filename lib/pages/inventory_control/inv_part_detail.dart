@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_inv_part.dart';
-import 'all_inv_part.dart';
+import '../../models/part.dart';
 
 class PartDetailsScreen extends StatelessWidget {
   final Part? part;
 
   const PartDetailsScreen({Key? key, this.part}) : super(key: key);
 
-  Future<void> _deletePart(BuildContext context, String documentId) async {
+  Future<void> _deletePart(BuildContext context, String categoryId, String partName) async {
     final firestore = FirebaseFirestore.instance;
     try {
-      await firestore.collection('inventory_parts').doc(documentId).delete();
+      await firestore.collection('inventory_parts').doc(categoryId).update({partName: FieldValue.delete()});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Part deleted successfully!'),
@@ -29,7 +29,7 @@ class PartDetailsScreen extends StatelessWidget {
     }
   }
 
-  void _showDeleteDialog(BuildContext context, String documentId) {
+  void _showDeleteDialog(BuildContext context, String categoryId, String partName) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -43,9 +43,55 @@ class PartDetailsScreen extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _deletePart(context, documentId);
+              _deletePart(context, categoryId, partName);
             },
             child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProcurementRequestDialog(BuildContext context, Part part) {
+    final TextEditingController qtyController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Request to Reload Stock'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Part: ${part.name}'),
+            SizedBox(height: 8),
+            TextField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: 'Quantity Needed'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final qty = int.tryParse(qtyController.text) ?? 0;
+              if (qty > 0) {
+                await FirebaseFirestore.instance.collection('procurement_requests').add({
+                  'partId': part.id,
+                  'partName': part.name,
+                  'requestedQty': qty,
+                  'timestamp': FieldValue.serverTimestamp(),
+                  'status': 'Pending',
+                  'deliveryStatus': 'Pending',
+                  'eta': null,
+                });
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Procurement request submitted!'), backgroundColor: Colors.green),
+                );
+              }
+            },
+            child: Text('Submit'),
           ),
         ],
       ),
@@ -63,10 +109,9 @@ class PartDetailsScreen extends StatelessWidget {
           quantity: 42,
           isLowStock: false,
           category: 'Engine',
-          supplier: 'EngineHub',
+          manufacturer: 'EngineCorp',
           description: 'High-quality spark plug for automotive engines',
           documentId: '',
-          barcode: '',
         );
 
     return Scaffold(
@@ -241,10 +286,12 @@ class PartDetailsScreen extends StatelessWidget {
                                   SizedBox(height: 12),
                                   _buildInfoRow('Reorder Level', '15'),
                                   SizedBox(height: 12),
+                                  _buildStockLevelBar(displayPart.quantity, 15),
+                                  SizedBox(height: 12),
                                   _buildInfoRow(
-                                    'Supplier',
-                                    displayPart.supplier.isNotEmpty
-                                        ? displayPart.supplier
+                                    'Manufacturer',
+                                    displayPart.manufacturer.isNotEmpty
+                                        ? displayPart.manufacturer
                                         : 'Not specified',
                                   ),
                                   SizedBox(height: 12),
@@ -254,6 +301,18 @@ class PartDetailsScreen extends StatelessWidget {
                                         ? 'Low Stock'
                                         : 'In Stock',
                                   ),
+                                  if (displayPart.isLowStock || displayPart.quantity <= 15) ...[
+                                    SizedBox(height: 12),
+                                    ElevatedButton(
+                                      onPressed: () => _showProcurementRequestDialog(context, displayPart),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: Text('Request to Reload Stock'),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -288,12 +347,10 @@ class PartDetailsScreen extends StatelessWidget {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) =>
-                                              AddNewPartScreen(
-                                                part: displayPart,
-                                                documentId:
-                                                    displayPart.documentId,
-                                              ),
+                                          builder: (context) => AddNewPartScreen(
+                                            part: displayPart,
+                                            documentId: displayPart.documentId,
+                                          ),
                                         ),
                                       );
                                     },
@@ -325,6 +382,7 @@ class PartDetailsScreen extends StatelessWidget {
                                         _showDeleteDialog(
                                           context,
                                           displayPart.documentId,
+                                          displayPart.name,
                                         );
                                       } else {
                                         ScaffoldMessenger.of(
@@ -466,6 +524,51 @@ class PartDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStockLevelBar(int quantity, int reorderLevel) {
+    double percent = reorderLevel > 0 ? (quantity / reorderLevel) : 1.0;
+    percent = percent.clamp(0.0, 2.0); // Cap at 2x reorder level
+    Color barColor;
+    if (percent > 1.2) {
+      barColor = Colors.green;
+    } else if (percent > 1.0) {
+      barColor = Colors.yellow[700]!;
+    } else {
+      barColor = Colors.red;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Stock Level: $quantity / $reorderLevel',
+          style: TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),
+        ),
+        SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: percent > 2.0 ? 1.0 : percent / 2.0, // 100% = 2x reorder level
+            minHeight: 16,
+            backgroundColor: Colors.grey[300],
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          percent <= 1.0
+              ? 'Below Reorder Level'
+              : percent <= 1.2
+                  ? 'Near Reorder Level'
+                  : 'Stock Sufficient',
+          style: TextStyle(
+            fontSize: 12,
+            color: barColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
