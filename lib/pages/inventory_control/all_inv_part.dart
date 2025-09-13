@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_inv_part.dart';
-import 'inv_part_detail.dart';
-import 'barcode_scan_screen.dart';
+import 'inv_part_detail.dart' show PartDetailsScreen;
+import '../../models/part.dart';
 
 class AllInventoryPartsScreen extends StatefulWidget {
   @override
@@ -16,51 +16,47 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   String selectedCategory = 'All';
-  String selectedSupplier = 'All';
   String selectedStockStatus = 'All';
-  List<String> suppliers = [];
+  List<String> categories = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchPartsFromFirestore();
-    _fetchSuppliers();
+    _fetchPartsAndFiltersFromFirestore();
   }
 
-  // Fetch parts from Firestore
-  Future<void> _fetchPartsFromFirestore() async {
+  // Fetch all parts and build filters from Firestore
+  Future<void> _fetchPartsAndFiltersFromFirestore() async {
+    setState(() { _isLoading = true; });
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('inventory_parts')
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      List<Part> fetchedParts = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        return Part(
-          id: data['partId'] ?? doc.id,
-          name: data['partName'] ?? 'Unknown Part',
-          quantity: data['quantity'] ?? 0,
-          isLowStock: data['isLowStock'] ?? false,
-          category: data['category'] ?? 'Unknown',
-          supplier: data['supplier'] ?? 'Unknown',
-          description: data['description'] ?? '',
-          documentId: doc.id,
-          barcode: data['barcode'] ?? '',
-        );
-      }).toList();
-
+      QuerySnapshot categorySnapshot = await _firestore.collection('inventory_parts').get();
+      List<Part> fetchedParts = [];
+      List<String> categoryList = [];
+      for (var categoryDoc in categorySnapshot.docs) {
+        categoryList.add(categoryDoc.id);
+        Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
+        data.forEach((partName, partData) {
+          if (partData is Map<String, dynamic>) {
+            fetchedParts.add(Part(
+              id: partData['partId'] ?? partData['sparePartId'] ?? '',
+              name: partName,
+              quantity: partData['quantity'] ?? 0,
+              isLowStock: partData['isLowStock'] ?? false,
+              category: categoryDoc.id,
+              manufacturer: partData['manufacturer'] ?? '',
+              description: partData['description'] ?? '',
+              documentId: categoryDoc.id,
+            ));
+          }
+        });
+      }
       setState(() {
         parts = fetchedParts;
+        categories = categoryList;
         _isLoading = false;
       });
-
-      print('✅ Fetched ${parts.length} parts from Firestore');
     } catch (e) {
-      print('❌ Error fetching parts: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() { _isLoading = false; });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error loading parts: $e'),
@@ -70,26 +66,9 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
     }
   }
 
-  Future<void> _fetchSuppliers() async {
-    QuerySnapshot querySnapshot = await _firestore
-        .collection('inventory_parts')
-        .get();
-    final uniqueSuppliers = querySnapshot.docs
-        .map((doc) {
-          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-          return data['supplier'] ?? '';
-        })
-        .toSet()
-        .toList();
-    setState(() {
-      suppliers = List<String>.from(uniqueSuppliers.where((s) => s.isNotEmpty));
-    });
-  }
-
   Future<void> _resetFilters() async {
     setState(() {
       selectedCategory = 'All';
-      selectedSupplier = 'All';
       selectedStockStatus = 'All';
       _searchQuery = '';
     });
@@ -105,61 +84,32 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
           part.category.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesCategory =
           selectedCategory == 'All' || part.category == selectedCategory;
-      final matchesSupplier =
-          selectedSupplier == 'All' || part.supplier == selectedSupplier;
       final matchesStock =
           selectedStockStatus == 'All' ||
           (selectedStockStatus == 'Low Stock' && part.isLowStock) ||
           (selectedStockStatus == 'In Stock' && !part.isLowStock);
       return matchesSearch &&
           matchesCategory &&
-          matchesSupplier &&
           matchesStock;
     }).toList();
   }
 
-  Future<void> _scanBarcode() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BarcodeScanScreen(
-          onScanned: (barcode) {
-            final found = parts.firstWhere(
-              (p) => p.barcode == barcode,
-              orElse: () => Part(
-                id: '',
-                name: '',
-                quantity: 0,
-                isLowStock: false,
-                documentId: '',
-                barcode: '',
-              ),
-            );
-            if (found.id.isNotEmpty) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PartDetailsScreen(part: found),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Part not found for barcode $barcode'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('All Inventory Parts'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+      ),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -174,13 +124,13 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.grey[200], // Use a light grey for visibility
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         Icons.arrow_back,
-                        color: Colors.white,
-                        size: 20,
+                        color: Colors.black, // Black for visibility
+                        size: 24,
                       ),
                     ),
                   ),
@@ -188,22 +138,22 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                   Text(
                     'All inventory parts',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.black,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Spacer(),
                   GestureDetector(
-                    onTap: _fetchPartsFromFirestore,
+                    onTap: _fetchPartsAndFiltersFromFirestore,
                     child: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.refresh, color: Colors.white, size: 20),
+                      child: Icon(Icons.refresh, color: Colors.black, size: 20),
                     ),
                   ),
                 ],
@@ -300,13 +250,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                                         ),
                                       ),
                                     ),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.qr_code_scanner,
-                                        color: Colors.blue,
-                                      ),
-                                      onPressed: _scanBarcode,
-                                    ),
+
                                   ],
                                 ),
                                 SizedBox(height: 12),
@@ -318,37 +262,16 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                                   children: [
                                     DropdownButton<String>(
                                       value: selectedCategory,
-                                      items:
-                                          [
-                                                'All',
-                                                'Engine',
-                                                'Brakes',
-                                                'Tires',
-                                                'Suspension',
-                                                'Electrical',
-                                              ]
-                                              .map(
-                                                (cat) => DropdownMenuItem(
-                                                  value: cat,
-                                                  child: Text(cat),
-                                                ),
-                                              )
-                                              .toList(),
-                                      onChanged: (v) =>
-                                          setState(() => selectedCategory = v!),
-                                    ),
-                                    DropdownButton<String>(
-                                      value: selectedSupplier,
-                                      items: ['All', ...suppliers]
+                                      items: ['All', ...categories]
                                           .map(
-                                            (s) => DropdownMenuItem(
-                                              value: s,
-                                              child: Text(s),
+                                            (cat) => DropdownMenuItem(
+                                              value: cat,
+                                              child: Text(cat),
                                             ),
                                           )
                                           .toList(),
                                       onChanged: (v) =>
-                                          setState(() => selectedSupplier = v!),
+                                          setState(() => selectedCategory = v!),
                                     ),
                                     DropdownButton<String>(
                                       value: selectedStockStatus,
@@ -433,7 +356,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                               ),
                             )
                           : RefreshIndicator(
-                              onRefresh: _fetchPartsFromFirestore,
+                              onRefresh: _fetchPartsAndFiltersFromFirestore,
                               child: ListView.builder(
                                 padding: EdgeInsets.symmetric(horizontal: 20),
                                 itemCount: filteredParts.length,
@@ -568,7 +491,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                       ),
                     ),
                   );
-                  _fetchPartsFromFirestore();
+                  _fetchPartsAndFiltersFromFirestore();
                 } else if (value == 'delete') {
                   _showDeleteDialog(part.documentId);
                 }
@@ -602,7 +525,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                   .collection('inventory_parts')
                   .doc(documentId)
                   .delete();
-              _fetchPartsFromFirestore();
+              _fetchPartsAndFiltersFromFirestore();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('✅ Part deleted successfully!'),
@@ -650,28 +573,4 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
         return Icons.build;
     }
   }
-}
-
-class Part {
-  final String id;
-  final String name;
-  final int quantity;
-  final bool isLowStock;
-  final String category;
-  final String supplier;
-  final String description;
-  final String documentId;
-  final String barcode;
-
-  Part({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.isLowStock,
-    this.category = '',
-    this.supplier = '',
-    this.description = '',
-    this.documentId = '',
-    this.barcode = '',
-  });
 }
