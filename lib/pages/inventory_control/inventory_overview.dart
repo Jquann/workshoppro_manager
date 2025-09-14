@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:workshoppro_manager/pages/inventory_control/procurement_request.dart';
 import 'add_inv_part.dart';
 import 'all_inv_part.dart';
 import 'inventory_data_manager.dart';
 import '../navigations/drawer.dart';
-import 'procurement_request.dart';
+import 'procurement_tracking_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   @override
@@ -137,7 +136,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.blue,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -484,7 +483,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ProcurementRequestPage(),
+                                builder: (context) => ProcurementTrackingScreen(),
                               ),
                             );
                           },
@@ -502,16 +501,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  'View Procurement Requests',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.orange[700],
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Track Procurement Requests',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.orange[700],
+                                      ),
+                                    ),
+                                    Text(
+                                      'Monitor email status & supplier responses',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 Icon(
-                                  Icons.assignment,
+                                  Icons.track_changes,
                                   color: Colors.orange[700],
                                 ),
                               ],
@@ -519,6 +530,108 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
                         SizedBox(height: 32), // Space for bottom navigation
+                        SizedBox(height: 16),
+
+                        // Data Import/Export Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: Icon(Icons.delete, color: Colors.white),
+                                label: Text('Delete All Spare Parts'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  textStyle: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text('Delete All Spare Parts'),
+                                      content: Text('Are you sure you want to delete ALL spare parts? This action cannot be undone.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: Text('Delete', style: TextStyle(color: Colors.red)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    try {
+                                      // Get all categories from Firestore
+                                      final snapshot = await FirebaseFirestore.instance.collection('inventory_parts').get();
+                                      final categories = snapshot.docs.map((doc) => doc.id).toList();
+                                      await InventoryDataManager(FirebaseFirestore.instance).deleteAllInventoryParts(categories);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('✅ All spare parts deleted.'), backgroundColor: Colors.green),
+                                      );
+                                      await _fetchInventoryStats();
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('❌ Failed to delete: $e'), backgroundColor: Colors.red),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                            SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: Icon(Icons.upload, color: Colors.white),
+                                label: Text('Upload All Spare Parts'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  textStyle: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text('Upload All Spare Parts'),
+                                      content: Text('Are you sure you want to upload the latest spare parts? This will overwrite existing data.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: Text('Upload', style: TextStyle(color: Colors.blue)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    try {
+                                      await InventoryDataManager(FirebaseFirestore.instance).uploadDefaultParts(InventoryDataManager.getDefaultPartsWithIds());
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('✅ All spare parts uploaded.'), backgroundColor: Colors.green),
+                                      );
+                                      await _fetchInventoryStats();
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('❌ Failed to upload: $e'), backgroundColor: Colors.red),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 32),
+
+                        // Bottom navigation placeholder
                         SizedBox(height: 16),
 
                         // Data Import Button

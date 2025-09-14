@@ -14,6 +14,7 @@ class Part {
   final double price;
   final String unit;
   final String sparePartId;
+  final int lowStockThreshold;
 
   Part({
     required this.id,
@@ -29,6 +30,7 @@ class Part {
     this.price = 0.0,
     this.unit = '',
     this.sparePartId = '',
+    this.lowStockThreshold = 15,
   });
 
   // Factory constructor to create Part from Firestore document
@@ -47,6 +49,7 @@ class Part {
       price: (data['price'] ?? 0).toDouble(),
       unit: data['unit'] ?? '',
       sparePartId: data['sparePartId'] ?? '',
+      lowStockThreshold: data['lowStockThreshold'] ?? 15,
     );
   }
 
@@ -65,6 +68,7 @@ class Part {
       'price': price,
       'unit': unit,
       'sparePartId': sparePartId,
+      'lowStockThreshold': lowStockThreshold,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

@@ -20,7 +20,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   final _supplierController = TextEditingController();
   final _quantityController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _barcodeController = TextEditingController();
+  final _lowStockThresholdController = TextEditingController();
 
   String? selectedCategory;
   List<String> categories = [];
@@ -33,6 +33,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   void initState() {
     super.initState();
     _fetchCategories();
+    _fetchNextSparePartId();
     _testFirestoreConnection();
     if (widget.part != null) {
       _partNameController.text = widget.part!.name;
@@ -40,11 +41,8 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       _supplierController.text = widget.part!.supplier;
       _quantityController.text = widget.part!.quantity.toString();
       _descriptionController.text = widget.part!.description;
+      _lowStockThresholdController.text = widget.part!.lowStockThreshold.toString();
       selectedCategory = widget.part!.category;
-      // Safe access to barcode field
-      if (widget.part!.barcode.isNotEmpty) {
-        _barcodeController.text = widget.part!.barcode;
-      }
     }
   }
 
@@ -58,6 +56,72 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     } catch (e) {
       setState(() {});
       print('Error fetching categories: $e');
+    }
+  }
+
+  Future<void> _fetchNextSparePartId() async {
+    try {
+      // Get all category documents under inventory_parts
+      final categoriesSnapshot = await _firestore.collection('inventory_parts').get();
+      List<String> categoryNames = categoriesSnapshot.docs.map((doc) => doc.id).toList();
+      List<String> ids = [];
+
+      print('Found categories: $categoryNames'); // Debug log
+
+      for (final category in categoryNames) {
+        try {
+          // Get the category document
+          final categoryDoc = await _firestore
+              .collection('inventory_parts')
+              .doc(category)
+              .get();
+
+          if (categoryDoc.exists) {
+            final categoryData = categoryDoc.data();
+            print('Category $category data keys: ${categoryData?.keys.toList()}'); // Debug log
+
+            if (categoryData != null) {
+              // Check each field in the category document for spare part data
+              categoryData.forEach((key, value) {
+                if (value is Map<String, dynamic> && value.containsKey('sparePartId')) {
+                  ids.add(value['sparePartId']);
+                  print('Found spare part ID: ${value['sparePartId']} in category: $category'); // Debug log
+                }
+              });
+            }
+          }
+        } catch (e) {
+          print('Error fetching parts from category $category: $e');
+        }
+      }
+
+      print('All found IDs: $ids'); // Debug log
+
+      int maxId = 0;
+      for (var id in ids) {
+        final match = RegExp(r'SP(\d{4})').firstMatch(id);
+        if (match != null) {
+          int num = int.parse(match.group(1)!);
+          if (num > maxId) maxId = num;
+        }
+      }
+
+      print('Max ID found: $maxId'); // Debug log
+      String nextId = 'SP' + (maxId + 1).toString().padLeft(4, '0');
+      print('Next ID will be: $nextId'); // Debug log
+
+      if (mounted) {
+        setState(() {
+          _partIdController.text = nextId;
+        });
+      }
+    } catch (e) {
+      print('Error fetching next sparePartId: $e');
+      if (mounted) {
+        setState(() {
+          _partIdController.text = 'SP0001';
+        });
+      }
     }
   }
 
@@ -96,9 +160,6 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     }
   }
 
-  // Scan Barcode
-
-
   // Add or Edit part in Firestore
   Future<void> _submitPartToFirestore() async {
     if (!_formKey.currentState!.validate()) return;
@@ -115,23 +176,32 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       _isLoading = true;
     });
     try {
+      // Use part name as field name in the category document
+      String partFieldName = _partNameController.text.trim();
+      int quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
+      int lowStockThreshold = int.tryParse(_lowStockThresholdController.text.trim()) ?? 0;
+
       Map<String, dynamic> partData = {
-        'partName': _partNameController.text.trim(),
-        'partId': _partIdController.text.trim(),
+        'name': _partNameController.text.trim(),
+        'sparePartId': _partIdController.text.trim(),
         'category': selectedCategory,
         'supplier': _supplierController.text.trim(),
-        'quantity': int.tryParse(_quantityController.text.trim()) ?? 0,
+        'quantity': quantity,
+        'lowStockThreshold': lowStockThreshold,
         'description': _descriptionController.text.trim(),
-        'barcode': _barcodeController.text.trim(),
-        'isLowStock': (int.tryParse(_quantityController.text.trim()) ?? 0) < 15,
+        'isLowStock': quantity <= lowStockThreshold,
         'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       };
+
       if (widget.documentId != null) {
-        // Edit
+        // Edit existing part - update the field in the category document
         await _firestore
             .collection('inventory_parts')
-            .doc(widget.documentId)
-            .update(partData);
+            .doc(selectedCategory)
+            .update({
+              partFieldName: partData,
+            });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Part updated successfully!'),
@@ -139,9 +209,13 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
           ),
         );
       } else {
-        // Add
-        partData['createdAt'] = FieldValue.serverTimestamp();
-        await _firestore.collection('inventory_parts').add(partData);
+        // Add new part as a field in the category document
+        await _firestore
+            .collection('inventory_parts')
+            .doc(selectedCategory)
+            .update({
+              partFieldName: partData,  // Add part as a field in the category document
+            });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Part added successfully!'),
@@ -259,12 +333,39 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                               ),
                               SizedBox(height: 20),
 
-                              // Part ID
-                              _buildInputField(
-                                label: 'Part ID:',
-                                controller: _partIdController,
-                                hintText: 'Enter Part ID',
-                                isRequired: true,
+                              // Part ID (read-only)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Spare Part ID:',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _partIdController,
+                                    readOnly: true,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue),
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                    ),
+                                  ),
+                                ],
                               ),
                               SizedBox(height: 20),
 
@@ -398,6 +499,69 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                               ),
                               SizedBox(height: 20),
 
+                              // Low Stock Threshold
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Low Stock Threshold *',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Container(
+                                    width: 120,
+                                    child: TextFormField(
+                                      controller: _lowStockThresholdController,
+                                      keyboardType: TextInputType.number,
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Required';
+                                        }
+                                        if (int.tryParse(value) == null) {
+                                          return 'Enter valid number';
+                                        }
+                                        return null;
+                                      },
+                                      decoration: InputDecoration(
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey[300]!,
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey[300]!,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 20),
+
                               // Description
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,62 +596,6 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-
-                              // Barcode field
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Barcode:',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _barcodeController,
-                                          decoration: InputDecoration(
-                                            hintText: 'Scan or enter barcode',
-                                            border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: BorderSide(
-                                                color: Colors.grey[300]!,
-                                              ),
-                                            ),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: BorderSide(
-                                                color: Colors.grey[300]!,
-                                              ),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: BorderSide(
-                                                color: Colors.blue,
-                                              ),
-                                            ),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  horizontal: 16,
-                                                  vertical: 16,
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-
-                                    ],
                                   ),
                                 ],
                               ),
@@ -620,7 +728,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     _supplierController.dispose();
     _quantityController.dispose();
     _descriptionController.dispose();
-    _barcodeController.dispose();
+    _lowStockThresholdController.dispose();
     super.dispose();
   }
 }

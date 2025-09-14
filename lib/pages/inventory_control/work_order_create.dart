@@ -66,7 +66,7 @@ class _WorkOrderCreateScreenState extends State<WorkOrderCreateScreen> {
       final part = parts.firstWhere((p) => p.documentId == entry.key);
       await _firestore.collection('inventory_parts').doc(entry.key).update({
         'quantity': part.quantity - entry.value,
-        'isLowStock': (part.quantity - entry.value) < 15,
+        'isLowStock': (part.quantity - entry.value) <= part.lowStockThreshold,
       });
     }
     ScaffoldMessenger.of(context).showSnackBar(
