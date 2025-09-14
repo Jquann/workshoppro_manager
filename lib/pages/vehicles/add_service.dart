@@ -11,6 +11,7 @@ class InventoryPartVM {
   final double price;
   final int quantity;
   final String? unit;
+
   const InventoryPartVM({
     required this.category,
     required this.name,
@@ -18,6 +19,7 @@ class InventoryPartVM {
     required this.quantity,
     this.unit,
   });
+
   String get key => '$category|$name';
 }
 
@@ -34,6 +36,22 @@ class _AddServiceState extends State<AddService> {
   static const _kGrey = Color(0xFF8E8E93);
   static const _kDivider = Color(0xFFE5E5EA);
 
+  // Shop-wide labor rate (RM per hour)
+  static const double _hourlyRate = 80.0;
+
+  // Category → default hours PER UNIT (used when you add parts)
+  static const Map<String, double> _defaultHoursByCategory = {
+    'Body': 0.3,
+    'Brakes': 0.8,
+    'Consumables': 0.2,
+    'Electrical': 0.7,
+    'Engine': 1.2,
+    'Exhaust': 0.6,
+    'Maintenance': 0.4,
+    'Suspension': 1.0,
+    'Transmission': 1.5,
+  };
+
   final _form = GlobalKey<FormState>();
   final _date = TextEditingController();
   final _desc = TextEditingController();
@@ -44,12 +62,10 @@ class _AddServiceState extends State<AddService> {
   final _partQty = TextEditingController();
   final _partPrice = TextEditingController();
 
-  final _laborName = TextEditingController();
-  final _laborHours = TextEditingController();
-  final _laborRate = TextEditingController();
+  // Optional tweak on top of auto labor (positive or negative RM)
+  final _laborAdjust = TextEditingController();
 
   final List<PartLine> _parts = [];
-  final List<LaborLine> _labor = [];
 
   // ---- Inventory UI state ----
   static const List<String> _categories = <String>[
@@ -77,16 +93,13 @@ class _AddServiceState extends State<AddService> {
     _partName.dispose();
     _partQty.dispose();
     _partPrice.dispose();
-    _laborName.dispose();
-    _laborHours.dispose();
-    _laborRate.dispose();
+    _laborAdjust.dispose();
     super.dispose();
   }
 
   // ---- parsing helpers ----
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
-  double _toDouble(String s) =>
-      double.tryParse(s.trim().replaceAll(',', '.')) ?? 0.0;
+  double _toDouble(String s) => double.tryParse(s.trim().replaceAll(',', '.')) ?? 0.0;
 
   // ---- UI tokens ----
   InputDecoration _input(String hint) => InputDecoration(
@@ -119,11 +132,30 @@ class _AddServiceState extends State<AddService> {
     textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
   );
 
-  double get _partsTotal =>
-      _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
-  double get _laborTotal =>
-      _labor.fold<double>(0, (s, l) => s + l.rate * l.hours);
-  double get _grandTotal => _partsTotal + _laborTotal;
+  // ---- totals ----
+  double get _partsTotal => _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
+
+  /// Compute total labor using **category defaults only**:
+  /// totalHours = sum( quantity × defaultHoursByCategory[part.category] )
+  /// laborRM = totalHours × hourlyRate + adjustment
+  double get _laborAuto {
+    double hours = 0.0;
+    for (final p in _parts) {
+      // find the inventory item to know the category
+      InventoryPartVM? inv;
+      for (final e in _invIndex.entries) {
+        if (e.value.name == p.name && e.value.price == p.unitPrice) { inv = e.value; break; }
+      }
+      final cat = inv?.category ?? '';
+      final perUnit = _defaultHoursByCategory[cat] ?? 0.0;
+      hours += p.quantity * perUnit;
+    }
+    final base = hours * _hourlyRate;
+    final adj = _toDouble(_laborAdjust.text); // can be 0 or +/- value
+    return base + adj;
+  }
+
+  double get _grandTotal => _partsTotal + _laborAuto;
 
   @override
   Widget build(BuildContext context) {
@@ -172,16 +204,26 @@ class _AddServiceState extends State<AddService> {
               const SizedBox(height: 18),
               const _SectionTitle('Parts Replaced'),
               _inventoryPartEditor(),
-
-              ..._parts.map(_partPillWithStock).toList(),
+              ..._parts.map(_partPill).toList(),
 
               const SizedBox(height: 18),
+
+              // ---- Labor (auto via category defaults) ----
               const _SectionTitle('Labor'),
-              _laborEditor(),
-              ..._labor.map((l) => _pill(
-                '${l.name}  •  ${l.hours}h @ ${_currency.format(l.rate)}',
-                onDelete: () => setState(() => _labor.remove(l)),
-              )),
+              _kvRow('Hourly Rate', _currency.format(_hourlyRate)),
+              const SizedBox(height: 8),
+              _kvRow(
+                'Labor Cost',
+                _currency.format(_laborAuto - _toDouble(_laborAdjust.text)),
+              ),
+              const SizedBox(height: 8),
+              _label('Adjustment (Optional, e.g. 10 or -5)'),
+              TextField(
+                controller: _laborAdjust,
+                decoration: _input('RM … (optional)'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}), // refresh totals
+              ),
 
               const SizedBox(height: 18),
               _totalsCard(),
@@ -214,8 +256,17 @@ class _AddServiceState extends State<AddService> {
             fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black)),
   );
 
-  String? _req(String? v) =>
-      (v == null || v.trim().isEmpty) ? 'Required' : null;
+  Widget _kvRow(String k, String v) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Expanded(child: Text(k, style: const TextStyle(color: _kGrey, fontSize: 14))),
+        Text(v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      ],
+    ),
+  );
+
+  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
 
   String _fmt(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -279,7 +330,6 @@ class _AddServiceState extends State<AddService> {
             setState(() {
               _selectedPart = p;
               _partName.text = p.name;
-              // keep TextField numeric to avoid parsing issues
               _partPrice.text = p.price.toStringAsFixed(2);
             });
           },
@@ -303,9 +353,8 @@ class _AddServiceState extends State<AddService> {
               child: TextField(
                 controller: _partPrice,
                 readOnly: true,
-                decoration: _input('Price (auto)'),
-                keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+                decoration: _input('Price'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
             ),
             IconButton(
@@ -338,139 +387,100 @@ class _AddServiceState extends State<AddService> {
     return list;
   }
 
+  // ---------- add/merge part, track stock ----------
   void _onAddPartFromInventory() {
     if (_selectedPart == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a part')),
       );
-    } else {
-      final q = _toInt(_partQty.text);
-      if (q <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Quantity must be greater than 0')),
+      return;
+    }
+
+    final q = _toInt(_partQty.text);
+    if (q <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Quantity must be greater than 0')),
+      );
+      return;
+    }
+
+    final part = _selectedPart!;
+    final stock = part.quantity;
+    final key = part.key;
+
+    final alreadyUsed = _stockDeltas[key] ?? 0;
+    if (alreadyUsed + q > stock) {
+      final left = stock - alreadyUsed;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only $stock in stock for "${part.name}". '
+                'You already added $alreadyUsed. You can add up to $left more.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      // merge if same name & unit price
+      final idx = _parts.indexWhere(
+            (p) => p.name == part.name && p.unitPrice == part.price,
+      );
+      if (idx >= 0) {
+        final cur = _parts[idx];
+        _parts[idx] = PartLine(
+          name: cur.name,
+          quantity: cur.quantity + q,
+          unitPrice: cur.unitPrice,
         );
-        return;
-      }
-      final stock = _selectedPart!.quantity;
-      if (q > stock) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Only $stock in stock for "${_selectedPart!.name}"')),
-        );
-        return;
+      } else {
+        _parts.add(PartLine(name: part.name, quantity: q, unitPrice: part.price));
       }
 
-      setState(() {
-        _parts.add(PartLine(
-          name: _selectedPart!.name,
-          quantity: q,
-          unitPrice: _selectedPart!.price,
-        ));
-        final k = _selectedPart!.key;
-        _stockDeltas[k] = (_stockDeltas[k] ?? 0) + q;
-        _partQty.clear();
-      });
-    }
+      _stockDeltas[key] = alreadyUsed + q;
+      _partQty.clear();
+    });
   }
 
-  // ---- labor editor (unchanged) ----
-  Widget _laborEditor() => Row(children: [
-    Expanded(child: TextField(controller: _laborName, decoration: _input('Name'))),
-    const SizedBox(width: 8),
-    SizedBox(
-      width: 80,
-      child: TextField(
-        controller: _laborHours,
-        decoration: _input('Hrs'),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      ),
-    ),
-    const SizedBox(width: 8),
-    SizedBox(
-      width: 120,
-      child: TextField(
-        controller: _laborRate,
-        decoration: _input('Rate'),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      ),
-    ),
-    IconButton(
-      icon: const Icon(Icons.add_circle, color: _kBlue),
-      onPressed: () {
-        final name = _laborName.text.trim();
-        final h = _toDouble(_laborHours.text);
-        final r = _toDouble(_laborRate.text);
-        if (name.isEmpty || h <= 0) return;
-        setState(() {
-          _labor.add(LaborLine(name: name, hours: h, rate: r));
-          _laborName.clear();
-          _laborHours.clear();
-          _laborRate.clear();
-        });
-      },
-    ),
-  ]);
-
-  // ---- pills ----
-  Widget _pill(String text, {required VoidCallback onDelete}) => Container(
+  Widget _partPill(PartLine p) => Container(
     margin: const EdgeInsets.only(top: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
       color: const Color(0xFFF7F7F7),
       borderRadius: BorderRadius.circular(10),
       border: Border.all(color: _kDivider),
     ),
-    child: Row(children: [
-      Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
-      IconButton(onPressed: onDelete,
-          icon: const Icon(Icons.close, size: 18, color: _kGrey))
-    ]),
-  );
-
-  Widget _partPillWithStock(PartLine p) {
-    InventoryPartVM? inv;
-    for (final e in _invIndex.entries) {
-      if (e.value.name == p.name) { inv = e.value; break; }
-    }
-    final top = '${p.name}  •  ${p.quantity} × ${_currency.format(p.unitPrice)}';
-    final k = inv?.key;
-    final willDeduct = (k != null) ? (_stockDeltas[k] ?? p.quantity) : p.quantity;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F7),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _kDivider),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(top, style: const TextStyle(fontSize: 14)),
-              const SizedBox(height: 4),
-            ],
-          )),
-          IconButton(
-            onPressed: () {
-              setState(() {
-                if (inv != null) {
-                  final key = inv.key;
-                  final cur = _stockDeltas[key] ?? 0;
-                  final next = cur - p.quantity;
-                  if (next > 0) { _stockDeltas[key] = next; } else { _stockDeltas.remove(key); }
-                }
-                _parts.remove(p);
-              });
-            },
-            icon: const Icon(Icons.close, size: 18, color: _kGrey),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            '${p.name}  •  ${p.quantity} × ${_currency.format(p.unitPrice)}',
+            style: const TextStyle(fontSize: 14),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              // roll back stock delta
+              InventoryPartVM? inv;
+              for (final e in _invIndex.entries) {
+                if (e.value.name == p.name && e.value.price == p.unitPrice) { inv = e.value; break; }
+              }
+              if (inv != null) {
+                final k = inv.key;
+                final cur = _stockDeltas[k] ?? 0;
+                final next = cur - p.quantity;
+                if (next > 0) _stockDeltas[k] = next; else _stockDeltas.remove(k);
+              }
+              _parts.remove(p);
+            });
+          },
+          icon: const Icon(Icons.close, size: 18, color: _kGrey),
+        )
+      ],
+    ),
+  );
 
   // ---- totals card ----
   Widget _totalsCard() => Container(
@@ -484,7 +494,7 @@ class _AddServiceState extends State<AddService> {
       children: [
         _totalRow('Parts', _partsTotal),
         const SizedBox(height: 6),
-        _totalRow('Labor', _laborTotal),
+        _totalRow('Labor', _laborAuto),
         const Divider(height: 16, color: _kDivider),
         _totalRow('Total', _grandTotal, bold: true),
       ],
@@ -502,10 +512,17 @@ class _AddServiceState extends State<AddService> {
     ],
   );
 
-  // ---- SAVE: save service + reduce inventory stock ----
+  // ---- SAVE ----
   Future<void> _onSave() async {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
+
+    // Save labor as a single line (hours=1, rate = auto labor RM)
+    final totalLabor = _laborAuto;
+    final laborLines = <LaborLine>[];
+    if (totalLabor > 0) {
+      laborLines.add(LaborLine(name: 'Labor', hours: 1, rate: totalLabor));
+    }
 
     final record = ServiceRecordModel(
       id: '',
@@ -513,19 +530,17 @@ class _AddServiceState extends State<AddService> {
       description: _desc.text.trim(),
       mechanic: _mech.text.trim(),
       parts: List.of(_parts),
-      labor: List.of(_labor),
+      labor: laborLines,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
 
-    final newId = await FirestoreService().addService(widget.vehicleId, record);
-    // print('Saved service docId = $newId');
+    await FirestoreService().addService(widget.vehicleId, record);
 
+    // reduce stock according to deltas
     for (final e in _stockDeltas.entries) {
       final parts = e.key.split('|'); // [category, name]
       if (parts.length != 2) continue;
-      final category = parts[0];
-      final name = parts[1];
-      await FirestoreService().reduceStock(category, name, e.value);
+      await FirestoreService().reduceStock(parts[0], parts[1], e.value);
     }
 
     if (mounted) Navigator.pop(context);

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'service_model.dart';
-import 'edit_service.dart';
 
-final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+final _currency =
+NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
 class ViewService extends StatelessWidget {
-  final String vehicleId;
+  final String vehicleId; // kept for routing parity
   final ServiceRecordModel record;
   const ViewService({
     super.key,
@@ -22,12 +22,13 @@ class ViewService extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // scale to device (similar to your ViewVehicle)
+    // same scaling system as ViewVehicle
     final w = MediaQuery.of(context).size.width;
     const base = 375.0;
-    final s = (w / base).clamp(0.92, 1.15);
+    final s = (w / base).clamp(0.95, 1.12);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
@@ -38,30 +39,14 @@ class ViewService extends StatelessWidget {
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w700,
-            fontSize: (20 * s).clamp(18, 22),
+            fontSize: (22 * s).clamp(20, 24), // match ViewVehicle title
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
         elevation: 0.2,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EditService(
-                    vehicleId: vehicleId,
-                    record: record,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        backgroundColor: Colors.white,
       ),
-      backgroundColor: Colors.white,
+
       body: ListView(
         padding: EdgeInsets.all(16 * s),
         children: [
@@ -71,38 +56,35 @@ class ViewService extends StatelessWidget {
           _kv('Desc', record.description, s),
           _kv('Mechanic', record.mechanic, s),
 
-          SizedBox(height: 14 * s),
+          SizedBox(height: 18 * s),
 
           // ---------- Parts ----------
           _sectionTitle('Parts Replaced', s),
           ...record.parts.map((p) => _lineItem(
-            context,
             name: p.name,
             amount: _currency.format(p.unitPrice * p.quantity),
             sub: 'Quantity: ${p.quantity}',
             s: s,
           )),
 
-          SizedBox(height: 14 * s),
+          SizedBox(height: 18 * s),
 
           // ---------- Labor ----------
           _sectionTitle('Labor', s),
           ...record.labor.map((l) => _lineItem(
-            context,
             name: l.name,
             amount: _currency.format(l.rate * l.hours),
             sub: 'Hours: ${_trimHours(l.hours)}',
             s: s,
           )),
 
-          SizedBox(height: 6 * s),
+          SizedBox(height: 8 * s),
           const Divider(height: 1, color: _kDivider),
 
           // ---------- Total ----------
           Padding(
             padding: EdgeInsets.only(top: 12 * s),
             child: _lineItem(
-              context,
               name: 'Total Cost',
               amount: _currency.format(record.displayTotal),
               s: s,
@@ -116,7 +98,8 @@ class ViewService extends StatelessWidget {
             SizedBox(height: 16 * s),
             _sectionTitle('Notes', s),
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 12 * s, vertical: 10 * s),
+              padding:
+              EdgeInsets.symmetric(horizontal: 12 * s, vertical: 10 * s),
               decoration: BoxDecoration(
                 color: _kCard,
                 borderRadius: BorderRadius.circular(10),
@@ -124,7 +107,10 @@ class ViewService extends StatelessWidget {
               ),
               child: Text(
                 record.notes!,
-                style: TextStyle(color: _kGrey, fontSize: (14 * s).clamp(13, 16)),
+                style: TextStyle(
+                  color: _kGrey,
+                  fontSize: (15 * s).clamp(14, 17), // bumped to match vehicle info
+                ),
               ),
             ),
           ],
@@ -133,36 +119,43 @@ class ViewService extends StatelessWidget {
     );
   }
 
-  // ---------- widgets & helpers ----------
-
+  // ---------- section/title ----------
   Widget _sectionTitle(String text, double s) => Padding(
     padding: EdgeInsets.only(top: 6 * s, bottom: 8 * s),
     child: Text(
       text,
       style: TextStyle(
         fontWeight: FontWeight.w700,
-        fontSize: (18 * s).clamp(17, 20),
+        fontSize: (20 * s).clamp(18, 22), // bigger for section headers
       ),
     ),
   );
 
+  // ---------- key/value row ----------
   Widget _kv(String k, String v, double s) => Column(
     children: [
       SizedBox(
-        height: (48 * s).clamp(44, 56),
+        height: (56 * s).clamp(52, 64),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 k,
-                style: TextStyle(color: _kGrey, fontSize: (13 * s).clamp(12, 14)),
+                style: TextStyle(
+                  color: _kGrey,
+                  fontSize: (16 * s).clamp(15, 17), // label font
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             Flexible(
               child: Text(
                 v,
                 textAlign: TextAlign.right,
-                style: TextStyle(fontSize: (14 * s).clamp(13, 16)),
+                style: TextStyle(
+                  fontSize: (17 * s).clamp(16, 19), // value font
+                  fontWeight: FontWeight.w700,
+                ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 2,
               ),
@@ -174,26 +167,26 @@ class ViewService extends StatelessWidget {
     ],
   );
 
-  Widget _lineItem(
-      BuildContext context, {
-        required String name,
-        required String amount,
-        required double s,
-        String? sub,
-        bool showSub = true,
-        bool bold = false,
-      }) {
+  // ---------- line item (name + amount + optional sub) ----------
+  Widget _lineItem({
+    required String name,
+    required String amount,
+    required double s,
+    String? sub,
+    bool showSub = true,
+    bool bold = false,
+  }) {
     final nameStyle = TextStyle(
-      fontSize: (15 * s).clamp(14, 17),
+      fontSize: (17 * s).clamp(16, 19),
       fontWeight: FontWeight.w500,
     );
     final amountStyle = TextStyle(
-      fontSize: (15 * s).clamp(14, 17),
+      fontSize: (17 * s).clamp(16, 19),
       fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
     );
     final subStyle = TextStyle(
       color: _kBlue,
-      fontSize: (12 * s).clamp(11, 13),
+      fontSize: (14 * s).clamp(13, 15),
       fontWeight: FontWeight.w500,
     );
 
@@ -219,11 +212,14 @@ class ViewService extends StatelessWidget {
   }
 
   static String _trimHours(double h) {
-    // 2.0 -> "2", 2.5 -> "2.5"
     final asInt = h.toInt();
-    return (h == asInt) ? '$asInt' : h.toStringAsFixed(h.truncateToDouble() == h ? 0 : 1);
+    return (h == asInt)
+        ? '$asInt'
+        : h.toStringAsFixed(h.truncateToDouble() == h ? 0 : 1);
   }
 
   static String _fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      '${d.year.toString().padLeft(4, '0')}-'
+          '${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
 }

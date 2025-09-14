@@ -6,6 +6,7 @@ class VehicleModel {
   int year;
   String vin;
   String? description; // optional
+  String status;       // "active" or "inactive"
 
   VehicleModel({
     required this.id,
@@ -15,6 +16,7 @@ class VehicleModel {
     required this.year,
     required this.vin,
     this.description,
+    this.status = 'active', // default is active
   });
 
   factory VehicleModel.fromMap(String id, Map<String, dynamic> m) {
@@ -28,6 +30,7 @@ class VehicleModel {
           : int.tryParse('${m['year']}') ?? 0,
       vin: m['vin'] ?? '',
       description: m['description'],
+      status: m['status'] ?? 'active', // fallback if missing
     );
   }
 
@@ -39,6 +42,7 @@ class VehicleModel {
     'vin': vin,
     if (description != null && description!.isNotEmpty)
       'description': description,
+    'status': status,   // include in Firestore
     'updatedAt': DateTime.now(),
   };
 }
