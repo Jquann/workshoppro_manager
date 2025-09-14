@@ -8,7 +8,8 @@ import 'view_service.dart';
 import 'add_service.dart';
 
 // MYR currency formatter
-final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+final _currency =
+NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
 class ViewVehicle extends StatelessWidget {
   final String vehicleId;
@@ -32,6 +33,7 @@ class ViewVehicle extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+
         final v = snap.data;
         if (v == null) {
           return const Scaffold(
@@ -76,9 +78,10 @@ class ViewVehicle extends StatelessWidget {
             ],
           ),
 
-          /// PAGE
+          // ------------------ BODY (scrollable) ------------------
           body: ListView(
-            padding: EdgeInsets.fromLTRB(24 * s, 8 * s, 24 * s, 24 * s),
+            padding: EdgeInsets.fromLTRB(24 * s, 8 * s, 24 * s, 24 * s + 72),
+            // ^ add bottom padding so last item isn't hidden behind pinned button
             children: [
               // ---------- VEHICLE INFO ----------
               Padding(
@@ -114,7 +117,9 @@ class ViewVehicle extends StatelessWidget {
                   TextButton(
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.symmetric(
-                          horizontal: 6 * s, vertical: 4 * s),
+                        horizontal: 6 * s,
+                        vertical: 4 * s,
+                      ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -158,61 +163,61 @@ class ViewVehicle extends StatelessWidget {
 
                   return Column(
                     children: [
-                      ...items.map((r) => Padding(
-                        padding: EdgeInsets.symmetric(
-                            vertical: 12 * s, horizontal: 2 * s),
-                        child: InkWell(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ViewService(
-                                  vehicleId: v.id, record: r),
-                            ),
+                      ...items.map(
+                            (r) => Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 12 * s,
+                            horizontal: 2 * s,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // date (L)  +  amount (R)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _fmt(r.date),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize:
-                                        (18 * s).clamp(16, 20),
+                          child: InkWell(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ViewService(vehicleId: v.id, record: r),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // date (L)  +  amount (R)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _fmt(r.date),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: (18 * s).clamp(16, 20),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Text(
-                                    // Prefer denormalized DB totals if present
-                                    _currency.format(r.displayTotal),
+                                    Text(
+                                      _currency.format(r.displayTotal),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: (18 * s).clamp(16, 20),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // blue sub-line
+                                Padding(
+                                  padding: EdgeInsets.only(top: 4 * s),
+                                  child: Text(
+                                    r.description,
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize:
-                                      (18 * s).clamp(16, 20),
+                                      color: _kBlue,
+                                      fontSize: (16 * s).clamp(15, 17),
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                ],
-                              ),
-                              // blue sub-line
-                              Padding(
-                                padding: EdgeInsets.only(top: 4 * s),
-                                child: Text(
-                                  r.description,
-                                  style: TextStyle(
-                                    color: _kBlue,
-                                    fontSize:
-                                    (16 * s).clamp(15, 17),
-                                    fontWeight: FontWeight.w500,
-                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      )),
+                      ),
                       SizedBox(height: 6 * s),
                     ],
                   );
@@ -220,12 +225,93 @@ class ViewVehicle extends StatelessWidget {
               ),
             ],
           ),
+
+          // ------------------ PINNED DELETE BUTTON ------------------
+// ------------------ PINNED DELETE BUTTON ------------------
+          bottomNavigationBar: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: SizedBox(
+              height: 48,
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.delete),
+                label: const Text(
+                  'Delete Vehicle',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onPressed: () async {
+                  // confirm, same as before
+                  final firstConfirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Archive Vehicle'),
+                      content: const Text(
+                        'Mark this vehicle inactive? Service records will be kept.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
+                        ),
+                      ],
+                    ),
+                  ) ?? false;
+                  if (!firstConfirm) return;
+
+                  final secondConfirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Confirm'),
+                      content: const Text(
+                        'This will set the vehicle status to Inactive. Continue?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            'Yes',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ) ?? false;
+                  if (!secondConfirm) return;
+
+                  // SOFT DELETE: set status = 'inactive'
+                  await db.deleteVehicle(vehicleId, false);
+
+                  if (context.mounted) {
+                    Navigator.pop(context); // back to list
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vehicle marked Inactive')),
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
         );
       },
     );
   }
 
-  // one labeled row with full-width divider, like the mock
+  // one labeled row with full-width divider
   static Widget _infoRow(String label, String value, double s) => Column(
     children: [
       SizedBox(
@@ -261,5 +347,7 @@ class ViewVehicle extends StatelessWidget {
   );
 
   static String _fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      '${d.year.toString().padLeft(4, '0')}-'
+          '${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
 }

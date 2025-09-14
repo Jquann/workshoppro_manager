@@ -112,7 +112,12 @@ class _AddVehicleState extends State<AddVehicle> {
                 _label('Vehicle Year'),
                 TextFormField(
                   controller: _year,
-                  decoration: _input('Please enter the vehicle year'),
+                  decoration: _input('Please enter the vehicle year').copyWith(
+                    helperText: 'Year Must be between 1980 and 2025',
+                    helperStyle: const TextStyle(
+                        fontSize: 15,
+                        color: _kBlue),
+                  ),
                   keyboardType: TextInputType.number,
                   validator: _yearV,
                 ),
@@ -128,8 +133,7 @@ class _AddVehicleState extends State<AddVehicle> {
                 _label('Customer Name'),
                 TextFormField(
                     controller: _customer,
-                    decoration:
-                    _input('Please enter the customer name'),
+                    decoration: _input('Please enter the customer name'),
                     validator: _req),
                 const SizedBox(height: 16),
 
@@ -159,6 +163,8 @@ class _AddVehicleState extends State<AddVehicle> {
                           description: _desc.text.trim().isEmpty
                               ? null
                               : _desc.text.trim(),
+                          status:
+                          'active', // always active when creating a vehicle
                         ),
                       );
                       if (mounted) Navigator.pop(context);
@@ -176,8 +182,9 @@ class _AddVehicleState extends State<AddVehicle> {
 
   Widget _label(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child:
-    Text(t, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+    child: Text(t,
+        style:
+        const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
   );
 
   String? _req(String? v) =>
@@ -186,7 +193,9 @@ class _AddVehicleState extends State<AddVehicle> {
   String? _yearV(String? v) {
     if (v == null || v.trim().isEmpty) return 'Required';
     final n = int.tryParse(v);
-    if (n == null || n < 1886 || n > DateTime.now().year + 1) return 'Invalid year';
+    if (n == null || n < 1980 || n > DateTime.now().year + 1) {
+      return 'Invalid year';
+    }
     return null;
   }
 }
