@@ -167,7 +167,6 @@ class _VehiclesPageState extends State<VehiclesPage> {
         ),
       ),
 
-      // ⬇️ Bottom-left FAB that opens InactiveVehiclesPage
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
