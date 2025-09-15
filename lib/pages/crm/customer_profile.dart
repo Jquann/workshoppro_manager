@@ -251,7 +251,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      vehicleData['year']?.toString() ?? '',
+                                      '${vehicleData['year']?.toString() ?? ''} ${vehicleData['make'] ?? ''} ${vehicleData['model'] ?? ''}',
                                       style: TextStyle(
                                         fontSize: 15,
                                         color: Colors.black87,
@@ -260,13 +260,13 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      '${vehicleData['make'] ?? ''} ${vehicleData['model'] ?? ''}',
+                                      '${vehicleData['vin'] ?? ''}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.black45,
                                       ),
                                     ),
-                                  ],
+                                  ], 
                                 ),
                               ),
                               Icon(

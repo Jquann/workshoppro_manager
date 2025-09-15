@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'customer_model.dart';
 import 'customer_profile.dart';
 import 'add_customer.dart';
 

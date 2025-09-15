@@ -15,7 +15,6 @@ class CRMPage extends StatefulWidget {
 class _CRMPageState extends State<CRMPage> {
   static const _kBlue = Color(0xFF007AFF);
   static const _kGrey = Color(0xFF8E8E93);
-  static const _kDivider = Color(0xFFE5E5EA);
   static const _kSurface = Color(0xFFF2F2F7);
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
