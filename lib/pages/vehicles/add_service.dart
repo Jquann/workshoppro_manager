@@ -44,8 +44,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
-  // Shop-wide labor rate (RM per hour)
-  static const double _hourlyRate = 80.0;
+  // Hourly labor rate (RM per hour)
+  static const double _hourlyRate = 80.0; // RM 80/hour
 
   // Category → default hours PER UNIT (used when you add parts)
   static const Map<String, double> _defaultHoursByCategory = {
@@ -69,9 +69,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   final _partName = TextEditingController();
   final _partQty = TextEditingController();
   final _partPrice = TextEditingController();
-
-  // Optional tweak on top of auto labor (positive or negative RM)
-  final _laborAdjust = TextEditingController();
 
   final List<PartLine> _parts = [];
 
@@ -131,13 +128,11 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     _partName.dispose();
     _partQty.dispose();
     _partPrice.dispose();
-    _laborAdjust.dispose();
     super.dispose();
   }
 
   // ---- parsing helpers ----
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
-  double _toDouble(String s) => double.tryParse(s.trim().replaceAll(',', '.')) ?? 0.0;
 
   // ---- Enhanced UI tokens ----
   InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
@@ -190,25 +185,32 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   // ---- totals ----
   double get _partsTotal => _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
 
-  /// Compute total labor using **category defaults only**:
-  /// totalHours = sum( quantity × defaultHoursByCategory[part.category] )
-  /// laborRM = totalHours × hourlyRate + adjustment
-  double get _laborAuto {
-    double hours = 0.0;
-    for (final p in _parts) {
-      // find the inventory item to know the category
-      InventoryPartVM? inv;
-      for (final e in _invIndex.entries) {
-        if (e.value.name == p.name && e.value.price == p.unitPrice) { inv = e.value; break; }
+  // Lookup helper for inventory VM by part line
+  InventoryPartVM? _lookupInventory(PartLine p) {
+    for (final vm in _invIndex.values) {
+      if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) {
+        return vm;
       }
-      final cat = inv?.category ?? '';
-      final perUnit = _defaultHoursByCategory[cat] ?? 0.0;
-      hours += p.quantity * perUnit;
     }
-    final base = hours * _hourlyRate;
-    final adj = _toDouble(_laborAdjust.text); // can be 0 or +/- value
-    return base + adj;
+    return null;
   }
+
+  // Computed labor hours from parts and category defaults
+  double get _computedHours {
+    double h = 0.0;
+    for (final p in _parts) {
+      final inv = _lookupInventory(p);
+      final perUnit = _defaultHoursByCategory[inv?.category ?? ''] ?? 0.0;
+      h += p.quantity * perUnit;
+    }
+    return h;
+  }
+
+  String _fmtHours(double h) =>
+      (h == h.roundToDouble()) ? h.toInt().toString() : h.toStringAsFixed(1);
+
+  // Labor amount (RM) = computed hours × hourlyRate
+  double get _laborAuto => _computedHours * _hourlyRate;
 
   double get _grandTotal => _partsTotal + _laborAuto;
 
@@ -367,30 +369,17 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       title: 'Labor',
       child: Column(
         children: [
+          const SizedBox(height: 12),
           _buildInfoRow(
             'Hourly Rate',
-            _currency.format(_hourlyRate),
+            '${_currency.format(_hourlyRate)} ',
             icon: Icons.schedule_rounded,
           ),
           const SizedBox(height: 12),
           _buildInfoRow(
             'Labor Cost',
-            _currency.format(_laborAuto - _toDouble(_laborAdjust.text)),
+            _currency.format(_laborAuto),
             icon: Icons.build_rounded,
-          ),
-          const SizedBox(height: 20),
-          _buildFormField(
-            label: 'Labor Adjustment (Optional)',
-            child: TextField(
-              controller: _laborAdjust,
-              decoration: _input(
-                'Enter adjustment amount',
-                icon: Icons.tune_rounded,
-                suffix: 'RM',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() {}), // refresh totals
-            ),
           ),
         ],
       ),
@@ -707,7 +696,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 label: 'Quantity',
                 child: TextField(
                   controller: _partQty,
-                  decoration: _input('Qty', icon: Icons.numbers_rounded),
+                  decoration: _input('Qty'),
                   keyboardType: TextInputType.number,
                 ),
               ),
@@ -720,7 +709,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 child: TextField(
                   controller: _partPrice,
                   readOnly: true,
-                  decoration: _input('Price', icon: Icons.attach_money_rounded, suffix: 'RM'),
+                  decoration: _input('Price', suffix: 'RM'),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
@@ -885,21 +874,22 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 onTap: () {
                   setState(() {
                     // roll back stock delta
-                    InventoryPartVM? inv;
-                    for (final e in _invIndex.entries) {
-                      if (e.value.name == p.name && e.value.price == p.unitPrice) { inv = e.value; break; }
-                    }
+                    final inv = _lookupInventory(p);
                     if (inv != null) {
                       final k = inv.key;
                       final cur = _stockDeltas[k] ?? 0;
                       final next = cur - p.quantity;
-                      if (next > 0) _stockDeltas[k] = next; else _stockDeltas.remove(k);
+                      if (next > 0) {
+                        _stockDeltas[k] = next;
+                      } else {
+                        _stockDeltas.remove(k);
+                      }
                     }
                     _parts.remove(p);
                   });
                 },
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
                   child: Icon(Icons.close_rounded, size: 18, color: _kError),
                 ),
               ),
@@ -1037,11 +1027,15 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
-    // Save labor as a single line (hours=1, rate = auto labor RM)
-    final totalLabor = _laborAuto;
+    // Labor saved with computed hours and hourly rate (RM 80/hour)
+    final hours = _computedHours;
     final laborLines = <LaborLine>[];
-    if (totalLabor > 0) {
-      laborLines.add(LaborLine(name: 'Labor', hours: 1, rate: totalLabor));
+    if (hours > 0) {
+      laborLines.add(LaborLine(
+        name: 'Labor',
+        hours: hours,
+        rate: _hourlyRate,
+      ));
     }
 
     final record = ServiceRecordModel(
@@ -1103,7 +1097,9 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 10, top: 8),
-    child: Text(text,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+    ),
   );
 }
