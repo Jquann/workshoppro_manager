@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'customer_model.dart';
 
 class Customer extends CustomerModel {
@@ -114,196 +113,113 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.2,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.customer != null ? 'Edit Customer' : 'Add Customer',
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Text(
-                    widget.customer != null ? 'Edit Customer' : 'Add New Customer',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Content
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                'Customer Details',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
-                child: Column(
-                  children: [
-                    // Header inside white container
-                    Container(
-                      padding: EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.black,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Text(
-                            widget.customer != null ? 'Edit Customer' : 'Add New Customer',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
+              ),
+              SizedBox(height: 16),
+
+              _buildInputField(
+                label: 'Customer Name',
+                controller: _customerNameController,
+                hintText: 'Enter customer name',
+              ),
+              SizedBox(height: 16),
+
+              _buildInputField(
+                label: 'Phone Number',
+                controller: _phoneNumberController,
+                hintText: 'Enter phone number',
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Phone number is required';
+                  }
+                  if (value.trim().length < 8) {
+                    return 'Please enter a valid phone number';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16),
+
+              _buildInputField(
+                label: 'Email Address',
+                controller: _emailController,
+                hintText: 'Enter email address',
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Email is required';
+                  }
+                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                    return 'Please enter a valid email address';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submitCustomerToFirestore,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-
-                    // Form
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Customer Details',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              SizedBox(height: 20),
-
-                              // Customer Name
-                              _buildInputField(
-                                label: 'Customer Name :',
-                                controller: _customerNameController,
-                                hintText: 'Enter Customer Name',
-                                isRequired: true,
-                              ),
-                              SizedBox(height: 20),
-
-                              // Phone Number
-                              _buildInputField(
-                                label: 'Phone Number :',
-                                controller: _phoneNumberController,
-                                hintText: 'Enter Phone Number',
-                                isRequired: true,
-                                keyboardType: TextInputType.phone,
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'This field is required';
-                                  }
-                                  if (value.trim().length < 8) {
-                                    return 'Please enter a valid phone number';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              SizedBox(height: 20),
-
-                              // Email Address
-                              _buildInputField(
-                                label: 'Email Address :',
-                                controller: _emailController,
-                                hintText: 'Enter Email Address',
-                                isRequired: true,
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'This field is required';
-                                  }
-                                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                    return 'Please enter a valid email address';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              SizedBox(height: 40),
-
-                              // Add/Update Customer Button
-                              Container(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _submitCustomerToFirestore,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isLoading ? Colors.grey[300] : Colors.blue[50],
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: _isLoading
-                                      ? Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                                              ),
-                                            ),
-                                            SizedBox(width: 12),
-                                            Text(
-                                              widget.customer != null ? 'Updating Customer...' : 'Adding Customer...',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.blue[700],
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      : Text(
-                                          widget.customer != null ? 'Update Customer in Firestore' : 'Add Customer to Firestore',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.blue[700],
-                                          ),
-                                        ),
-                                ),
-                              ),
-                              SizedBox(height: 20),
-                            ],
+                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          widget.customer != null ? 'Update Customer' : 'Add Customer',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -313,7 +229,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     required String label,
     required TextEditingController controller,
     required String hintText,
-    bool isRequired = false,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
@@ -321,28 +236,34 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          isRequired ? '$label *' : label,
+          label,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: Colors.black,
+            color: Colors.black87,
           ),
         ),
         SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          validator: validator ?? (isRequired
-              ? (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'This field is required';
-                  }
-                  return null;
-                }
-              : null),
+          validator: validator ?? (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '$label is required';
+            }
+            return null;
+          },
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.black,
+          ),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: TextStyle(color: Colors.grey[500]),
+            hintStyle: TextStyle(
+              fontSize: 15,
+              color: Colors.grey[500],
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -363,7 +284,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.red),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],
