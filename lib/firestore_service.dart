@@ -77,7 +77,11 @@ class FirestoreService {
   // ------------------ END INVENTORY ------------------
 
   // ===== ID GENERATOR =====
-  Future<String> _nextFormattedId(String counterName, String prefix, int paddingLength) async {
+  Future<String> _nextFormattedId(
+      String counterName,
+      String prefix,
+      int paddingLength,
+      ) async {
     final ref = _counters.doc(counterName);
     return _db.runTransaction<String>((tx) async {
       final snap = await tx.get(ref);
@@ -108,7 +112,8 @@ class FirestoreService {
       if (q.isNotEmpty) {
         final needle = q.toLowerCase();
         list = list.where((v) {
-          final hay = '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.vin}'.toLowerCase();
+          final hay =
+          '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.vin}'.toLowerCase();
           return hay.contains(needle);
         }).toList();
       }
@@ -131,8 +136,6 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await _vc.doc(vehicleId).set(payload);
-    // ignore: avoid_print
-    print('addVehicle OK → $vehicleId');
     return vehicleId;
   }
 
@@ -141,22 +144,28 @@ class FirestoreService {
     'updatedAt': FieldValue.serverTimestamp(),
   });
 
-  Future<void> deleteVehicle(String vehicleId, bool isActive) async {
+  /// Soft "delete" or restore by setting status string.
+  /// Usage:
+  ///   await db.deleteVehicle(v.id, 'inactive'); // soft delete
+  ///   await db.deleteVehicle(v.id, 'active');   // restore
+  Future<void> deleteVehicle(String vehicleId, String status) async {
     await _vc.doc(vehicleId).update({
-      'status': isActive ? 'active' : 'inactive',
+      'status': status.toLowerCase(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   // ===== SERVICES =====
-  CollectionReference _svc(String vehicleId) => _vc.doc(vehicleId).collection('service_records');
+  CollectionReference _svc(String vehicleId) =>
+      _vc.doc(vehicleId).collection('service_records');
 
   Stream<List<ServiceRecordModel>> serviceStream(String vehicleId) {
     return _svc(vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
         .map((s) => s.docs
-        .map((d) => ServiceRecordModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+        .map((d) =>
+        ServiceRecordModel.fromMap(d.id, d.data() as Map<String, dynamic>))
         .toList());
   }
 
@@ -169,8 +178,6 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await _svc(vehicleId).doc(serviceId).set(payload);
-    // ignore: avoid_print
-    print('addService OK → $vehicleId/$serviceId');
     return serviceId;
   }
 

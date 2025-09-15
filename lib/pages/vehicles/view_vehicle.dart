@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 import 'vehicle_model.dart';
 import 'service_model.dart';
@@ -7,9 +6,10 @@ import 'edit_vehicle.dart';
 import 'view_service.dart';
 import 'add_service.dart';
 
-// MYR currency formatter
-final _currency =
-NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+import 'package:intl/intl.dart';
+final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+
+const String kRestorePassword = 'admin123'; // TODO: change this
 
 class ViewVehicle extends StatelessWidget {
   final String vehicleId;
@@ -47,6 +47,8 @@ class ViewVehicle extends StatelessWidget {
         const base = 375.0;
         final s = (w / base).clamp(0.95, 1.12);
 
+        final isInactive = (v.status == 'inactive');
+
         return Scaffold(
           backgroundColor: Colors.white,
           appBar: AppBar(
@@ -56,13 +58,37 @@ class ViewVehicle extends StatelessWidget {
               icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text(
-              'Vehicle Details',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w700,
-                fontSize: (22 * s).clamp(20, 24),
-              ),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Vehicle Details',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w700,
+                    fontSize: (22 * s).clamp(20, 24),
+                  ),
+                ),
+                if (isInactive) ...[
+                  SizedBox(width: 8 * s),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 2 * s),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE9E9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFFCACA)),
+                    ),
+                    child: Text(
+                      'Inactive',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: (11 * s).clamp(10, 12),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  )
+                ],
+              ],
             ),
             centerTitle: true,
             actions: [
@@ -81,7 +107,6 @@ class ViewVehicle extends StatelessWidget {
           // ------------------ BODY (scrollable) ------------------
           body: ListView(
             padding: EdgeInsets.fromLTRB(24 * s, 8 * s, 24 * s, 24 * s + 72),
-            // ^ add bottom padding so last item isn't hidden behind pinned button
             children: [
               // ---------- VEHICLE INFO ----------
               Padding(
@@ -116,14 +141,13 @@ class ViewVehicle extends StatelessWidget {
                   ),
                   TextButton(
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 6 * s,
-                        vertical: 4 * s,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 6 * s, vertical: 4 * s),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: () => Navigator.push(
+                    onPressed: isInactive
+                        ? null
+                        : () => Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => AddService(vehicleId: v.id),
@@ -132,7 +156,7 @@ class ViewVehicle extends StatelessWidget {
                     child: Text(
                       'Add',
                       style: TextStyle(
-                        color: _kBlue,
+                        color: isInactive ? _kGrey : _kBlue,
                         fontWeight: FontWeight.w700,
                         fontSize: (16 * s).clamp(15, 17),
                       ),
@@ -165,16 +189,12 @@ class ViewVehicle extends StatelessWidget {
                     children: [
                       ...items.map(
                             (r) => Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 12 * s,
-                            horizontal: 2 * s,
-                          ),
+                          padding: EdgeInsets.symmetric(vertical: 12 * s, horizontal: 2 * s),
                           child: InkWell(
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    ViewService(vehicleId: v.id, record: r),
+                                builder: (_) => ViewService(vehicleId: v.id, record: r),
                               ),
                             ),
                             child: Column(
@@ -226,8 +246,7 @@ class ViewVehicle extends StatelessWidget {
             ],
           ),
 
-          // ------------------ PINNED DELETE BUTTON ------------------
-// ------------------ PINNED DELETE BUTTON ------------------
+          // ------------------ PINNED ACTION BUTTON ------------------
           bottomNavigationBar: SafeArea(
             minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: SizedBox(
@@ -235,72 +254,57 @@ class ViewVehicle extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: isInactive ? Colors.green : Colors.red,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: const Icon(Icons.delete),
-                label: const Text(
-                  'Delete Vehicle',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                icon: Icon(isInactive ? Icons.restore : Icons.archive),
+                label: Text(
+                  isInactive ? 'Restore Vehicle' : 'Deactivate Vehicle',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 onPressed: () async {
-                  // confirm, same as before
-                  final firstConfirm = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Archive Vehicle'),
-                      content: const Text(
-                        'Mark this vehicle inactive? Service records will be kept.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Yes'),
-                        ),
-                      ],
-                    ),
-                  ) ?? false;
-                  if (!firstConfirm) return;
+                  if (isInactive) {
+                    // RESTORE — require global password
+                    final ok = await _promptPassword(context);
+                    if (!ok) return;
 
-                  final secondConfirm = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Confirm'),
-                      content: const Text(
-                        'This will set the vehicle status to Inactive. Continue?',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
+                    await db.deleteVehicle(vehicleId, 'active');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vehicle restored to Active')),
+                      );
+                    }
+                  } else {
+                    // DEACTIVATE with confirmation
+                    final sure = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Deactivate Vehicle'),
+                        content: const Text(
+                          'This will set the vehicle status to Inactive. You can restore it later.',
                         ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text(
-                            'Yes',
-                            style: TextStyle(color: Colors.red),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
                           ),
-                        ),
-                      ],
-                    ),
-                  ) ?? false;
-                  if (!secondConfirm) return;
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Deactivate', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    ) ?? false;
+                    if (!sure) return;
 
-                  // SOFT DELETE: set status = 'inactive'
-                  await db.deleteVehicle(vehicleId, false);
-
-                  if (context.mounted) {
-                    Navigator.pop(context); // back to list
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vehicle marked Inactive')),
-                    );
+                    await db.deleteVehicle(vehicleId, 'inactive');
+                    if (context.mounted) {
+                      Navigator.pop(context); // back to list; optional
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vehicle set to Inactive')),
+                      );
+                    }
                   }
                 },
               ),
@@ -309,6 +313,41 @@ class ViewVehicle extends StatelessWidget {
         );
       },
     );
+  }
+
+  // ---------- password dialog ----------
+  Future<bool> _promptPassword(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm Restore'),
+        content: TextField(
+          controller: ctrl,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Restore password',
+            helperText: 'Enter the manager password',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continue')),
+        ],
+      ),
+    ) ?? false;
+
+    if (!ok) return false;
+
+    if (ctrl.text.trim() != kRestorePassword) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Incorrect password')),
+        );
+      }
+      return false;
+    }
+    return true;
   }
 
   // one labeled row with full-width divider
