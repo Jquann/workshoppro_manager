@@ -52,16 +52,9 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         Expanded(child: _pages[_selectedIndex]),
         // Bottom Navigation Bar
         Container(
-          height: 70,
+          height: 61,
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 0.5,
-                offset: Offset(0, -0.5),
-              ),
-            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -96,16 +89,47 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   Widget _buildBottomNavItem(IconData icon, String label, int index) {
     bool isSelected = _selectedIndex == index;
+    IconData displayIcon;
+    
+    // Change to filled icon when selected
+    switch (icon) {
+      case Icons.local_shipping_outlined:
+        displayIcon = isSelected ? Icons.local_shipping : icon;
+        break;
+      case Icons.calendar_today_outlined:
+        displayIcon = isSelected ? Icons.calendar_today : icon;
+        break;
+      case Icons.people_outline:
+        displayIcon = isSelected ? Icons.people : icon;
+        break;
+      case Icons.inventory_2_outlined:
+        displayIcon = isSelected ? Icons.inventory_2 : icon;
+        break;
+      case Icons.description_outlined:
+        displayIcon = isSelected ? Icons.description : icon;
+        break;
+      default:
+        displayIcon = icon;
+    }
+
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedIndex = index;
         });
       },
-      child: Icon(
-        icon,
-        color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
-        size: 28,
+      child: Container(
+        width: 44,
+        height: 50,
+        padding: EdgeInsets.only(top: 8),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Icon(
+            displayIcon,
+            color: isSelected ? Colors.black : Color(0xFF8E8E93),
+            size: 29,
+          ),
+        ),
       ),
     );
   }
