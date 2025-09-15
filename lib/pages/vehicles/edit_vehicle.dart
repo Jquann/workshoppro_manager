@@ -219,7 +219,9 @@ class _EditVehicleState extends State<EditVehicle> {
                     style: _primaryBtn,
                     onPressed: () async {
                       if (!_form.currentState!.validate()) return;
-                      await _db.updateVehicle(VehicleModel(
+                      
+                      // Update the vehicle details
+                      final updatedVehicle = VehicleModel(
                         id: widget.vehicle.id,
                         customerName: selectedCustomerName ?? widget.vehicle.customerName,
                         make: _make.text.trim(),
@@ -229,7 +231,52 @@ class _EditVehicleState extends State<EditVehicle> {
                         description: _desc.text.trim().isEmpty
                             ? null
                             : _desc.text.trim(),
-                      ));
+                      );
+                      
+                      // If customer has changed, update both customers' vehicleIds
+                      if (selectedCustomerId != null && 
+                          selectedCustomerName != widget.vehicle.customerName) {
+                        // Get old customer document
+                        final oldCustomerQuery = await FirebaseFirestore.instance
+                            .collection('customers')
+                            .where('customerName', isEqualTo: widget.vehicle.customerName)
+                            .get();
+
+                        if (oldCustomerQuery.docs.isNotEmpty) {
+                          final oldCustomerDoc = oldCustomerQuery.docs.first;
+                          List<String> oldVehicleIds = List<String>.from(
+                              oldCustomerDoc.data()['vehicleIds'] ?? []);
+                          
+                          // Remove vehicle from old customer
+                          oldVehicleIds.remove(widget.vehicle.id);
+                          await FirebaseFirestore.instance
+                              .collection('customers')
+                              .doc(oldCustomerDoc.id)
+                              .update({'vehicleIds': oldVehicleIds});
+                        }
+
+                        // Get new customer's vehicleIds
+                        final newCustomerDoc = await FirebaseFirestore.instance
+                            .collection('customers')
+                            .doc(selectedCustomerId)
+                            .get();
+                            
+                        List<String> newVehicleIds = List<String>.from(
+                            newCustomerDoc.data()?['vehicleIds'] ?? []);
+                        
+                        // Add vehicle to new customer if not already present
+                        if (!newVehicleIds.contains(widget.vehicle.id)) {
+                          newVehicleIds.add(widget.vehicle.id);
+                          await FirebaseFirestore.instance
+                              .collection('customers')
+                              .doc(selectedCustomerId)
+                              .update({'vehicleIds': newVehicleIds});
+                        }
+                      }
+
+                      // Update the vehicle
+                      await _db.updateVehicle(updatedVehicle);
+                      
                       if (mounted) Navigator.pop(context);
                     },
                     child: const Text('Save'),
