@@ -274,6 +274,7 @@ class ViewVehicle extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Vehicle restored to Active')),
                       );
+                      Navigator.pop(context, true);
                     }
                   } else {
                     // DEACTIVATE with confirmation
@@ -300,7 +301,7 @@ class ViewVehicle extends StatelessWidget {
 
                     await db.deleteVehicle(vehicleId, 'inactive');
                     if (context.mounted) {
-                      Navigator.pop(context); // back to list; optional
+                      Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Vehicle set to Inactive')),
                       );
