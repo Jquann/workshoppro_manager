@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../vehicles/view_vehicle.dart';
+import '../vehicles/add_vehicle.dart';
 
 class CustomerProfilePage extends StatefulWidget {
   final String customerId;
@@ -22,9 +23,12 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: InkWell(
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Add vehicle feature coming soon'),
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddVehicle(
+                customerId: widget.customerId,
+              ),
             ),
           );
         },
