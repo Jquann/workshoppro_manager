@@ -190,16 +190,16 @@ class _CRMPageState extends State<CRMPage> {
                           // Filter customers based on search query
                           List<DocumentSnapshot> filteredCustomers = snapshot.data!.docs.where((doc) {
                             if (q.isEmpty) return true;
-                            
+
                             Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
                             String searchText = [
                               data['customerName'],
                               data['phoneNumber'],
                               data['emailAddress']
                             ].where((text) => text != null)
-                             .map((text) => text.toString().toLowerCase())
-                             .join(' ');
-                            
+                                .map((text) => text.toString().toLowerCase())
+                                .join(' ');
+
                             return searchText.contains(q.toLowerCase());
                           }).toList();
 
@@ -280,7 +280,7 @@ class _CRMPageState extends State<CRMPage> {
       displayInfo = email;
     }
     if (vehicleIds.isNotEmpty) {
-      displayInfo += vehicleIds.length == 1 
+      displayInfo += vehicleIds.length == 1
           ? ' · 1 Vehicle'
           : ' · ${vehicleIds.length} Vehicles';
     }
