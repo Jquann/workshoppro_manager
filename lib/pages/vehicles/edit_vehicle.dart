@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'vehicle_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 
@@ -15,6 +16,28 @@ class _EditVehicleState extends State<EditVehicle> {
   static const _kDivider = Color(0xFFE5E5EA);
   static const _kFieldBg = Color(0xFFEFF3F7);
 
+  @override
+  void initState() {
+    super.initState();
+    selectedCustomerName = widget.vehicle.customerName;
+    // Initialize customer data
+    _initializeCustomerData();
+  }
+
+  void _initializeCustomerData() async {
+    // Get the customer ID based on the customer name
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('customers')
+        .where('customerName', isEqualTo: widget.vehicle.customerName)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      setState(() {
+        selectedCustomerId = querySnapshot.docs.first.id;
+      });
+    }
+  }
+
   final _form = GlobalKey<FormState>();
   late final TextEditingController _model =
   TextEditingController(text: widget.vehicle.model);
@@ -24,10 +47,10 @@ class _EditVehicleState extends State<EditVehicle> {
   TextEditingController(text: widget.vehicle.year.toString());
   late final TextEditingController _vin =
   TextEditingController(text: widget.vehicle.vin);
-  late final TextEditingController _customer =
-  TextEditingController(text: widget.vehicle.customerName);
   late final TextEditingController _desc =
   TextEditingController(text: widget.vehicle.description ?? '');
+  String? selectedCustomerId;
+  String? selectedCustomerName;
   final _db = FirestoreService();
 
   InputDecoration _input(String hint) => InputDecoration(
@@ -64,14 +87,14 @@ class _EditVehicleState extends State<EditVehicle> {
     _make.dispose();
     _year.dispose();
     _vin.dispose();
-    _customer.dispose();
+
     _desc.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom; // <-- oops? no
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -129,12 +152,56 @@ class _EditVehicleState extends State<EditVehicle> {
                     validator: _req),
                 const SizedBox(height: 16),
 
-                _label('Customer Name'),
-                TextFormField(
-                    controller: _customer,
-                    decoration:
-                    _input('Please enter the customer name'),
-                    validator: _req),
+                _label('Customer'),
+                StreamBuilder<QuerySnapshot>(
+                  stream: _db.customersStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Text('Error loading customers');
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+
+                    final customers = snapshot.data?.docs ?? [];
+                    
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: _kFieldBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _kDivider),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: selectedCustomerId,
+                        decoration: InputDecoration(
+                          hintText: 'Select customer',
+                          hintStyle: TextStyle(fontSize: 15, color: _kGrey),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          border: InputBorder.none,
+                        ),
+                        items: customers.map((customer) {
+                          final data = customer.data() as Map<String, dynamic>;
+                          return DropdownMenuItem<String>(
+                            value: customer.id,
+                            child: Text(data['customerName'] ?? 'Unknown Customer'),
+                          );
+                        }).toList(),
+                        validator: (value) => value == null ? 'Please select a customer' : null,
+                        onChanged: (value) {
+                          setState(() {
+                            selectedCustomerId = value;
+                            if (value != null) {
+                              final customer = customers.firstWhere((c) => c.id == value);
+                              final data = customer.data() as Map<String, dynamic>;
+                              selectedCustomerName = data['customerName'];
+                            }
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 16),
 
                 _label('Description (Optional)'),
@@ -154,7 +221,7 @@ class _EditVehicleState extends State<EditVehicle> {
                       if (!_form.currentState!.validate()) return;
                       await _db.updateVehicle(VehicleModel(
                         id: widget.vehicle.id,
-                        customerName: _customer.text.trim(),
+                        customerName: selectedCustomerName ?? widget.vehicle.customerName,
                         make: _make.text.trim(),
                         model: _model.text.trim(),
                         year: int.parse(_year.text.trim()),

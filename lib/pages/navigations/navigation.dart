@@ -32,8 +32,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     CRMPage(scaffoldKey: widget.scaffoldKey),
     // Inventory Page
     InventoryScreen(),
-
-    // Invoices Page - Now shows the Invoice Dashboard with scaffoldKey
+    // Invoices Page
     InvoiceDashboard(scaffoldKey: widget.scaffoldKey),
   ];
 
@@ -53,6 +52,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         Expanded(child: _pages[_selectedIndex]),
         // Bottom Navigation Bar
         Container(
+          height: 70,
           decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [
@@ -63,36 +63,31 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               ),
             ],
           ),
-          child: SafeArea(
-            child: Container(
-              height: 49,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildBottomNavItem(
-                    Icons.local_shipping_outlined,
-                    'Vehicles',
-                    0,
-                  ),
-                  _buildBottomNavItem(
-                    Icons.calendar_today_outlined,
-                    'Schedule',
-                    1,
-                  ),
-                  _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
-                  _buildBottomNavItem(
-                    Icons.inventory_2_outlined,
-                    'Inventory',
-                    3,
-                  ),
-                  _buildBottomNavItem(
-                    Icons.description_outlined,
-                    'Invoices',
-                    4,
-                  ),
-                ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBottomNavItem(
+                Icons.local_shipping_outlined,
+                'Vehicles',
+                0,
               ),
-            ),
+              _buildBottomNavItem(
+                Icons.calendar_today_outlined,
+                'Schedule',
+                1,
+              ),
+              _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
+              _buildBottomNavItem(
+                Icons.inventory_2_outlined,
+                'Inventory',
+                3,
+              ),
+              _buildBottomNavItem(
+                Icons.description_outlined,
+                'Invoices',
+                4,
+              ),
+            ],
           ),
         ),
       ],
@@ -107,24 +102,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
           _selectedIndex = index;
         });
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
-            size: 24,
-          ),
-          SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+      child: Icon(
+        icon,
+        color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
+        size: 28,
       ),
     );
   }
