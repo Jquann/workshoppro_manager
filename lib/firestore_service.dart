@@ -138,10 +138,10 @@ class FirestoreService {
 
     // Start a batch write to update both vehicle and customer
     final batch = _db.batch();
-    
+
     // Add the vehicle
     batch.set(_vc.doc(vehicleId), payload);
-    
+
     // Update the customer's vehicleIds if customerId is provided
     if (customerId != null) {
       batch.update(_db.collection('customers').doc(customerId), {
@@ -149,7 +149,7 @@ class FirestoreService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
-    
+
     await batch.commit();
     return vehicleId;
   }
@@ -159,10 +159,6 @@ class FirestoreService {
     'updatedAt': FieldValue.serverTimestamp(),
   });
 
-  /// Soft "delete" or restore by setting status string.
-  /// Usage:
-  ///   await db.deleteVehicle(v.id, 'inactive'); // soft delete
-  ///   await db.deleteVehicle(v.id, 'active');   // restore
   Future<void> deleteVehicle(String vehicleId, String status) async {
     await _vc.doc(vehicleId).update({
       'status': status.toLowerCase(),
@@ -171,7 +167,7 @@ class FirestoreService {
   }
 
   // ===== CUSTOMERS =====
-  Stream<QuerySnapshot> get customersStream => 
+  Stream<QuerySnapshot> get customersStream =>
       _db.collection('customers')
           .orderBy('customerName')
           .snapshots();

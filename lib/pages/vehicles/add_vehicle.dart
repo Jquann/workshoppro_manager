@@ -17,11 +17,18 @@ class AddVehicle extends StatefulWidget {
   State<AddVehicle> createState() => _AddVehicleState();
 }
 
-class _AddVehicleState extends State<AddVehicle> {
-  static const _kBlue = Color(0xFF007AFF);
+class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
+  // Enhanced color scheme - consistent with add_service.dart
+  static const _kPrimary = Color(0xFF007AFF);
+  static const _kSecondary = Color(0xFF5856D6);
+  static const _kSuccess = Color(0xFF34C759);
+  static const _kWarning = Color(0xFFFF9500);
+  static const _kError = Color(0xFFFF3B30);
   static const _kGrey = Color(0xFF8E8E93);
+  static const _kLightGrey = Color(0xFFF2F2F7);
   static const _kDivider = Color(0xFFE5E5EA);
-  static const _kFieldBg = Color(0xFFEFF3F7);
+  static const _kDarkText = Color(0xFF1C1C1E);
+  static const _kCardShadow = Color(0x1A000000);
 
   final _form = GlobalKey<FormState>();
   final _model = TextEditingController();
@@ -33,6 +40,12 @@ class _AddVehicleState extends State<AddVehicle> {
   String? selectedCustomerId;
   String? selectedCustomerName;
 
+  // Animation controllers
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
@@ -40,41 +53,34 @@ class _AddVehicleState extends State<AddVehicle> {
       selectedCustomerId = widget.customerId;
       selectedCustomerName = widget.customerName;
     }
+
+    // Initialize animations
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
+
+    // Start animations
+    _fadeAnimationController.forward();
+    _slideAnimationController.forward();
   }
-
-  InputDecoration _input(String hint) => InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(fontSize: 15, color: _kGrey),
-    isDense: true,
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    filled: true,
-    fillColor: _kFieldBg,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kDivider),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kDivider),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kBlue, width: 1.2),
-    ),
-  );
-
-  ButtonStyle get _primaryBtn => ElevatedButton.styleFrom(
-    backgroundColor: _kBlue,
-    foregroundColor: Colors.white,
-    minimumSize: const Size.fromHeight(56),
-    elevation: 0,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-  );
 
   @override
   void dispose() {
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
     _model.dispose();
     _make.dispose();
     _year.dispose();
@@ -83,192 +89,470 @@ class _AddVehicleState extends State<AddVehicle> {
     super.dispose();
   }
 
+  // Enhanced UI tokens - consistent with add_service.dart
+  InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
+    prefixIcon: icon != null
+        ? Container(
+            padding: const EdgeInsets.all(12),
+            child: Icon(icon, size: 20, color: _kGrey),
+          )
+        : null,
+    suffixText: suffix,
+    suffixStyle: TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kPrimary, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kError, width: 1),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kError, width: 2),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottom = MediaQuery.of(context).viewPadding.bottom;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Add Vehicle',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: CustomScrollView(
+        slivers: [
+          // Enhanced App Bar - consistent with add_service.dart
+          SliverAppBar(
+            expandedHeight: 120,
+            floating: false,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            leading: Container(
+              margin: const EdgeInsets.all(8),
+              child: Material(
+                color: _kLightGrey,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: _kDarkText,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              title: const Text(
+                'Add Vehicle',
+                style: TextStyle(
+                  color: _kDarkText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
+              ),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      _kLightGrey.withValues(alpha: 0.3),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0.2,
+
+          // Content
+          SliverToBoxAdapter(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Form(
+                  key: _form,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (widget.customerId == null) _buildCustomerCard(),
+                        if (widget.customerId == null) const SizedBox(height: 24),
+                        _buildVehicleDetailsCard(),
+                        const SizedBox(height: 32),
+                        _buildSaveButton(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Form(
-          key: _form,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(20, 16, 20, bottomInset + 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildCustomerCard() {
+    return _buildCard(
+      icon: Icons.person_rounded,
+      title: 'Customer Information',
+      child: _buildFormField(
+        label: 'Customer',
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _db.customersStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _kError.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Error loading customers',
+                  style: TextStyle(color: _kError),
+                ),
+              );
+            }
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _kLightGrey,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: _kPrimary,
+                    strokeWidth: 2,
+                  ),
+                ),
+              );
+            }
+
+            final customers = snapshot.data?.docs ?? [];
+            return DropdownButtonFormField<String>(
+              decoration: _input('Select customer', icon: Icons.people_rounded),
+              value: selectedCustomerId,
+              isExpanded: true,
+              validator: (value) => value == null ? 'Please select a customer' : null,
+              items: customers.map((customer) {
+                final data = customer.data() as Map<String, dynamic>;
+                return DropdownMenuItem<String>(
+                  value: customer.id,
+                  child: Text(
+                    data['customerName'] ?? 'Unknown Customer',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedCustomerId = value;
+                  if (value != null) {
+                    final customer = customers.firstWhere((c) => c.id == value);
+                    final data = customer.data() as Map<String, dynamic>;
+                    selectedCustomerName = data['customerName'];
+                  }
+                });
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVehicleDetailsCard() {
+    return _buildCard(
+      icon: Icons.directions_car_rounded,
+      title: 'Vehicle Details',
+      child: Column(
+        children: [
+          _buildFormField(
+            label: 'Vehicle Make',
+            child: TextFormField(
+              controller: _make,
+              decoration: _input('Enter vehicle make', icon: Icons.business_rounded),
+              validator: _req,
+              textCapitalization: TextCapitalization.words,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Vehicle Model',
+            child: TextFormField(
+              controller: _model,
+              decoration: _input('Enter vehicle model', icon: Icons.car_repair_rounded),
+              validator: _req,
+              textCapitalization: TextCapitalization.words,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Vehicle Year',
+            child: TextFormField(
+              controller: _year,
+              decoration: _input('Enter year', icon: Icons.calendar_today_rounded).copyWith(
+                helperText: 'Year must be between 1980 and 2025',
+                helperStyle: TextStyle(
+                  fontSize: 13,
+                  color: _kPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              validator: _yearV,
+              keyboardType: TextInputType.number,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Vehicle Identification Number (VIN)',
+            child: TextFormField(
+              controller: _vin,
+              decoration: _input('Enter VIN number', icon: Icons.qr_code_rounded),
+              validator: _req,
+              textCapitalization: TextCapitalization.characters,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Description (Optional)',
+            child: TextFormField(
+              controller: _desc,
+              decoration: _input('Enter additional details'),
+              maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kCardShadow,
+            offset: const Offset(0, 2),
+            blurRadius: 12,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                _label('Vehicle Model'),
-                TextFormField(
-                    controller: _model,
-                    decoration: _input('Please enter the vehicle model'),
-                    validator: _req),
-                const SizedBox(height: 16),
-
-                _label('Vehicle Make'),
-                TextFormField(
-                    controller: _make,
-                    decoration: _input('Please enter the vehicle make'),
-                    validator: _req),
-                const SizedBox(height: 16),
-
-                _label('Vehicle Year'),
-                TextFormField(
-                  controller: _year,
-                  decoration: _input('Please enter the vehicle year').copyWith(
-                    helperText: 'Year Must be between 1980 and 2025',
-                    helperStyle: const TextStyle(
-                        fontSize: 15,
-                        color: _kBlue),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _kPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: _yearV,
+                  child: Icon(icon, color: _kPrimary, size: 20),
                 ),
-                const SizedBox(height: 16),
-
-                _label('Vehicle Identification Number (VIN)'),
-                TextFormField(
-                    controller: _vin,
-                    decoration: _input('Please enter the VIN'),
-                    validator: _req),
-                const SizedBox(height: 16),
-
-                if (widget.customerId == null) ...[
-                  _label('Customer'),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: _db.customersStream,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Text('Error loading customers');
-                      }
-
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-
-                      final customers = snapshot.data?.docs ?? [];
-                      
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: _kFieldBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _kDivider),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: selectedCustomerId,
-                          decoration: InputDecoration(
-                            hintText: 'Select customer',
-                            hintStyle: TextStyle(fontSize: 15, color: _kGrey),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            border: InputBorder.none,
-                          ),
-                          items: customers.map((customer) {
-                            final data = customer.data() as Map<String, dynamic>;
-                            return DropdownMenuItem<String>(
-                              value: customer.id,
-                              child: Text(data['customerName'] ?? 'Unknown Customer'),
-                            );
-                          }).toList(),
-                          validator: (value) => value == null ? 'Please select a customer' : null,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedCustomerId = value;
-                              if (value != null) {
-                                final customer = customers.firstWhere((c) => c.id == value);
-                                final data = customer.data() as Map<String, dynamic>;
-                                selectedCustomerName = data['customerName'];
-                              }
-                            });
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                _label('Description (Optional)'),
-                TextFormField(
-                  controller: _desc,
-                  maxLines: 3,
-                  decoration: _input('Enter description'),
-                ),
-
-                const SizedBox(height: 28),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: _primaryBtn,
-                    onPressed: () async {
-                      if (!_form.currentState!.validate()) return;
-                      final vehicleId = await _db.addVehicle(
-                        VehicleModel(
-                          id: '',
-                          customerName: widget.customerName ?? selectedCustomerName!,
-                          make: _make.text.trim(),
-                          model: _model.text.trim(),
-                          year: int.parse(_year.text.trim()),
-                          vin: _vin.text.trim(),
-                          description: _desc.text.trim().isEmpty
-                              ? null
-                              : _desc.text.trim(),
-                          status: 'active',
-                        ),
-                        customerId: widget.customerId ?? selectedCustomerId,
-                      );
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Vehicle added successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-
-                      if (mounted) Navigator.pop(context, vehicleId);
-                    },
-                    child: const Text('Save'),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: _kDarkText,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormField({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: _kDarkText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kPrimary, _kSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kPrimary.withValues(alpha: 0.3),
+            offset: const Offset(0, 4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: _onSave,
+        icon: const Icon(Icons.save_rounded, color: Colors.white),
+        label: const Text(
+          'Save Vehicle',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.white,
           ),
         ),
       ),
     );
   }
 
-  Widget _label(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(t,
-        style:
-        const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-  );
-
-  String? _req(String? v) =>
-      (v == null || v.trim().isEmpty) ? 'Required' : null;
+  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
 
   String? _yearV(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Required';
+    if (v == null || v.trim().isEmpty) return 'This field is required';
     final n = int.tryParse(v);
     if (n == null || n < 1980 || n > DateTime.now().year + 1) {
       return 'Invalid year';
     }
     return null;
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kError
+                      ? Icons.error_rounded
+                      : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Future<void> _onSave() async {
+    if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+
+    if (widget.customerId == null && selectedCustomerId == null) {
+      _showSnackBar('Please select a customer', _kError);
+      return;
+    }
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              CircularProgressIndicator(color: _kPrimary, strokeWidth: 3),
+              const SizedBox(width: 20),
+              const Text('Saving vehicle...'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final vehicleId = await _db.addVehicle(
+        VehicleModel(
+          id: '',
+          customerName: widget.customerName ?? selectedCustomerName!,
+          make: _make.text.trim(),
+          model: _model.text.trim(),
+          year: int.parse(_year.text.trim()),
+          vin: _vin.text.trim(),
+          description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
+          status: 'active',
+        ),
+        customerId: widget.customerId ?? selectedCustomerId,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context, vehicleId); // Close add vehicle page
+        _showSnackBar('Vehicle added successfully!', _kSuccess);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        _showSnackBar('Failed to save vehicle: $e', _kError);
+      }
+    }
   }
 }

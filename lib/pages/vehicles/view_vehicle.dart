@@ -11,329 +11,844 @@ final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDi
 
 const String kRestorePassword = 'admin123'; // TODO: change this
 
-class ViewVehicle extends StatelessWidget {
+class ViewVehicle extends StatefulWidget {
   final String vehicleId;
   const ViewVehicle({super.key, required this.vehicleId});
 
-  // tokens
-  static const _kBlue = Color(0xFF007AFF);
+  @override
+  State<ViewVehicle> createState() => _ViewVehicleState();
+}
+
+class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  // Enhanced color scheme
+  static const _kPrimary = Color(0xFF007AFF);
+  static const _kSecondary = Color(0xFF5856D6);
+  static const _kSuccess = Color(0xFF34C759);
+  static const _kDanger = Color(0xFFFF3B30);
+  static const _kWarning = Color(0xFFFF9500);
   static const _kGrey = Color(0xFF8E8E93);
+  static const _kLightGrey = Color(0xFFF2F2F7);
   static const _kDivider = Color(0xFFE5E5EA);
+  static const _kCardShadow = Color(0x1A000000);
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
+    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+    );
+
+    _fadeController.forward();
+    _slideController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final db = FirestoreService();
 
     return FutureBuilder<VehicleModel?>(
-      future: db.getVehicle(vehicleId),
+      future: db.getVehicle(widget.vehicleId),
       builder: (context, snap) {
         if (!snap.hasData) {
-          return const Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            backgroundColor: _kLightGrey,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_kPrimary),
+                    strokeWidth: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading vehicle details...',
+                    style: TextStyle(
+                      color: _kGrey,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
         final v = snap.data;
         if (v == null) {
-          return const Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(child: Text('Vehicle not found')),
+          return Scaffold(
+            backgroundColor: _kLightGrey,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: _kGrey),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Vehicle not found',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: _kGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
-        // scale slightly toward the mock’s sizing
         final w = MediaQuery.of(context).size.width;
         const base = 375.0;
         final s = (w / base).clamp(0.95, 1.12);
-
         final isInactive = (v.status == 'inactive');
 
         return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
-            elevation: 0.2,
-            backgroundColor: Colors.white,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Vehicle Details',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w700,
-                    fontSize: (22 * s).clamp(20, 24),
-                  ),
-                ),
-                if (isInactive) ...[
-                  SizedBox(width: 8 * s),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 2 * s),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFE9E9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFCACA)),
-                    ),
-                    child: Text(
-                      'Inactive',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: (11 * s).clamp(10, 12),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  )
-                ],
-              ],
-            ),
-            centerTitle: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit_note, color: Colors.black),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EditVehicle(vehicle: v),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // ------------------ BODY (scrollable) ------------------
-          body: ListView(
-            padding: EdgeInsets.fromLTRB(24 * s, 8 * s, 24 * s, 24 * s + 72),
-            children: [
-              // ---------- VEHICLE INFO ----------
-              Padding(
-                padding: EdgeInsets.only(top: 8 * s, bottom: 12 * s),
-                child: Text(
-                  'Vehicle Information',
-                  style: TextStyle(
-                    fontSize: (24 * s).clamp(22, 26),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              _infoRow('Customer', v.customerName, s),
-              _infoRow('Make', v.make, s),
-              _infoRow('Model', v.model, s),
-              _infoRow('Year', '${v.year}', s),
-              _infoRow('VIN', v.vin, s),
-
-              SizedBox(height: 18 * s),
-
-              // ---------- SERVICE HISTORY ----------
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Service History',
-                      style: TextStyle(
-                        fontSize: (24 * s).clamp(22, 26),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 6 * s, vertical: 4 * s),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: isInactive
-                        ? null
-                        : () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AddService(vehicleId: v.id),
-                      ),
-                    ),
-                    child: Text(
-                      'Add',
-                      style: TextStyle(
-                        color: isInactive ? _kGrey : _kBlue,
-                        fontWeight: FontWeight.w700,
-                        fontSize: (16 * s).clamp(15, 17),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              StreamBuilder<List<ServiceRecordModel>>(
-                stream: db.serviceStream(v.id),
-                builder: (context, sSnap) {
-                  if (!sSnap.hasData) {
-                    return Padding(
-                      padding: EdgeInsets.all(12 * s),
-                      child: const LinearProgressIndicator(),
-                    );
-                  }
-                  final items = sSnap.data!;
-                  if (items.isEmpty) {
-                    return Padding(
-                      padding: EdgeInsets.only(left: 2 * s, top: 6 * s),
-                      child: Text(
-                        'No service records yet.',
-                        style: TextStyle(color: _kGrey, fontSize: 15 * s),
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      ...items.map(
-                            (r) => Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12 * s, horizontal: 2 * s),
-                          child: InkWell(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ViewService(vehicleId: v.id, record: r),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // date (L)  +  amount (R)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        _fmt(r.date),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: (18 * s).clamp(16, 20),
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      _currency.format(r.displayTotal),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: (18 * s).clamp(16, 20),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                // blue sub-line
-                                Padding(
-                                  padding: EdgeInsets.only(top: 4 * s),
-                                  child: Text(
-                                    r.description,
-                                    style: TextStyle(
-                                      color: _kBlue,
-                                      fontSize: (16 * s).clamp(15, 17),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 6 * s),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-
-          // ------------------ PINNED ACTION BUTTON ------------------
-          bottomNavigationBar: SafeArea(
-            minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: SizedBox(
-              height: 48,
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isInactive ? Colors.green : Colors.red,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: Icon(isInactive ? Icons.restore : Icons.archive),
-                label: Text(
-                  isInactive ? 'Restore Vehicle' : 'Deactivate Vehicle',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                onPressed: () async {
-                  if (isInactive) {
-                    // RESTORE — require global password
-                    final ok = await _promptPassword(context);
-                    if (!ok) return;
-
-                    await db.deleteVehicle(vehicleId, 'active');
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vehicle restored to Active')),
-                      );
-                      Navigator.pop(context, true);
-                    }
-                  } else {
-                    // DEACTIVATE with confirmation
-                    final sure = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Deactivate Vehicle'),
-                        content: const Text(
-                          'This will set the vehicle status to Inactive. You can restore it later.',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Deactivate', style: TextStyle(color: Colors.red)),
+          backgroundColor: _kLightGrey,
+          body: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: CustomScrollView(
+                slivers: [
+                  // Enhanced App Bar
+                  SliverAppBar(
+                    expandedHeight: 120,
+                    floating: false,
+                    pinned: true,
+                    backgroundColor: Colors.white,
+                    elevation: 0,
+                    shadowColor: _kCardShadow,
+                    leading: Container(
+                      margin: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kCardShadow,
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                    ) ?? false;
-                    if (!sure) return;
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                    actions: [
+                      Container(
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _kCardShadow,
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.edit_rounded, color: Colors.black, size: 20),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EditVehicle(vehicle: v),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    flexibleSpace: FlexibleSpaceBar(
+                      centerTitle: true,
+                      title: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Vehicle Details',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
+                              fontSize: (20 * s).clamp(18, 22),
+                            ),
+                          ),
+                          if (isInactive) ...[
+                            SizedBox(width: 8 * s),
+                            _buildStatusBadge('Inactive', _kDanger, s),
+                          ] else ...[
+                            SizedBox(width: 8 * s),
+                            _buildStatusBadge('Active', _kSuccess, s),
+                          ],
+                        ],
+                      ),
+                      background: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white,
+                              _kLightGrey.withOpacity(0.5),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
 
-                    await db.deleteVehicle(vehicleId, 'inactive');
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vehicle set to Inactive')),
-                      );
-                    }
-                  }
-                },
+                  // Content
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(16 * s),
+                      child: Column(
+                        children: [
+                          // Vehicle Information Card
+                          _buildVehicleInfoCard(v, s),
+                          SizedBox(height: 24 * s),
+
+                          // Service History Section
+                          _buildServiceHistorySection(v, db, s, isInactive),
+                          SizedBox(height: 100), // Space for floating button
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+
+          // Enhanced Floating Action Button
+          floatingActionButton: _buildActionButton(v, db, isInactive, s),
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         );
       },
     );
   }
 
-  // ---------- password dialog ----------
+  Widget _buildStatusBadge(String text, Color color, double s) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10 * s, vertical: 4 * s),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: (11 * s).clamp(10, 12),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVehicleInfoCard(VehicleModel v, double s) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _kCardShadow,
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(24 * s, 24 * s, 24 * s, 16 * s),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12 * s),
+                  decoration: BoxDecoration(
+                    color: _kPrimary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.directions_car_rounded,
+                    color: _kPrimary,
+                    size: 24 * s,
+                  ),
+                ),
+                SizedBox(width: 16 * s),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Vehicle Information',
+                        style: TextStyle(
+                          fontSize: (22 * s).clamp(20, 24),
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                      SizedBox(height: 4 * s),
+                      Text(
+                        'Complete vehicle details',
+                        style: TextStyle(
+                          fontSize: (14 * s).clamp(13, 15),
+                          color: _kGrey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24 * s),
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _kDivider.withOpacity(0),
+                    _kDivider,
+                    _kDivider.withOpacity(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
+            child: Column(
+              children: [
+                _enhancedInfoRow('Customer', v.customerName, Icons.person_rounded, s),
+                _enhancedInfoRow('Make', v.make, Icons.business_rounded, s),
+                _enhancedInfoRow('Model', v.model, Icons.car_rental_rounded, s),
+                _enhancedInfoRow('Year', '${v.year}', Icons.calendar_today_rounded, s),
+                _enhancedInfoRow('VIN', v.vin, Icons.confirmation_number_rounded, s, isLast: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _enhancedInfoRow(String label, String value, IconData icon, double s, {bool isLast = false}) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isLast ? 0 : 16 * s),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8 * s),
+            decoration: BoxDecoration(
+              color: _kLightGrey,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 20 * s,
+              color: _kGrey,
+            ),
+          ),
+          SizedBox(width: 16 * s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: _kGrey,
+                    fontSize: (14 * s).clamp(13, 15),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 2 * s),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: (16 * s).clamp(15, 17),
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceHistorySection(VehicleModel v, FirestoreService db, double s, bool isInactive) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _kCardShadow,
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(24 * s, 24 * s, 24 * s, 16 * s),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12 * s),
+                  decoration: BoxDecoration(
+                    color: _kSecondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.build_rounded,
+                    color: _kSecondary,
+                    size: 24 * s,
+                  ),
+                ),
+                SizedBox(width: 16 * s),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Service History',
+                        style: TextStyle(
+                          fontSize: (22 * s).clamp(20, 24),
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                      SizedBox(height: 4 * s),
+                      Text(
+                        'All service records',
+                        style: TextStyle(
+                          fontSize: (14 * s).clamp(13, 15),
+                          color: _kGrey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isInactive)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _kPrimary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 16 * s, vertical: 8 * s),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddService(vehicleId: v.id),
+                        ),
+                      ),
+                      icon: Icon(Icons.add_rounded, color: _kPrimary, size: 20 * s),
+                      label: Text(
+                        'Add',
+                        style: TextStyle(
+                          color: _kPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: (14 * s).clamp(13, 15),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24 * s),
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _kDivider.withOpacity(0),
+                    _kDivider,
+                    _kDivider.withOpacity(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          StreamBuilder<List<ServiceRecordModel>>(
+            stream: db.serviceStream(v.id),
+            builder: (context, sSnap) {
+              if (!sSnap.hasData) {
+                return Padding(
+                  padding: EdgeInsets.all(24 * s),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(_kPrimary),
+                      strokeWidth: 3,
+                    ),
+                  ),
+                );
+              }
+              final items = sSnap.data!;
+              if (items.isEmpty) {
+                return Padding(
+                  padding: EdgeInsets.all(24 * s),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
+                          size: 48 * s,
+                          color: _kGrey.withOpacity(0.5),
+                        ),
+                        SizedBox(height: 12 * s),
+                        Text(
+                          'No service records yet',
+                          style: TextStyle(
+                            color: _kGrey,
+                            fontSize: 16 * s,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        SizedBox(height: 4 * s),
+                        Text(
+                          'Service history will appear here',
+                          style: TextStyle(
+                            color: _kGrey.withOpacity(0.7),
+                            fontSize: 14 * s,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
+                child: Column(
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final r = entry.value;
+                    final isLastItem = index == items.length - 1;
+
+                    return _buildServiceRecordCard(r, v.id, s, isLastItem);
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceRecordCard(ServiceRecordModel r, String vehicleId, double s, bool isLast) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isLast ? 0 : 16 * s),
+      decoration: BoxDecoration(
+        color: _kLightGrey.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kDivider.withOpacity(0.5)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ViewService(vehicleId: vehicleId, record: r),
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16 * s),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10 * s),
+                  decoration: BoxDecoration(
+                    color: _kSuccess.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    color: _kSuccess,
+                    size: 20 * s,
+                  ),
+                ),
+                SizedBox(width: 16 * s),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _fmt(r.date),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: (16 * s).clamp(15, 17),
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 4 * s),
+                            decoration: BoxDecoration(
+                              color: _kPrimary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _currency.format(r.displayTotal),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: (14 * s).clamp(13, 15),
+                                color: _kPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 6 * s),
+                      Text(
+                        r.description,
+                        style: TextStyle(
+                          color: _kGrey,
+                          fontSize: (14 * s).clamp(13, 15),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 8 * s),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16 * s,
+                  color: _kGrey,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(VehicleModel v, FirestoreService db, bool isInactive, double s) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16 * s),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (isInactive ? _kSuccess : _kDanger).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        height: 56,
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isInactive ? _kSuccess : _kDanger,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          icon: Icon(
+            isInactive ? Icons.restore_rounded : Icons.archive_rounded,
+            size: 24,
+          ),
+          label: Text(
+            isInactive ? 'Restore Vehicle' : 'Deactivate Vehicle',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          onPressed: () async {
+            if (isInactive) {
+              // RESTORE — require global password
+              final ok = await _promptPassword(context);
+              if (!ok) return;
+
+              await db.deleteVehicle(widget.vehicleId, 'active');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Vehicle restored to Active'),
+                    backgroundColor: _kSuccess,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+                Navigator.pop(context, true);
+              }
+            } else {
+              // DEACTIVATE with confirmation
+              final sure = await _showDeactivateDialog();
+              if (!sure) return;
+
+              await db.deleteVehicle(widget.vehicleId, 'inactive');
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Vehicle set to Inactive'),
+                    backgroundColor: _kWarning,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _showDeactivateDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_rounded, color: _kWarning, size: 28),
+            const SizedBox(width: 12),
+            const Text('Deactivate Vehicle'),
+          ],
+        ),
+        content: const Text(
+          'This will set the vehicle status to Inactive. You can restore it later with the manager password.',
+        ),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: _kGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kDanger,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   Future<bool> _promptPassword(BuildContext context) async {
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirm Restore'),
-        content: TextField(
-          controller: ctrl,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Restore password',
-            helperText: 'Enter the manager password',
-          ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.lock_rounded, color: _kPrimary, size: 28),
+            const SizedBox(width: 12),
+            const Text('Confirm Restore'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter the manager password to restore this vehicle:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Manager Password',
+                prefixIcon: const Icon(Icons.key_rounded),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _kPrimary, width: 2),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continue')),
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: _kGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kSuccess,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
         ],
       ),
     ) ?? false;
@@ -343,48 +858,18 @@ class ViewVehicle extends StatelessWidget {
     if (ctrl.text.trim() != kRestorePassword) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Incorrect password')),
+          SnackBar(
+            content: const Text('Incorrect password'),
+            backgroundColor: _kDanger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
       }
       return false;
     }
     return true;
   }
-
-  // one labeled row with full-width divider
-  static Widget _infoRow(String label, String value, double s) => Column(
-    children: [
-      SizedBox(
-        height: (64 * s).clamp(58, 70),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: _kGrey,
-                  fontSize: (17 * s).clamp(15, 18),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: (18 * s).clamp(16, 20),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      const Divider(height: 1, color: _kDivider),
-    ],
-  );
 
   static String _fmt(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
