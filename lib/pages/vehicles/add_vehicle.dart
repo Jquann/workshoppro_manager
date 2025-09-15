@@ -1,9 +1,18 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'vehicle_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 
 class AddVehicle extends StatefulWidget {
-  const AddVehicle({super.key});
+  final String? customerId;
+  final String? customerName;
+
+  const AddVehicle({
+    super.key,
+    this.customerId,
+    this.customerName,
+  });
+
   @override
   State<AddVehicle> createState() => _AddVehicleState();
 }
@@ -19,9 +28,19 @@ class _AddVehicleState extends State<AddVehicle> {
   final _make = TextEditingController();
   final _year = TextEditingController();
   final _vin = TextEditingController();
-  final _customer = TextEditingController();
   final _desc = TextEditingController();
   final _db = FirestoreService();
+  String? selectedCustomerId;
+  String? selectedCustomerName;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.customerId != null) {
+      selectedCustomerId = widget.customerId;
+      selectedCustomerName = widget.customerName;
+    }
+  }
 
   InputDecoration _input(String hint) => InputDecoration(
     hintText: hint,
@@ -60,7 +79,6 @@ class _AddVehicleState extends State<AddVehicle> {
     _make.dispose();
     _year.dispose();
     _vin.dispose();
-    _customer.dispose();
     _desc.dispose();
     super.dispose();
   }
@@ -130,12 +148,59 @@ class _AddVehicleState extends State<AddVehicle> {
                     validator: _req),
                 const SizedBox(height: 16),
 
-                _label('Customer Name'),
-                TextFormField(
-                    controller: _customer,
-                    decoration: _input('Please enter the customer name'),
-                    validator: _req),
-                const SizedBox(height: 16),
+                if (widget.customerId == null) ...[
+                  _label('Customer'),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: _db.customersStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Text('Error loading customers');
+                      }
+
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator());
+                      }
+
+                      final customers = snapshot.data?.docs ?? [];
+                      
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: _kFieldBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _kDivider),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: selectedCustomerId,
+                          decoration: InputDecoration(
+                            hintText: 'Select customer',
+                            hintStyle: TextStyle(fontSize: 15, color: _kGrey),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            border: InputBorder.none,
+                          ),
+                          items: customers.map((customer) {
+                            final data = customer.data() as Map<String, dynamic>;
+                            return DropdownMenuItem<String>(
+                              value: customer.id,
+                              child: Text(data['customerName'] ?? 'Unknown Customer'),
+                            );
+                          }).toList(),
+                          validator: (value) => value == null ? 'Please select a customer' : null,
+                          onChanged: (value) {
+                            setState(() {
+                              selectedCustomerId = value;
+                              if (value != null) {
+                                final customer = customers.firstWhere((c) => c.id == value);
+                                final data = customer.data() as Map<String, dynamic>;
+                                selectedCustomerName = data['customerName'];
+                              }
+                            });
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 _label('Description (Optional)'),
                 TextFormField(
@@ -152,10 +217,10 @@ class _AddVehicleState extends State<AddVehicle> {
                     style: _primaryBtn,
                     onPressed: () async {
                       if (!_form.currentState!.validate()) return;
-                      await _db.addVehicle(
+                      final vehicleId = await _db.addVehicle(
                         VehicleModel(
                           id: '',
-                          customerName: _customer.text.trim(),
+                          customerName: widget.customerName ?? selectedCustomerName!,
                           make: _make.text.trim(),
                           model: _model.text.trim(),
                           year: int.parse(_year.text.trim()),
@@ -163,11 +228,19 @@ class _AddVehicleState extends State<AddVehicle> {
                           description: _desc.text.trim().isEmpty
                               ? null
                               : _desc.text.trim(),
-                          status:
-                          'active', // always active when creating a vehicle
+                          status: 'active',
+                        ),
+                        customerId: widget.customerId ?? selectedCustomerId,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Vehicle added successfully'),
+                          backgroundColor: Colors.green,
                         ),
                       );
-                      if (mounted) Navigator.pop(context);
+
+                      if (mounted) Navigator.pop(context, vehicleId);
                     },
                     child: const Text('Save'),
                   ),
