@@ -127,7 +127,7 @@ class FirestoreService {
     return VehicleModel.fromMap(doc.id, doc.data() as Map<String, dynamic>);
   }
 
-  Future<String> addVehicle(VehicleModel v) async {
+  Future<String> addVehicle(VehicleModel v, {String? customerId}) async {
     final vehicleId = await _nextFormattedId('vehicles', 'VH', 4);
     final payload = {
       'id': vehicleId,
@@ -135,7 +135,22 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
-    await _vc.doc(vehicleId).set(payload);
+
+    // Start a batch write to update both vehicle and customer
+    final batch = _db.batch();
+    
+    // Add the vehicle
+    batch.set(_vc.doc(vehicleId), payload);
+    
+    // Update the customer's vehicleIds if customerId is provided
+    if (customerId != null) {
+      batch.update(_db.collection('customers').doc(customerId), {
+        'vehicleIds': FieldValue.arrayUnion([vehicleId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    
+    await batch.commit();
     return vehicleId;
   }
 
@@ -154,6 +169,12 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  // ===== CUSTOMERS =====
+  Stream<QuerySnapshot> get customersStream => 
+      _db.collection('customers')
+          .orderBy('customerName')
+          .snapshots();
 
   // ===== SERVICES =====
   CollectionReference _svc(String vehicleId) =>
