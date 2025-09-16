@@ -81,51 +81,58 @@ class _WorkOrderCreateScreenState extends State<WorkOrderCreateScreen> {
       appBar: AppBar(title: Text('Create Work Order')),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  TextFormField(
-                    decoration: InputDecoration(labelText: 'Work Order Name'),
-                    onChanged: (v) => setState(() => workOrderName = v),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                double horizontalPadding = constraints.maxWidth < 500 ? 12 : 32;
+                double headerFontSize = constraints.maxWidth < 500 ? 20 : 24;
+                double labelFontSize = constraints.maxWidth < 500 ? 14 : 16;
+                return Padding(
+                  padding: EdgeInsets.all(horizontalPadding),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        decoration: InputDecoration(labelText: 'Work Order Name'),
+                        onChanged: (v) => setState(() => workOrderName = v),
+                      ),
+                      SizedBox(height: 16),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: parts.length,
+                          itemBuilder: (ctx, i) {
+                            final part = parts[i];
+                            return ListTile(
+                              title: Text(part.name, style: TextStyle(fontSize: labelFontSize)),
+                              subtitle: Text('Qty: ${part.quantity}', style: TextStyle(fontSize: labelFontSize)),
+                              trailing: SizedBox(
+                                width: 100,
+                                child: TextFormField(
+                                  decoration: InputDecoration(hintText: 'Allocate'),
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (v) {
+                                    int qty = int.tryParse(v) ?? 0;
+                                    setState(() {
+                                      if (qty > 0) {
+                                        selectedParts[part.documentId] = qty;
+                                      } else {
+                                        selectedParts.remove(part.documentId);
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _createWorkOrder,
+                        child: Text('Create Work Order', style: TextStyle(fontSize: headerFontSize)),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 16),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: parts.length,
-                      itemBuilder: (ctx, i) {
-                        final part = parts[i];
-                        return ListTile(
-                          title: Text(part.name),
-                          subtitle: Text('Qty: ${part.quantity}'),
-                          trailing: SizedBox(
-                            width: 100,
-                            child: TextFormField(
-                              decoration: InputDecoration(hintText: 'Allocate'),
-                              keyboardType: TextInputType.number,
-                              onChanged: (v) {
-                                int qty = int.tryParse(v) ?? 0;
-                                setState(() {
-                                  if (qty > 0) {
-                                    selectedParts[part.documentId] = qty;
-                                  } else {
-                                    selectedParts.remove(part.documentId);
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _createWorkOrder,
-                    child: Text('Create Work Order'),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
     );
   }

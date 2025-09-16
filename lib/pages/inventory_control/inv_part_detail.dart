@@ -109,57 +109,64 @@ class PartDetailsScreen extends StatelessWidget {
     );
   }
 
-  void _showEditPartDialog(BuildContext context, Part part) {
+  void _showEditPartBottomSheet(BuildContext context, Part part) {
     final TextEditingController nameController = TextEditingController(text: part.name);
     final TextEditingController supplierController = TextEditingController(text: part.supplier);
+    final TextEditingController supplierEmailController = TextEditingController(text: part.supplierEmail);
     final TextEditingController thresholdController = TextEditingController(text: part.lowStockThreshold.toString());
+    final TextEditingController descriptionController = TextEditingController(text: part.description);
+    final TextEditingController priceController = TextEditingController(text: part.price > 0 ? part.price.toStringAsFixed(2) : '');
+    final TextEditingController unitController = TextEditingController(text: part.unit);
     final _formKey = GlobalKey<FormState>();
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
           child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.95,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Header
                 Container(
-                  padding: EdgeInsets.all(20),
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
+                    color: Colors.blue[600],
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
                     ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.edit, color: Colors.blue[700], size: 24),
+                      Icon(Icons.edit, color: Colors.white, size: 28),
                       SizedBox(width: 12),
                       Text(
                         'Edit Part Information',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
+                          color: Colors.white,
                         ),
                       ),
                       Spacer(),
                       IconButton(
                         onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(Icons.close, color: Colors.grey[600]),
+                        icon: Icon(Icons.close, color: Colors.white),
                       ),
                     ],
                   ),
                 ),
-
-                // Content
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.all(20),
@@ -168,116 +175,206 @@ class PartDetailsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Part Overview Section
-                          Text(
-                            'Part Overview',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          SizedBox(height: 12),
-
-                          // Read-only information
-                          _buildReadOnlyField('Part ID', part.id),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Category', part.category),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Current Quantity', '${part.quantity}'),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Description', part.description.isNotEmpty ? part.description : 'Not specified'),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Supplier', part.supplier.isNotEmpty ? part.supplier : 'Not specified'),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Barcode', part.barcode.isNotEmpty ? part.barcode : 'Not specified'),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Price', part.price > 0 ? '\$${part.price.toStringAsFixed(2)}' : 'Not specified'),
-                          SizedBox(height: 12),
-                          _buildReadOnlyField('Unit', part.unit.isNotEmpty ? part.unit : 'Not specified'),
-
-                          SizedBox(height: 24),
-
-                          // Editable Section
-                          Text(
-                            'Editable Information',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[700],
-                            ),
-                          ),
-                          SizedBox(height: 12),
-
-                          // Editable Part Name
-                          TextFormField(
-                            controller: nameController,
-                            decoration: InputDecoration(
-                              labelText: 'Part Name *',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          // Overview Section
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.info, color: Colors.blue[700]),
+                                      SizedBox(width: 8),
+                                      Text('Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  _buildReadOnlyField('Part ID', part.id),
+                                  SizedBox(height: 8),
+                                  _buildReadOnlyField('Category', part.category),
+                                  SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: nameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Part Name *',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.build),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Part name is required';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
                               ),
-                              prefixIcon: Icon(Icons.build),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Part name is required';
-                              }
-                              return null;
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          // Editable Supplier
-                          TextFormField(
-                            controller: supplierController,
-                            decoration: InputDecoration(
-                              labelText: 'Supplier',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              prefixIcon: Icon(Icons.business),
                             ),
                           ),
                           SizedBox(height: 16),
-
-                          // Editable Low Stock Threshold
-                          TextFormField(
-                            controller: thresholdController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Low Stock Threshold *',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          // Stock Info Section
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.inventory, color: Colors.orange[700]),
+                                      SizedBox(width: 8),
+                                      Text('Stock Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  _buildReadOnlyField('Current Quantity', '${part.quantity}'),
+                                  SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: thresholdController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Low Stock Threshold *',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.warning),
+                                      helperText: 'Alert when quantity falls below this number',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Threshold is required';
+                                      }
+                                      final threshold = int.tryParse(value.trim());
+                                      if (threshold == null || threshold < 0) {
+                                        return 'Please enter a valid number (0 or greater)';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: priceController,
+                                          keyboardType: TextInputType.number,
+                                          decoration: InputDecoration(
+                                            labelText: 'Price (RM)',
+                                            border: OutlineInputBorder(),
+                                            prefixText: 'RM ', // Only show RM, no icon
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: unitController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Unit',
+                                            border: OutlineInputBorder(),
+                                            prefixIcon: Icon(Icons.straighten),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              prefixIcon: Icon(Icons.warning),
-                              helperText: 'Alert when quantity falls below this number',
                             ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Threshold is required';
-                              }
-                              final threshold = int.tryParse(value.trim());
-                              if (threshold == null || threshold < 0) {
-                                return 'Please enter a valid number (0 or greater)';
-                              }
-                              return null;
-                            },
+                          ),
+                          SizedBox(height: 16),
+                          // Supplier Info Section
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.business, color: Colors.green[700]),
+                                      SizedBox(width: 8),
+                                      Text('Supplier Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  TextFormField(
+                                    controller: supplierController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Supplier',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.business),
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: supplierEmailController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Supplier Email',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.email),
+                                      helperText: 'Email used for procurement requests',
+                                    ),
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (value) {
+                                      if (value != null && value.isNotEmpty && !value.contains('@')) {
+                                        return 'Enter a valid email address';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          // Description Section (removed barcode)
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.description, color: Colors.purple[700]),
+                                      SizedBox(width: 8),
+                                      Text('Other Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  TextFormField(
+                                    controller: descriptionController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Description',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.description),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
-
-                // Action Buttons
+                // Sticky Footer Action Buttons
                 Container(
-                  padding: EdgeInsets.all(20),
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
                     color: Colors.grey[50],
                     borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(24),
+                      bottomRight: Radius.circular(24),
                     ),
                   ),
                   child: Row(
@@ -306,6 +403,10 @@ class PartDetailsScreen extends StatelessWidget {
                                   nameController.text.trim(),
                                   supplierController.text.trim(),
                                   int.parse(thresholdController.text.trim()),
+                                  supplierEmailController.text.trim(),
+                                  descriptionController.text.trim(),
+                                  double.tryParse(priceController.text.trim()) ?? 0.0,
+                                  unitController.text.trim(),
                                 );
                                 Navigator.pop(ctx);
                                 Navigator.pop(context); // Go back to previous screen
@@ -341,9 +442,9 @@ class PartDetailsScreen extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      )
-      );
+        );
+      },
+    );
   }
 
   Widget _buildReadOnlyField(String label, String value) {
@@ -379,55 +480,28 @@ class PartDetailsScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _updatePart(BuildContext context, Part part, String newName, String newSupplier, int newThreshold) async {
+  Future<void> _updatePart(BuildContext context, Part part, String newName, String newSupplier, int newThreshold, String newSupplierEmail, String newDescription, double newPrice, String newUnit) async {
     final firestore = FirebaseFirestore.instance;
-
     try {
-      // Calculate new low stock status
-      bool newIsLowStock = part.quantity <= newThreshold;
-
-      Map<String, dynamic> updatedData = {
-        'name': newName,
-        'sparePartId': part.id,
-        'category': part.category,
-        'supplier': newSupplier,
-        'quantity': part.quantity,
-        'lowStockThreshold': newThreshold,
-        'description': part.description,
-        'manufacturer': part.manufacturer,
-        'barcode': part.barcode,
-        'price': part.price,
-        'unit': part.unit,
-        'isLowStock': newIsLowStock,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      // If the part name changed, we need to delete the old field and create a new one
-      if (newName != part.name) {
-        // Delete old field
-        await firestore.collection('inventory_parts').doc(part.category).update({
-          part.name: FieldValue.delete(),
-        });
-
-        // Add new field with updated name
-        await firestore.collection('inventory_parts').doc(part.category).update({
-          newName: updatedData,
-        });
-      } else {
-        // Just update the existing field
-        await firestore.collection('inventory_parts').doc(part.category).update({
-          part.name: updatedData,
-        });
-      }
-
+      await firestore.collection('inventory_parts').doc(part.category).update({
+        part.name: {
+          ...part.toFirestore(),
+          'name': newName,
+          'supplier': newSupplier,
+          'lowStockThreshold': newThreshold,
+          'supplierEmail': newSupplierEmail,
+          'description': newDescription,
+          'price': newPrice,
+          'unit': newUnit,
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Part updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
+        SnackBar(content: Text('✅ Part updated successfully!'), backgroundColor: Colors.green),
       );
     } catch (e) {
-      throw e;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error updating part: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -687,7 +761,7 @@ class PartDetailsScreen extends StatelessWidget {
                                 Expanded(
                                   child: ElevatedButton(
                                     onPressed: () {
-                                      _showEditPartDialog(context, displayPart);
+                                      _showEditPartBottomSheet(context, displayPart);
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue[50],
@@ -872,6 +946,7 @@ class PartDetailsScreen extends StatelessWidget {
       barColor = Colors.orange;
     } else {
       barColor = Colors.red;
+
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

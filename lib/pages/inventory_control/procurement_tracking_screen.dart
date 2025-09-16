@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/pages/inventory_control/procurement_service.dart';
 import 'gmail_email_service.dart';
+import 'procurement_request_details.dart';
 
 class ProcurementTrackingScreen extends StatelessWidget {
   const ProcurementTrackingScreen({Key? key}) : super(key: key);
@@ -46,42 +47,47 @@ class ProcurementTrackingScreen extends StatelessWidget {
 
             // Content
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: GmailEmailService.getProcurementRequestsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
-                    }
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double horizontalPadding = constraints.maxWidth < 500 ? 12 : 32;
+                  double headerFontSize = constraints.maxWidth < 500 ? 20 : 24;
+                  double labelFontSize = constraints.maxWidth < 500 ? 14 : 16;
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: GmailEmailService.getProcurementRequestsStream(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator());
+                        }
 
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text('Error: ${snapshot.error}'),
-                      );
-                    }
+                        if (snapshot.hasError) {
+                          return Center(child: Text('Error: ${snapshot.error}'));
+                        }
 
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return _buildEmptyState();
-                    }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return _buildEmptyState();
+                        }
 
-                    return ListView.builder(
-                      padding: EdgeInsets.all(20),
-                      itemCount: snapshot.data!.docs.length,
-                      itemBuilder: (context, index) {
-                        final doc = snapshot.data!.docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
-                        return _buildRequestCard(context, data);
+                        return ListView.builder(
+                          padding: EdgeInsets.all(horizontalPadding),
+                          itemCount: snapshot.data!.docs.length,
+                          itemBuilder: (context, index) {
+                            final doc = snapshot.data!.docs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+                            return _buildRequestCard(context, data);
+                          },
+                        );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -120,98 +126,110 @@ class ProcurementTrackingScreen extends StatelessWidget {
     final priority = data['priority'] ?? 'Normal';
     final requestedAt = data['requestedAt'] as Timestamp?;
     final lastUpdated = data['lastUpdated'] as Timestamp?;
+    final requestId = data['requestId'] ?? '';
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey[100]!,
-            blurRadius: 8,
-            offset: Offset(0, 2),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProcurementRequestDetailsPage(requestId: requestId),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  data['partName'] ?? 'Unknown Part',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-              _buildStatusChip(status),
-            ],
-          ),
-          SizedBox(height: 8),
-
-          // Request Details
-          Row(
-            children: [
-              Icon(Icons.numbers, size: 16, color: Colors.grey[600]),
-              SizedBox(width: 8),
-              Text('ID: ${data['requestId']}', style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
-          SizedBox(height: 4),
-
-          Row(
-            children: [
-              Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
-              SizedBox(width: 8),
-              Text('Qty: ${data['requestedQty']}', style: TextStyle(color: Colors.grey[600])),
-              SizedBox(width: 20),
-              Icon(Icons.business, size: 16, color: Colors.grey[600]),
-              SizedBox(width: 8),
-              Text(data['supplier'] ?? 'Unknown', style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
-          SizedBox(height: 4),
-
-          // Priority and Timing
-          Row(
-            children: [
-              _buildPriorityChip(priority),
-              Spacer(),
-              if (requestedAt != null)
-                Text(
-                  'Requested: ${_formatDate(requestedAt.toDate())}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
-            ],
-          ),
-
-          // Status Details
-          if (status != 'Pending Email') ...[
-            SizedBox(height: 12),
-            _buildStatusDetails(data),
-          ],
-
-          // Last Updated
-          if (lastUpdated != null) ...[
-            SizedBox(height: 8),
-            Text(
-              'Last updated: ${_formatDateTime(lastUpdated.toDate())}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey[100]!,
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
           ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data['partName'] ?? 'Unknown Part',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                _buildStatusChip(status),
+              ],
+            ),
+            SizedBox(height: 8),
 
-          // Action Buttons
-          SizedBox(height: 12),
-          _buildActionButtons(context, data),
-        ],
+            // Request Details
+            Row(
+              children: [
+                Icon(Icons.numbers, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 8),
+                Text('ID: ${data['requestId']}', style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+            SizedBox(height: 4),
+
+            Row(
+              children: [
+                Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 8),
+                Text('Qty: ${data['requestedQty']}', style: TextStyle(color: Colors.grey[600])),
+                SizedBox(width: 20),
+                Icon(Icons.business, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 8),
+                Text(data['supplier'] ?? 'Unknown', style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+            SizedBox(height: 4),
+
+            // Priority and Timing
+            Row(
+              children: [
+                _buildPriorityChip(priority),
+                Spacer(),
+                if (requestedAt != null)
+                  Text(
+                    'Requested: ${_formatDate(requestedAt.toDate())}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+              ],
+            ),
+
+            // Status Details
+            if (status != 'Pending Email') ...[
+              SizedBox(height: 12),
+              _buildStatusDetails(data),
+            ],
+
+            // Last Updated
+            if (lastUpdated != null) ...[
+              SizedBox(height: 8),
+              Text(
+                'Last updated: ${_formatDateTime(lastUpdated.toDate())}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+              ),
+            ],
+
+            // Action Buttons
+            SizedBox(height: 12),
+            _buildActionButtons(context, data),
+          ],
+        ),
       ),
     );
   }
