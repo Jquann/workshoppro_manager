@@ -35,9 +35,13 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
   final _year = TextEditingController();
   final _carPlate = TextEditingController();
   final _desc = TextEditingController();
+  final _customerController = TextEditingController();
   final _db = FirestoreService();
   String? selectedCustomerId;
   String? selectedCustomerName;
+  List<Map<String, dynamic>> _allCustomers = [];
+  List<Map<String, dynamic>> _filteredCustomers = [];
+  bool _showCustomerSuggestions = false;
 
   // Animation controllers
   late AnimationController _fadeAnimationController;
@@ -51,7 +55,11 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     if (widget.customerId != null) {
       selectedCustomerId = widget.customerId;
       selectedCustomerName = widget.customerName;
+      _customerController.text = widget.customerName ?? '';
     }
+
+    // Load customers data
+    _loadCustomers();
 
     // Initialize animations
     _fadeAnimationController = AnimationController(
@@ -76,6 +84,50 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     _slideAnimationController.forward();
   }
 
+  Future<void> _loadCustomers() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('customers')
+          .where('isDeleted', isEqualTo: false)
+          .get();
+      
+      setState(() {
+        _allCustomers = snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+        _filteredCustomers = _allCustomers;
+      });
+    } catch (e) {
+      print('Error loading customers: $e');
+    }
+  }
+
+  void _filterCustomers(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCustomers = _allCustomers;
+        _showCustomerSuggestions = false;
+      } else {
+        _filteredCustomers = _allCustomers.where((customer) {
+          final name = (customer['customerName'] ?? '').toLowerCase();
+          return name.contains(query.toLowerCase());
+        }).toList();
+        _showCustomerSuggestions = true;
+      }
+    });
+  }
+
+  void _selectCustomer(Map<String, dynamic> customer) {
+    setState(() {
+      selectedCustomerId = customer['id'];
+      selectedCustomerName = customer['customerName'];
+      _customerController.text = customer['customerName'] ?? '';
+      _showCustomerSuggestions = false;
+    });
+  }
+
   @override
   void dispose() {
     _fadeAnimationController.dispose();
@@ -84,6 +136,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     _make.dispose();
     _year.dispose();
     _carPlate.dispose();
+    _customerController.dispose();
     _desc.dispose();
     super.dispose();
   }
@@ -218,76 +271,71 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
       title: 'Customer Information',
       child: _buildFormField(
         label: 'Customer',
-        child: StreamBuilder<QuerySnapshot>(
-          stream: _db.customersStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _kError.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Error loading customers',
-                  style: TextStyle(color: _kError),
-                ),
-              );
-            }
-
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _kLightGrey,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: _kPrimary,
-                    strokeWidth: 2,
-                  ),
-                ),
-              );
-            }
-
-            final customers = snapshot.data?.docs ?? [];
-            // Filter out deleted customers
-            final activeCustomers = customers.where((customer) {
-              final data = customer.data() as Map<String, dynamic>;
-              return data['isDeleted'] != true;
-            }).toList();
-            
-            return DropdownButtonFormField<String>(
-              decoration: _input('Select customer', icon: Icons.people_rounded),
-              value: selectedCustomerId,
-              isExpanded: true,
-              validator: (value) => value == null ? 'Please select a customer' : null,
-              items: activeCustomers.map((customer) {
-                final data = customer.data() as Map<String, dynamic>;
-                return DropdownMenuItem<String>(
-                  value: customer.id,
-                  child: Text(
-                    data['customerName'] ?? 'Unknown Customer',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedCustomerId = value;
-                  if (value != null) {
-                    final customer = customers.firstWhere((c) => c.id == value);
-                    final data = customer.data() as Map<String, dynamic>;
-                    selectedCustomerName = data['customerName'];
-                  }
-                });
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _customerController,
+              decoration: _input('Type customer name...', icon: Icons.people_rounded),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please select a customer';
+                }
+                if (selectedCustomerId == null) {
+                  return 'Please select a customer from the suggestions';
+                }
+                return null;
               },
-            );
-          },
+              onChanged: _filterCustomers,
+              onTap: () {
+                if (_customerController.text.isNotEmpty) {
+                  _filterCustomers(_customerController.text);
+                }
+              },
+            ),
+            if (_showCustomerSuggestions && _filteredCustomers.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                decoration: BoxDecoration(
+                  border: Border.all(color: _kDivider),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _filteredCustomers.length,
+                  itemBuilder: (context, index) {
+                    final customer = _filteredCustomers[index];
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(Icons.person, color: _kPrimary, size: 20),
+                      title: Text(
+                        customer['customerName'] ?? 'Unknown',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      subtitle: customer['phoneNumber'] != null
+                          ? Text(
+                              customer['phoneNumber'],
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _kGrey,
+                              ),
+                            )
+                          : null,
+                      onTap: () => _selectCustomer(customer),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

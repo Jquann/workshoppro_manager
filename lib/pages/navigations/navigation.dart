@@ -3,6 +3,7 @@ import 'package:workshoppro_manager/pages/crm/crm.dart';
 import 'package:workshoppro_manager/pages/inventory_control/inventory_dashboard.dart';
 import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle.dart';
+import 'package:workshoppro_manager/pages/schedule/schedule.dart';
 
 class MainNavigationPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -22,26 +23,13 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       child: VehiclesPage(scaffoldKey: widget.scaffoldKey),
     ),
     // Schedule Page
-    Center(
-      child: Text(
-        'Schedule',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    ),
+    SchedulePage(scaffoldKey: widget.scaffoldKey),
     // CRM Page
     CRMPage(scaffoldKey: widget.scaffoldKey),
     // Inventory Page
     InventoryScreen(),
     // Invoices Page
     InvoiceDashboard(scaffoldKey: widget.scaffoldKey),
-  ];
-
-  final List<String> _pageTitles = [
-    'Vehicles',
-    'Schedule',
-    'CRM',
-    'Inventory',
-    'Invoices',
   ];
 
   @override
