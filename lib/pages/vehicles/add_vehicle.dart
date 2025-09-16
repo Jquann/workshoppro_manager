@@ -22,7 +22,6 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
-  static const _kWarning = Color(0xFFFF9500);
   static const _kError = Color(0xFFFF3B30);
   static const _kGrey = Color(0xFF8E8E93);
   static const _kLightGrey = Color(0xFFF2F2F7);
@@ -535,7 +534,11 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     }
 
     // Validate that selected customer is not deleted
-    String customerIdToCheck = widget.customerId ?? selectedCustomerId!;
+    String customerIdToCheck = widget.customerId ?? selectedCustomerId ?? '';
+    if (customerIdToCheck.isEmpty) {
+      _showSnackBar('Customer ID is missing', _kError);
+      return;
+    }
     bool isCustomerValid = await _validateCustomerNotDeleted(customerIdToCheck);
     if (!isCustomerValid) {
       _showSnackBar('Selected customer has been deleted. Please choose another customer.', _kError);
@@ -565,7 +568,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
       final vehicleId = await _db.addVehicle(
         VehicleModel(
           id: '',
-          customerName: widget.customerName ?? selectedCustomerName!,
+          customerName: widget.customerName ?? selectedCustomerName ?? 'Unknown Customer',
           make: _make.text.trim(),
           model: _model.text.trim(),
           year: int.parse(_year.text.trim()),
