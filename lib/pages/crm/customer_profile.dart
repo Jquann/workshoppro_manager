@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import '../vehicles/view_vehicle.dart';
 import '../vehicles/add_vehicle.dart';
+import 'add_customer.dart';
 
 class CustomerProfilePage extends StatefulWidget {
   final String customerId;
@@ -17,6 +19,245 @@ class CustomerProfilePage extends StatefulWidget {
 
 class _CustomerProfilePageState extends State<CustomerProfilePage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Copy to clipboard and show feedback
+  void _copyToClipboard(String text, String type) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$type copied to clipboard'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Show action dialog for phone number
+  void _showPhoneActions(String phoneNumber) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.phone, color: Colors.green),
+                title: Text('Call $phoneNumber'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyToClipboard(phoneNumber, 'Phone number');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.copy, color: Colors.blue),
+                title: Text('Copy Phone Number'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyToClipboard(phoneNumber, 'Phone number');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Show action dialog for email
+  void _showEmailActions(String email) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.email, color: Colors.blue),
+                title: Text('Send Email'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyToClipboard(email, 'Email address');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.copy, color: Colors.blue),
+                title: Text('Copy Email'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyToClipboard(email, 'Email address');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Show delete confirmation dialog
+  void _showDeleteConfirmation(String customerName) {
+    final TextEditingController _confirmController = TextEditingController();
+    bool _isDeleting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.red, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'Delete Customer',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This action cannot be undone. The customer will be moved to deleted customers.',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'To confirm, please type the customer name:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Text(
+                      customerName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  TextField(
+                    controller: _confirmController,
+                    decoration: InputDecoration(
+                      hintText: 'Type customer name here',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.red),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isDeleting ? null : () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF8E8E93),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isDeleting ? null : () async {
+                    if (_confirmController.text.trim() == customerName.trim()) {
+                      setState(() {
+                        _isDeleting = true;
+                      });
+                      
+                      await _softDeleteCustomer();
+                      
+                      Navigator.of(context).pop(); // Close dialog
+                      Navigator.of(context).pop(); // Go back to previous screen
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Customer name does not match!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: _isDeleting
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                          ),
+                        )
+                      : Text(
+                          'Delete',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Soft delete customer
+  Future<void> _softDeleteCustomer() async {
+    try {
+      await _firestore.collection('customers').doc(widget.customerId).update({
+        'isDeleted': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Customer deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error deleting customer: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   Widget _buildAddVehicleButton() {
     return Container(
@@ -112,52 +353,63 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           color: Colors.white,
           child: Column(
             children: [
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Phone',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.black87,
+              InkWell(
+                onTap: () => _showPhoneActions(customerData['phoneNumber'] ?? ''),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Phone',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    Text(
-                      customerData['phoneNumber'] ?? '',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.black45,
+                      Text(
+                        customerData['phoneNumber'] ?? '',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.black45,
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Container(
                 height: 1,
                 color: Color(0xFFEEEEEE),
               ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Email',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.black87,
+              InkWell(
+                onTap: () => _showEmailActions(customerData['emailAddress'] ?? ''),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Email',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    Text(
-                      customerData['emailAddress'] ?? '',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.black45,
+                      Flexible(
+                        child: Text(
+                          customerData['emailAddress'] ?? '',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.black45,
+                            decoration: TextDecoration.underline,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -318,6 +570,83 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.edit,
+              color: Colors.blue,
+              size: 22,
+            ),
+            onPressed: () async {
+              // Get current customer data
+              DocumentSnapshot customerDoc = await _firestore
+                  .collection('customers')
+                  .doc(widget.customerId)
+                  .get();
+              
+              if (customerDoc.exists) {
+                Map<String, dynamic> customerData = customerDoc.data() as Map<String, dynamic>;
+                Customer customer = Customer(
+                  id: customerDoc.id,
+                  customerName: customerData['customerName'] ?? '',
+                  phoneNumber: customerData['phoneNumber'] ?? '',
+                  emailAddress: customerData['emailAddress'] ?? '',
+                  vehicleIds: List<String>.from(customerData['vehicleIds'] ?? []),
+                  createdAt: (customerData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                  updatedAt: (customerData['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                );
+                
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddCustomerPage(
+                      customer: customer,
+                      documentId: widget.customerId,
+                    ),
+                  ),
+                );
+                
+                // Refresh data if customer was updated
+                if (result == true) {
+                  setState(() {});
+                }
+              }
+            },
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.black),
+            onSelected: (String value) async {
+              if (value == 'delete') {
+                // Get customer data for confirmation
+                DocumentSnapshot customerDoc = await _firestore
+                    .collection('customers')
+                    .doc(widget.customerId)
+                    .get();
+                
+                if (customerDoc.exists) {
+                  Map<String, dynamic> customerData = customerDoc.data() as Map<String, dynamic>;
+                  String customerName = customerData['customerName'] ?? '';
+                  _showDeleteConfirmation(customerName);
+                }
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Delete Customer',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: _firestore.collection('customers').doc(widget.customerId).snapshots(),
@@ -335,6 +664,39 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           }
 
           Map<String, dynamic> customerData = snapshot.data!.data() as Map<String, dynamic>;
+          
+          // Check if customer is deleted
+          if (customerData['isDeleted'] == true) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    color: Colors.grey,
+                    size: 64,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Customer Deleted',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'This customer has been deleted',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
           List<String> vehicleIds = List<String>.from(customerData['vehicleIds'] ?? []);
 
           return SingleChildScrollView(
