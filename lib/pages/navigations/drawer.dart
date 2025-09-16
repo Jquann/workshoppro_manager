@@ -9,7 +9,15 @@ class MainAppWithDrawer extends StatelessWidget {
     return Scaffold(
       key: _scaffoldKey,
       drawer: CustomDrawer(),
-      body: MainNavigationPage(scaffoldKey: _scaffoldKey),
+      body: GestureDetector(
+        onPanUpdate: (details) {
+          // Check if the gesture is a swipe from left to right (anywhere on screen)
+          if (details.delta.dx > 0) {
+            _scaffoldKey.currentState?.openDrawer();
+          }
+        },
+        child: MainNavigationPage(scaffoldKey: _scaffoldKey),
+      ),
     );
   }
 }

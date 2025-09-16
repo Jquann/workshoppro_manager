@@ -54,6 +54,67 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   bool _isLoading = false;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Check if email already exists in Firestore
+  Future<bool> _checkEmailExists(String email) async {
+    try {
+      final query = await _firestore
+          .collection('customers')
+          .where('emailAddress', isEqualTo: email.trim())
+          .get();
+      
+      // If editing, exclude the current document
+      if (widget.documentId != null) {
+        return query.docs.any((doc) => doc.id != widget.documentId);
+      }
+      
+      return query.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Check if phone number already exists in Firestore
+  Future<bool> _checkPhoneExists(String phoneNumber) async {
+    try {
+      String formattedPhone = _formatPhoneNumber(phoneNumber);
+      final query = await _firestore
+          .collection('customers')
+          .where('phoneNumber', isEqualTo: formattedPhone)
+          .get();
+      
+      // If editing, exclude the current document
+      if (widget.documentId != null) {
+        return query.docs.any((doc) => doc.id != widget.documentId);
+      }
+      
+      return query.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Format phone number to Malaysian format starting with 0
+  String _formatPhoneNumber(String phoneNumber) {
+    // Remove all non-digit characters
+    String digits = phoneNumber.trim().replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present
+    if (!digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Format based on length
+    if (digits.length == 10) {
+      // Format: 012-345 6789
+      return '${digits.substring(0, 3)}-${digits.substring(3, 6)} ${digits.substring(6)}';
+    } else if (digits.length == 11) {
+      // Format: 012-3456 7890
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)} ${digits.substring(7)}';
+    }
+    
+    return phoneNumber; // Return original if format doesn't match
+  }
+
   @override
   void initState() {
     super.initState();
@@ -70,10 +131,41 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     setState(() {
       _isLoading = true;
     });
+    
     try {
+      // Check for duplicate email
+      bool emailExists = await _checkEmailExists(_emailController.text);
+      if (emailExists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ This email address is already registered!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Check for duplicate phone number
+      bool phoneExists = await _checkPhoneExists(_phoneNumberController.text);
+      if (phoneExists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ This phone number is already registered!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+      
       Map<String, dynamic> customerData = {
         'customerName': _customerNameController.text.trim(),
-        'phoneNumber': _phoneNumberController.text.trim(),
+        'phoneNumber': _formatPhoneNumber(_phoneNumberController.text),
         'emailAddress': _emailController.text.trim(),
         'vehicleIds': [],
         'updatedAt': FieldValue.serverTimestamp(),
@@ -81,27 +173,15 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       if (widget.documentId != null) {
         // Edit
         await _firestore.collection('customers').doc(widget.documentId).update(customerData);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Customer updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
       } else {
         // Add
         customerData['createdAt'] = FieldValue.serverTimestamp();
         await _firestore.collection('customers').add(customerData);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Customer added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
       }
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       setState(() {
@@ -156,15 +236,29 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
               _buildInputField(
                 label: 'Phone Number',
                 controller: _phoneNumberController,
-                hintText: 'Enter phone number',
+                hintText: 'Enter phone number (e.g., 0123456789)',
                 keyboardType: TextInputType.phone,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Phone number is required';
                   }
-                  if (value.trim().length < 8) {
-                    return 'Please enter a valid phone number';
+                  String phoneNumber = value.trim().replaceAll(RegExp(r'[^\d]'), '');
+                  
+                  // Add leading zero if not present for validation
+                  if (!phoneNumber.startsWith('0')) {
+                    phoneNumber = '0$phoneNumber';
                   }
+                  
+                  // Check if it's a valid Malaysian phone number (10-11 digits with leading 0)
+                  if (phoneNumber.length < 10 || phoneNumber.length > 11) {
+                    return 'Please enter a valid Malaysian phone number';
+                  }
+                  
+                  // Check if it starts with valid Malaysian mobile prefixes (01x)
+                  if (!phoneNumber.startsWith('01')) {
+                    return 'Please enter a valid Malaysian mobile number starting with 01';
+                  }
+                  
                   return null;
                 },
               ),

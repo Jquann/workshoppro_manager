@@ -119,11 +119,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         });
       },
       child: Container(
-        width: 44,
-        height: 50,
-        padding: EdgeInsets.only(top: 8),
-        child: Align(
-          alignment: Alignment.topCenter,
+        width: 70,
+        height: 61,
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(
           child: Icon(
             displayIcon,
             color: isSelected ? Colors.black : Color(0xFF8E8E93),
