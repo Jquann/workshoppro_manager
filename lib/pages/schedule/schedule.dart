@@ -245,8 +245,13 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                           final schedules = snapshot.data?.docs ?? [];
                           final filteredSchedules = _filterSchedules(schedules);
 
-                          if (filteredSchedules.isEmpty) {
+                          // 区分两种空状态：完全没有数据 vs 过滤后没有结果
+                          if (schedules.isEmpty) {
+                            // 完全没有调度数据，显示添加按钮
                             return _buildEmptyState();
+                          } else if (filteredSchedules.isEmpty) {
+                            // 有数据但过滤后为空，显示过滤结果为空的提示
+                            return _buildNoFilterResultsState();
                           }
 
                           return ListView.builder(
@@ -447,6 +452,57 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
             onPressed: _navigateToAddSchedule,
             icon: const Icon(Icons.add),
             label: const Text('Add Schedule'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoFilterResultsState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: _kGrey.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No schedules match your filters',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: _kGrey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your date range or status filter',
+            style: TextStyle(
+              fontSize: 14,
+              color: _kGrey.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                _selectedStatusFilter = 'all';
+                searchQuery = '';
+                _searchController.clear();
+              });
+            },
+            icon: const Icon(Icons.clear_all),
+            label: const Text('Clear Filters'),
             style: ElevatedButton.styleFrom(
               backgroundColor: _kPrimary,
               foregroundColor: Colors.white,
