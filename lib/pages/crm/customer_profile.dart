@@ -259,6 +259,35 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     }
   }
 
+  // Color methods to match CRM page
+  Color _getAvatarBgColor(String name) {
+    const swatches = [
+      Color(0xFFE3F2FD), // Light Blue
+      Color(0xFFE8F5E9), // Light Green
+      Color(0xFFFFF3E0), // Light Orange
+      Color(0xFFEDE7F6), // Light Purple
+      Color(0xFFFFEBEE), // Light Pink
+      Color(0xFFE0F7FA), // Light Cyan
+      Color(0xFFFFF8E1), // Light Yellow
+      Color(0xFFEFEBE9), // Light Brown
+    ];
+    return swatches[name.hashCode % swatches.length];
+  }
+
+  Color _getAvatarIconColor(String name) {
+    const iconColors = [
+      Color(0xFF1976D2), // Blue
+      Color(0xFF388E3C), // Green
+      Color(0xFFEF6C00), // Orange
+      Color(0xFF7B1FA2), // Purple
+      Color(0xFFE91E63), // Pink
+      Color(0xFF00ACC1), // Cyan
+      Color(0xFFFFB300), // Yellow
+      Color(0xFF5D4037), // Brown
+    ];
+    return iconColors[name.hashCode % iconColors.length];
+  }
+
   Widget _buildAddVehicleButton() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -713,7 +742,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                         height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.orange[100],
+                          color: _getAvatarBgColor(customerData['customerName'] ?? 'A'),
                         ),
                         child: Center(
                           child: Text(
@@ -721,7 +750,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.w500,
-                              color: Colors.orange[900],
+                              color: _getAvatarIconColor(customerData['customerName'] ?? 'A'),
                             ),
                           ),
                         ),
