@@ -357,7 +357,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 _enhancedInfoRow('Make', v.make, Icons.business_rounded, s),
                 _enhancedInfoRow('Model', v.model, Icons.car_rental_rounded, s),
                 _enhancedInfoRow('Year', '${v.year}', Icons.calendar_today_rounded, s),
-                _enhancedInfoRow('VIN', v.vin, Icons.confirmation_number_rounded, s, isLast: true),
+                _enhancedInfoRow('Car Plate Number', v.carPlate, Icons.confirmation_number_rounded, s, isLast: true),
               ],
             ),
           ),
