@@ -306,9 +306,13 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
               );
             }).toList();
 
+            // Check if selectedCustomerId exists in active customers
+            final bool isSelectedCustomerActive = activeCustomers.any((customer) => customer.id == selectedCustomerId);
+            final String? validSelectedCustomerId = isSelectedCustomerActive ? selectedCustomerId : null;
+
             return DropdownButtonFormField<String>(
               decoration: _input('Select customer', icon: Icons.people_rounded),
-              value: selectedCustomerId,
+              value: validSelectedCustomerId,
               isExpanded: true,
               hint: Text(
                 selectedCustomerName ?? 'Select customer',
@@ -328,15 +332,25 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
                   );
                 }).toList();
               },
-              validator: (value) => value == null ? 'Please select a customer' : null,
+              validator: (value) {
+                if (value == null) {
+                  if (activeCustomers.isEmpty) {
+                    return 'No active customers available';
+                  }
+                  return 'Please select a customer';
+                }
+                return null;
+              },
               items: items,
               onChanged: (value) {
                 setState(() {
                   selectedCustomerId = value;
                   if (value != null) {
-                    final customer = customers.firstWhere((c) => c.id == value);
+                    final customer = activeCustomers.firstWhere((c) => c.id == value);
                     final data = customer.data() as Map<String, dynamic>;
                     selectedCustomerName = data['customerName'];
+                  } else {
+                    selectedCustomerName = null;
                   }
                 });
               },

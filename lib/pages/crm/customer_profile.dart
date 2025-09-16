@@ -288,7 +288,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     return iconColors[name.hashCode % iconColors.length];
   }
 
-  Widget _buildAddVehicleButton() {
+  Widget _buildAddVehicleButton({String? customerName}) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: InkWell(
@@ -298,6 +298,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             MaterialPageRoute(
               builder: (context) => AddVehicle(
                 customerId: widget.customerId,
+                customerName: customerName,
               ),
             ),
           );
@@ -448,7 +449,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     );
   }
 
-  Widget _buildVehicleSection(List<String> vehicleIds) {
+  Widget _buildVehicleSection(List<String> vehicleIds, String customerName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -467,7 +468,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
         Container(
           color: Colors.white,
           child: vehicleIds.isEmpty
-              ? _buildAddVehicleButton()
+              ? _buildAddVehicleButton(customerName: customerName)
               : FutureBuilder<QuerySnapshot>(
                   future: _firestore
                       .collection('vehicles')
@@ -484,13 +485,13 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     }
 
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return _buildAddVehicleButton();
+                      return _buildAddVehicleButton(customerName: customerName);
                     }
 
                     final vehicles = snapshot.data!.docs;
                     
                     if (vehicles.isEmpty) {
-                      return _buildAddVehicleButton();
+                      return _buildAddVehicleButton(customerName: customerName);
                     }
 
               return Column(
@@ -541,7 +542,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      '${vehicleData['vin'] ?? ''}',
+                                      '${vehicleData['carPlate'] ?? ''}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.black45,
@@ -770,7 +771,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 SizedBox(height: 20),
                 _buildContactSection(customerData),
                 SizedBox(height: 20),
-                _buildVehicleSection(vehicleIds),
+                _buildVehicleSection(vehicleIds, customerData['customerName'] ?? 'Unknown'),
                 SizedBox(height: 20),
               ],
             ),
