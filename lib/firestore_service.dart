@@ -168,9 +168,7 @@ class FirestoreService {
 
   // ===== CUSTOMERS =====
   Stream<QuerySnapshot> get customersStream =>
-      _db.collection('customers')
-          .where('isDeleted', isEqualTo: false)
-          .orderBy('customerName').snapshots();
+      _db.collection('customers').orderBy('customerName').snapshots();
 
   // ===== SERVICES =====
   CollectionReference _svc(String vehicleId) =>

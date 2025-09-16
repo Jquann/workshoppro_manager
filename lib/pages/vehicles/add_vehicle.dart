@@ -253,12 +253,18 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
             }
 
             final customers = snapshot.data?.docs ?? [];
+            // Filter out deleted customers
+            final activeCustomers = customers.where((customer) {
+              final data = customer.data() as Map<String, dynamic>;
+              return data['isDeleted'] != true;
+            }).toList();
+            
             return DropdownButtonFormField<String>(
               decoration: _input('Select customer', icon: Icons.people_rounded),
               value: selectedCustomerId,
               isExpanded: true,
               validator: (value) => value == null ? 'Please select a customer' : null,
-              items: customers.map((customer) {
+              items: activeCustomers.map((customer) {
                 final data = customer.data() as Map<String, dynamic>;
                 return DropdownMenuItem<String>(
                   value: customer.id,
