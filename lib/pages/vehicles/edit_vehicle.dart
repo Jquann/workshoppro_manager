@@ -556,12 +556,38 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
     );
   }
 
+  // Validate that the customer is not deleted
+  Future<bool> _validateCustomerNotDeleted(String customerId) async {
+    try {
+      DocumentSnapshot customerDoc = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(customerId)
+          .get();
+      
+      if (!customerDoc.exists) {
+        return false; // Customer doesn't exist
+      }
+      
+      Map<String, dynamic> customerData = customerDoc.data() as Map<String, dynamic>;
+      return customerData['isDeleted'] != true; // Return false if deleted
+    } catch (e) {
+      return false; // In case of error, assume invalid
+    }
+  }
+
   Future<void> _onSave() async {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
     if (selectedCustomerId == null) {
       _showSnackBar('Please select a customer', _kError);
+      return;
+    }
+
+    // Validate that selected customer is not deleted
+    bool isCustomerValid = await _validateCustomerNotDeleted(selectedCustomerId!);
+    if (!isCustomerValid) {
+      _showSnackBar('Selected customer has been deleted. Please choose another customer.', _kError);
       return;
     }
 

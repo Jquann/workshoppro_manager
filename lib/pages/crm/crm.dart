@@ -82,7 +82,10 @@ class _CRMPageState extends State<CRMPage> {
                     ),
                     Expanded(
                       child: StreamBuilder<QuerySnapshot>(
-                        stream: _firestore.collection('customers').snapshots(),
+                        stream: _firestore
+                            .collection('customers')
+                            .where('isDeleted', isEqualTo: false)
+                            .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {
                             return Center(
@@ -104,20 +107,32 @@ class _CRMPageState extends State<CRMPage> {
                                     ),
                                   ),
                                   SizedBox(height: 8),
-                                  Text(
-                                    'Error: ${snapshot.error}',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 32),
+                                    child: Text(
+                                      'Please check your internet connection and Firebase permissions',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
-                                    textAlign: TextAlign.center,
                                   ),
-                                  SizedBox(height: 20),
+                                  SizedBox(height: 16),
                                   ElevatedButton(
                                     onPressed: () {
-                                      setState(() {}); // Trigger rebuild to retry
+                                      setState(() {});
                                     },
-                                    child: Text('Retry'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Retry',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
                                   ),
                                 ],
                               ),
