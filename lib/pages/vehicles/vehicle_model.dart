@@ -4,7 +4,7 @@ class VehicleModel {
   String make;
   String model;
   int year;
-  String vin;
+  String carPlate;
   String? description; // optional
   String status;       // "active" or "inactive"
 
@@ -14,7 +14,7 @@ class VehicleModel {
     required this.make,
     required this.model,
     required this.year,
-    required this.vin,
+    required this.carPlate,
     this.description,
     this.status = 'active', // default is active
   });
@@ -28,7 +28,7 @@ class VehicleModel {
       year: (m['year'] ?? 0) is int
           ? m['year']
           : int.tryParse('${m['year']}') ?? 0,
-      vin: m['vin'] ?? '',
+      carPlate: m['carPlate'] ?? '',
       description: m['description'],
       status: m['status'] ?? 'active', // fallback if missing
     );
@@ -39,7 +39,7 @@ class VehicleModel {
     'make': make,
     'model': model,
     'year': year,
-    'vin': vin,
+    'carPlate': carPlate,
     if (description != null && description!.isNotEmpty)
       'description': description,
     'status': status,   // include in Firestore

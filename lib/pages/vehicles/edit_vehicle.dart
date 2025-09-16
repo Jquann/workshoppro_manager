@@ -15,7 +15,6 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
-  static const _kWarning = Color(0xFFFF9500);
   static const _kError = Color(0xFFFF3B30);
   static const _kGrey = Color(0xFF8E8E93);
   static const _kLightGrey = Color(0xFFF2F2F7);
@@ -27,7 +26,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
   final _model = TextEditingController();
   final _make = TextEditingController();
   final _year = TextEditingController();
-  final _vin = TextEditingController();
+  final _carPlate = TextEditingController();
   final _desc = TextEditingController();
   final _db = FirestoreService();
 
@@ -51,7 +50,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
     _model.text = widget.vehicle.model;
     _make.text = widget.vehicle.make;
     _year.text = widget.vehicle.year.toString();
-    _vin.text = widget.vehicle.vin;
+    _carPlate.text = widget.vehicle.carPlate;
     _desc.text = widget.vehicle.description ?? '';
     selectedCustomerName = widget.vehicle.customerName;
 
@@ -101,7 +100,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
     _model.dispose();
     _make.dispose();
     _year.dispose();
-    _vin.dispose();
+    _carPlate.dispose();
     _desc.dispose();
     super.dispose();
   }
@@ -387,9 +386,9 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
           ),
           const SizedBox(height: 20),
           _buildFormField(
-            label: 'Vehicle Identification Number (VIN)',
+            label: 'Car Plate Number',
             child: TextFormField(
-              controller: _vin,
+              controller: _carPlate,
               decoration: _input('Enter VIN number', icon: Icons.qr_code_rounded),
               validator: _req,
               textCapitalization: TextCapitalization.characters,
@@ -592,7 +591,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
         make: _make.text.trim(),
         model: _model.text.trim(),
         year: int.parse(_year.text.trim()),
-        vin: _vin.text.trim(),
+        carPlate: _carPlate.text.trim(),
         description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
         status: widget.vehicle.status, // preserve
       );

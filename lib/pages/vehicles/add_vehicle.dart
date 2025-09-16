@@ -34,7 +34,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
   final _model = TextEditingController();
   final _make = TextEditingController();
   final _year = TextEditingController();
-  final _vin = TextEditingController();
+  final _carPlate = TextEditingController();
   final _desc = TextEditingController();
   final _db = FirestoreService();
   String? selectedCustomerId;
@@ -84,7 +84,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     _model.dispose();
     _make.dispose();
     _year.dispose();
-    _vin.dispose();
+    _carPlate.dispose();
     _desc.dispose();
     super.dispose();
   }
@@ -332,10 +332,10 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 20),
           _buildFormField(
-            label: 'Vehicle Identification Number (VIN)',
+            label: 'Car Plate Number',
             child: TextFormField(
-              controller: _vin,
-              decoration: _input('Enter VIN number', icon: Icons.qr_code_rounded),
+              controller: _carPlate,
+              decoration: _input('Enter Car Plate Number', icon: Icons.qr_code_rounded),
               validator: _req,
               textCapitalization: TextCapitalization.characters,
             ),
@@ -536,7 +536,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
           make: _make.text.trim(),
           model: _model.text.trim(),
           year: int.parse(_year.text.trim()),
-          vin: _vin.text.trim(),
+          carPlate: _carPlate.text.trim(),
           description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
           status: 'active',
         ),

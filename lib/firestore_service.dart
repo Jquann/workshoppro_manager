@@ -113,7 +113,7 @@ class FirestoreService {
         final needle = q.toLowerCase();
         list = list.where((v) {
           final hay =
-          '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.vin}'.toLowerCase();
+          '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.carPlate}'.toLowerCase();
           return hay.contains(needle);
         }).toList();
       }
@@ -168,9 +168,7 @@ class FirestoreService {
 
   // ===== CUSTOMERS =====
   Stream<QuerySnapshot> get customersStream =>
-      _db.collection('customers')
-          .orderBy('customerName')
-          .snapshots();
+      _db.collection('customers').orderBy('customerName').snapshots();
 
   // ===== SERVICES =====
   CollectionReference _svc(String vehicleId) =>
@@ -206,4 +204,33 @@ class FirestoreService {
 
   Future<void> deleteService(String vehicleId, String id) =>
       _svc(vehicleId).doc(id).delete();
+
+  // ===== Photos for service (NEW) =====
+  /// Appends photo URLs to `photos` array on the service document.
+  Future<void> updateServicePhotos(
+      String vehicleId,
+      String serviceId,
+      List<String> urls,
+      ) async {
+    if (urls.isEmpty) return;
+    await _svc(vehicleId).doc(serviceId).set(
+      {
+        'photos': FieldValue.arrayUnion(urls),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  /// (Optional) Replace the entire photos array.
+  Future<void> setServicePhotos(
+      String vehicleId,
+      String serviceId,
+      List<String> urls,
+      ) async {
+    await _svc(vehicleId).doc(serviceId).update({
+      'photos': urls,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 }
