@@ -5,6 +5,8 @@ import 'all_inv_part.dart';
 import 'inventory_data_manager.dart';
 import '../navigations/drawer.dart';
 import 'procurement_tracking_screen.dart';
+import 'request_inv_parts.dart';
+import 'spare_parts_analytics.dart';
 
 class InventoryScreen extends StatefulWidget {
   @override
@@ -51,14 +53,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
             categoryCount++;
             total++;
             int quantity = partData['quantity'] ?? 0;
+            int originalQuantity = partData['originalQuantity'] ?? quantity;
             bool isLowStock = partData['isLowStock'] ?? false;
-            // Count used parts (assuming parts with quantity < original are "used")
-            if (quantity > 0) {
-              used += (50 - quantity); // Assuming 50 was original quantity
+            bool isRequested = partData['isRequested'] ?? false;
+            // Used parts: originalQuantity - quantity
+            if (originalQuantity > quantity) {
+              used += (originalQuantity - quantity);
+            }
+            // Requested parts: flagged as requested or low stock
+            if (isRequested || isLowStock) {
+              requested++;
             }
             if (isLowStock) {
               lowStock++;
-              requested++;
             }
           }
         });
@@ -72,8 +79,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       final top5Usage = Map<String, int>.fromEntries(sortedUsage.entries.take(5));
       setState(() {
         totalParts = total;
-        partsUsed = used > 0 ? used : 320;
-        partsRequested = requested > 0 ? requested : lowStock;
+        partsUsed = used;
+        partsRequested = requested;
         lowStockParts = lowStock;
         categoryUsage = top5Usage;
         _isLoading = false;
@@ -363,13 +370,36 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         SizedBox(height: 32),
 
                         // Part Usage Section
-                        Text(
-                          'Part Usage',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Part Usage',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SparePartsAnalyticsScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                'View Analytics',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         SizedBox(height: 16),
 
@@ -435,100 +465,206 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                         SizedBox(height: 16),
 
-                        // Request New Parts Button
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AddNewPartScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.blue[200]!),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Request New Parts',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.blue[700],
+                        // Recent Procurement Requests Preview (always visible, any status)
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange[200]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.track_changes, color: Colors.orange[700], size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Recent Procurement Requests',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward,
-                                  color: Colors.blue[700],
-                                ),
-                              ],
-                            ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ProcurementTrackingScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      'View All',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.orange[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 12),
+                              FutureBuilder<QuerySnapshot>(
+                                future: _firestore
+                                    .collection('procurement_requests')
+                                    .orderBy('timestamp', descending: true)
+                                    .limit(3)
+                                    .get(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return Container(
+                                      height: 60,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.orange[600],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                    return Container(
+                                      height: 60,
+                                      child: Center(
+                                        child: Text(
+                                          'No recent procurement requests',
+                                          style: TextStyle(
+                                            color: Colors.orange[600],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  // Always show the 3 most recent requests, any status
+                                  return Column(
+                                    children: snapshot.data!.docs.map((doc) {
+                                      final data = doc.data() as Map<String, dynamic>;
+                                      return _buildProcurementPreviewItem(data);
+                                    }).toList(),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 16),
+
+                        // Recent Part Requests Preview
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.teal[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.teal[200]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.assignment, color: Colors.teal[700], size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Recent Part Requests',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.teal[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => InventoryPartRequestsPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      'View All',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.teal[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 12),
+                              FutureBuilder<QuerySnapshot>(
+                                future: _firestore
+                                    .collection('inventory_requests')
+                                    .orderBy('requestedAt', descending: true)
+                                    .limit(3)
+                                    .get(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return Container(
+                                      height: 60,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.teal[600],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                    return Container(
+                                      height: 60,
+                                      child: Center(
+                                        child: Text(
+                                          'No recent part requests',
+                                          style: TextStyle(
+                                            color: Colors.teal[600],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  return Column(
+                                    children: snapshot.data!.docs.map((doc) {
+                                      final data = doc.data() as Map<String, dynamic>;
+                                      return _buildPartRequestPreviewItem(data);
+                                    }).toList(),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
 
-                        SizedBox(height: 16),
-                        // View Procurement Requests Button
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ProcurementTrackingScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.orange[200]!),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Track Procurement Requests',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.orange[700],
-                                      ),
-                                    ),
-                                    Text(
-                                      'Monitor email status & supplier responses',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.orange[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Icon(
-                                  Icons.track_changes,
-                                  color: Colors.orange[700],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                         SizedBox(height: 32), // Space for bottom navigation
                         SizedBox(height: 16),
 
@@ -636,16 +772,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
                         // Data Import Button
 
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+                      ], // End of children for Column
+                    ), // End of Column
+                  ), // End of SingleChildScrollView
+                ), // End of RefreshIndicator
+              ), // End of Container
+            ), // End of Expanded
+          ], // End of children for main Column
+        ), // End of main Column
+      ), // End of SafeArea
+    ); // End of Scaffold
   }
 
 
@@ -705,6 +841,178 @@ class _InventoryScreenState extends State<InventoryScreen> {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _buildProcurementPreviewItem(Map<String, dynamic> data) {
+    final requestId = data['requestId'] ?? '';
+    final partName = data['partName'] ?? 'Unknown Part';
+    final quantity = data['quantity'] ?? 0;
+    final status = data['status'] ?? 'Pending';
+    final timestamp = (data['timestamp'] as Timestamp).toDate();
+    final isUrgent = status == 'Urgent';
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isUrgent ? Colors.red[50] : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isUrgent ? Colors.red[200]! : Colors.grey[300]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  partName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isUrgent ? Colors.red[700] : Colors.black,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Qty: $quantity',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Status: $status',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isUrgent ? Colors.red[700] : Colors.grey[700],
+                    fontWeight: isUrgent ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${timestamp.day}/${timestamp.month}/${timestamp.year}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+              SizedBox(height: 4),
+              if (isUrgent)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Urgent',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartRequestPreviewItem(Map<String, dynamic> data) {
+    final requestId = data['requestId'] ?? '';
+    final partName = data['partName'] ?? 'Unknown Part';
+    final requestedBy = data['requestedBy'] ?? 'N/A';
+    final status = data['status'] ?? 'Pending';
+    final requestedAt = (data['requestedAt'] as Timestamp).toDate();
+    final isApproved = status == 'Approved';
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isApproved ? Colors.green[50] : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isApproved ? Colors.green[200]! : Colors.grey[300]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  partName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isApproved ? Colors.green[700] : Colors.black,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Requested by: $requestedBy',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Status: $status',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isApproved ? Colors.green[700] : Colors.grey[700],
+                    fontWeight: isApproved ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${requestedAt.day}/${requestedAt.month}/${requestedAt.year}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+              SizedBox(height: 4),
+              if (isApproved)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Approved',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

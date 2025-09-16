@@ -18,9 +18,9 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   final _partNameController = TextEditingController();
   final _partIdController = TextEditingController();
   final _supplierController = TextEditingController();
-  final _quantityController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _lowStockThresholdController = TextEditingController();
+  final _supplierEmailController = TextEditingController();
 
   String? selectedCategory;
   List<String> categories = [];
@@ -39,10 +39,10 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       _partNameController.text = widget.part!.name;
       _partIdController.text = widget.part!.id;
       _supplierController.text = widget.part!.supplier;
-      _quantityController.text = widget.part!.quantity.toString();
       _descriptionController.text = widget.part!.description;
       _lowStockThresholdController.text = widget.part!.lowStockThreshold.toString();
       selectedCategory = widget.part!.category;
+      _supplierEmailController.text = widget.part!.supplierEmail;
     }
   }
 
@@ -178,7 +178,6 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     try {
       // Use part name as field name in the category document
       String partFieldName = _partNameController.text.trim();
-      int quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
       int lowStockThreshold = int.tryParse(_lowStockThresholdController.text.trim()) ?? 0;
 
       Map<String, dynamic> partData = {
@@ -186,10 +185,11 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
         'sparePartId': _partIdController.text.trim(),
         'category': selectedCategory,
         'supplier': _supplierController.text.trim(),
-        'quantity': quantity,
+        'supplierEmail': _supplierEmailController.text.trim(),
+        'quantity': 0, // Always 0 for new part
         'lowStockThreshold': lowStockThreshold,
         'description': _descriptionController.text.trim(),
-        'isLowStock': quantity <= lowStockThreshold,
+        'isLowStock': true, // Always true for new part with 0 quantity
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       };
@@ -436,66 +436,12 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                               ),
                               SizedBox(height: 20),
 
-                              // Quantity
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Quantity *',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Container(
-                                    width: 120,
-                                    child: TextFormField(
-                                      controller: _quantityController,
-                                      keyboardType: TextInputType.number,
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Required';
-                                        }
-                                        if (int.tryParse(value) == null) {
-                                          return 'Enter valid number';
-                                        }
-                                        return null;
-                                      },
-                                      decoration: InputDecoration(
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey[300]!,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey[300]!,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.blue,
-                                          ),
-                                        ),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              // Supplier Email
+                              _buildInputField(
+                                label: 'Supplier Email :',
+                                controller: _supplierEmailController,
+                                hintText: 'Enter Supplier Email',
+                                isRequired: false,
                               ),
                               SizedBox(height: 20),
 
@@ -726,9 +672,9 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     _partNameController.dispose();
     _partIdController.dispose();
     _supplierController.dispose();
-    _quantityController.dispose();
     _descriptionController.dispose();
     _lowStockThresholdController.dispose();
+    _supplierEmailController.dispose();
     super.dispose();
   }
 }

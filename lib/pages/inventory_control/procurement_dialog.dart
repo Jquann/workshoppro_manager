@@ -50,18 +50,25 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildPartInfoCard(),
-                    SizedBox(height: 20),
-                    _buildRequestDetails(),
-                    SizedBox(height: 20),
-                    _buildGmailEmailPreview(),
-                  ],
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double horizontalPadding = constraints.maxWidth < 500 ? 12 : 32;
+                  double headerFontSize = constraints.maxWidth < 500 ? 16 : 18;
+                  double labelFontSize = constraints.maxWidth < 500 ? 14 : 16;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.all(horizontalPadding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPartInfoCard(),
+                        SizedBox(height: 20),
+                        _buildRequestDetails(),
+                        SizedBox(height: 20),
+                        _buildGmailEmailPreview(),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             _buildGmailActionButtons(),
