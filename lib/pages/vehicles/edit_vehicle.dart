@@ -289,7 +289,13 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
               }
             }
 
-            final items = customers.map((customer) {
+            // Filter out deleted customers
+            final activeCustomers = customers.where((customer) {
+              final data = customer.data() as Map<String, dynamic>;
+              return data['isDeleted'] != true;
+            }).toList();
+
+            final items = activeCustomers.map((customer) {
               final data = customer.data() as Map<String, dynamic>;
               return DropdownMenuItem<String>(
                 value: customer.id,
@@ -310,7 +316,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
               ),
               // Ensure the collapsed view shows NAME
               selectedItemBuilder: (context) {
-                return customers.map((customer) {
+                return activeCustomers.map((customer) {
                   final data = customer.data() as Map<String, dynamic>;
                   final name = data['customerName'] ?? 'Unknown Customer';
                   return Align(

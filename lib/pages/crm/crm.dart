@@ -201,11 +201,15 @@ class _CRMPageState extends State<CRMPage> {
                             );
                           }
 
-                          // Filter customers based on search query
+                          // Filter customers based on search query and exclude deleted customers
                           List<DocumentSnapshot> filteredCustomers = snapshot.data!.docs.where((doc) {
+                            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+                            
+                            // Exclude deleted customers
+                            if (data['isDeleted'] == true) return false;
+                            
                             if (q.isEmpty) return true;
 
-                            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
                             String searchText = [
                               data['customerName'],
                               data['phoneNumber'],
