@@ -245,12 +245,10 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                           final schedules = snapshot.data?.docs ?? [];
                           final filteredSchedules = _filterSchedules(schedules);
 
-                          // 区分两种空状态：完全没有数据 vs 过滤后没有结果
+                          // Handle empty states
                           if (schedules.isEmpty) {
-                            // 完全没有调度数据，显示添加按钮
                             return _buildEmptyState();
                           } else if (filteredSchedules.isEmpty) {
-                            // 有数据但过滤后为空，显示过滤结果为空的提示
                             return _buildNoFilterResultsState();
                           }
 
