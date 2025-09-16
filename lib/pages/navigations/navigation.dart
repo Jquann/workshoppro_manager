@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/pages/crm/crm.dart';
-import 'package:workshoppro_manager/pages/inventory_control/inventory_overview.dart';
+import 'package:workshoppro_manager/pages/inventory_control/inventory_dashboard.dart';
 import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle.dart';
 
@@ -32,7 +32,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     CRMPage(scaffoldKey: widget.scaffoldKey),
     // Inventory Page
     InventoryScreen(),
-    // Invoices Page
+
+    // Invoices Page - Now shows the Invoice Dashboard with scaffoldKey
     InvoiceDashboard(scaffoldKey: widget.scaffoldKey),
   ];
 
@@ -52,35 +53,46 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         Expanded(child: _pages[_selectedIndex]),
         // Bottom Navigation Bar
         Container(
-          height: 61,
           decoration: BoxDecoration(
             color: Colors.white,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildBottomNavItem(
-                Icons.local_shipping_outlined,
-                'Vehicles',
-                0,
-              ),
-              _buildBottomNavItem(
-                Icons.calendar_today_outlined,
-                'Schedule',
-                1,
-              ),
-              _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
-              _buildBottomNavItem(
-                Icons.inventory_2_outlined,
-                'Inventory',
-                3,
-              ),
-              _buildBottomNavItem(
-                Icons.description_outlined,
-                'Invoices',
-                4,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 0.5,
+                offset: Offset(0, -0.5),
               ),
             ],
+          ),
+          child: SafeArea(
+            child: Container(
+              height: 49,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildBottomNavItem(
+                    Icons.local_shipping_outlined,
+                    'Vehicles',
+                    0,
+                  ),
+                  _buildBottomNavItem(
+                    Icons.calendar_today_outlined,
+                    'Schedule',
+                    1,
+                  ),
+                  _buildBottomNavItem(Icons.people_outline, 'CRM', 2),
+                  _buildBottomNavItem(
+                    Icons.inventory_2_outlined,
+                    'Inventory',
+                    3,
+                  ),
+                  _buildBottomNavItem(
+                    Icons.description_outlined,
+                    'Invoices',
+                    4,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -89,46 +101,30 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   Widget _buildBottomNavItem(IconData icon, String label, int index) {
     bool isSelected = _selectedIndex == index;
-    IconData displayIcon;
-    
-    // Change to filled icon when selected
-    switch (icon) {
-      case Icons.local_shipping_outlined:
-        displayIcon = isSelected ? Icons.local_shipping : icon;
-        break;
-      case Icons.calendar_today_outlined:
-        displayIcon = isSelected ? Icons.calendar_today : icon;
-        break;
-      case Icons.people_outline:
-        displayIcon = isSelected ? Icons.people : icon;
-        break;
-      case Icons.inventory_2_outlined:
-        displayIcon = isSelected ? Icons.inventory_2 : icon;
-        break;
-      case Icons.description_outlined:
-        displayIcon = isSelected ? Icons.description : icon;
-        break;
-      default:
-        displayIcon = icon;
-    }
-
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedIndex = index;
         });
       },
-      child: Container(
-        width: 70,
-        height: 61,
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: Center(
-          child: Icon(
-            displayIcon,
-            color: isSelected ? Colors.black : Color(0xFF8E8E93),
-            size: 29,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
+            size: 24,
           ),
-        ),
+          SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Color(0xFF007AFF) : Color(0xFF8E8E93),
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

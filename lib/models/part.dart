@@ -15,6 +15,7 @@ class Part {
   final String unit;
   final String sparePartId;
   final int lowStockThreshold;
+  final String supplierEmail;
 
   Part({
     required this.id,
@@ -31,6 +32,7 @@ class Part {
     this.unit = '',
     this.sparePartId = '',
     this.lowStockThreshold = 15,
+    this.supplierEmail = '',
   });
 
   // Factory constructor to create Part from Firestore document
@@ -50,6 +52,7 @@ class Part {
       unit: data['unit'] ?? '',
       sparePartId: data['sparePartId'] ?? '',
       lowStockThreshold: data['lowStockThreshold'] ?? 15,
+      supplierEmail: data['supplierEmail'] ?? '',
     );
   }
 
@@ -69,6 +72,7 @@ class Part {
       'unit': unit,
       'sparePartId': sparePartId,
       'lowStockThreshold': lowStockThreshold,
+      'supplierEmail': supplierEmail,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
