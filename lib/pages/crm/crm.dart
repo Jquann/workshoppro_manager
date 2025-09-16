@@ -13,12 +13,12 @@ class CRMPage extends StatefulWidget {
 }
 
 class _CRMPageState extends State<CRMPage> {
-  static const _kBlue = Color(0xFF007AFF);
   static const _kGrey = Color(0xFF8E8E93);
   static const _kSurface = Color(0xFFF2F2F7);
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String q = '';
+  bool isAscending = true; // Default to ascending
 
   InputDecoration _searchInput(double s) => InputDecoration(
     hintText: 'Search',
@@ -54,6 +54,18 @@ class _CRMPageState extends State<CRMPage> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(
+              isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+              color: Colors.black,
+            ),
+            onPressed: () {
+              setState(() {
+                isAscending = !isAscending;
+              });
+            },
+            tooltip: isAscending ? 'Sort Descending (Z-A)' : 'Sort Ascending (A-Z)',
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
@@ -124,7 +136,7 @@ class _CRMPageState extends State<CRMPage> {
                                       setState(() {});
                                     },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
+                                      backgroundColor: _kGrey,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -192,7 +204,7 @@ class _CRMPageState extends State<CRMPage> {
                                     icon: Icon(Icons.add),
                                     label: Text('Add Customer'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
+                                      backgroundColor: _kGrey,
                                       foregroundColor: Colors.white,
                                     ),
                                   ),
@@ -220,6 +232,17 @@ class _CRMPageState extends State<CRMPage> {
 
                             return searchText.contains(q.toLowerCase());
                           }).toList();
+
+                          // Sort customers by name
+                          filteredCustomers.sort((a, b) {
+                            Map<String, dynamic> dataA = a.data() as Map<String, dynamic>;
+                            Map<String, dynamic> dataB = b.data() as Map<String, dynamic>;
+                            
+                            String nameA = (dataA['customerName'] ?? '').toString().toLowerCase();
+                            String nameB = (dataB['customerName'] ?? '').toString().toLowerCase();
+                            
+                            return isAscending ? nameA.compareTo(nameB) : nameB.compareTo(nameA);
+                          });
 
                           if (filteredCustomers.isEmpty && q.isNotEmpty) {
                             return Center(
@@ -324,7 +347,7 @@ class _CRMPageState extends State<CRMPage> {
                 ),
                 alignment: Alignment.center,
                 child: Icon(Icons.person_outline,
-                    color: _kGrey, size: 26),
+                    color: _getAvatarIconColor(customerName), size: 26),
               ),
               const SizedBox(width: 12),
               // Customer Info
@@ -347,7 +370,7 @@ class _CRMPageState extends State<CRMPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: _kBlue,
+                        color: _kGrey,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -365,14 +388,30 @@ class _CRMPageState extends State<CRMPage> {
 
   Color _getAvatarBgColor(String name) {
     const swatches = [
-      Color(0xFFE3F2FD),
-      Color(0xFFE8F5E9),
-      Color(0xFFFFF3E0),
-      Color(0xFFEDE7F6),
-      Color(0xFFFFEBEE),
-      Color(0xFFE0F7FA),
+      Color(0xFFE3F2FD), // Light Blue
+      Color(0xFFE8F5E9), // Light Green
+      Color(0xFFFFF3E0), // Light Orange
+      Color(0xFFEDE7F6), // Light Purple
+      Color(0xFFFFEBEE), // Light Pink
+      Color(0xFFE0F7FA), // Light Cyan
+      Color(0xFFFFF8E1), // Light Yellow
+      Color(0xFFEFEBE9), // Light Brown
     ];
     return swatches[name.hashCode % swatches.length];
+  }
+
+  Color _getAvatarIconColor(String name) {
+    const iconColors = [
+      Color(0xFF1976D2), // Blue
+      Color(0xFF388E3C), // Green
+      Color(0xFFEF6C00), // Orange
+      Color(0xFF7B1FA2), // Purple
+      Color(0xFFE91E63), // Pink
+      Color(0xFF00ACC1), // Cyan
+      Color(0xFFFFB300), // Yellow
+      Color(0xFF5D4037), // Brown
+    ];
+    return iconColors[name.hashCode % iconColors.length];
   }
 
   void _navigateToCustomerProfile(String docId, Map<String, dynamic> customerData) {

@@ -45,7 +45,18 @@ class AddCustomerPage extends StatefulWidget {
   _AddCustomerPageState createState() => _AddCustomerPageState();
 }
 
-class _AddCustomerPageState extends State<AddCustomerPage> {
+class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderStateMixin {
+  // Enhanced color scheme - consistent with add_vehicle.dart
+  static const _kPrimary = Color(0xFF007AFF);
+  static const _kSecondary = Color(0xFF5856D6);
+  static const _kSuccess = Color(0xFF34C759);
+  static const _kError = Color(0xFFFF3B30);
+  static const _kGrey = Color(0xFF8E8E93);
+  static const _kLightGrey = Color(0xFFF2F2F7);
+  static const _kDivider = Color(0xFFE5E5EA);
+  static const _kDarkText = Color(0xFF1C1C1E);
+  static const _kCardShadow = Color(0x1A000000);
+
   final _formKey = GlobalKey<FormState>();
   final _customerNameController = TextEditingController();
   final _phoneNumberController = TextEditingController();
@@ -53,6 +64,92 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
 
   bool _isLoading = false;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Animation controllers
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.customer != null) {
+      _customerNameController.text = widget.customer!.customerName;
+      _phoneNumberController.text = widget.customer!.phoneNumber;
+      _emailController.text = widget.customer!.emailAddress;
+    }
+
+    // Initialize animations
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
+
+    // Start animations
+    _fadeAnimationController.forward();
+    _slideAnimationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
+    _customerNameController.dispose();
+    _phoneNumberController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  // Enhanced UI tokens - consistent with add_vehicle.dart
+  InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
+    prefixIcon: icon != null
+        ? Container(
+            padding: const EdgeInsets.all(12),
+            child: Icon(icon, size: 20, color: _kGrey),
+          )
+        : null,
+    suffixText: suffix,
+    suffixStyle: TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kPrimary, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kError, width: 1),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _kError, width: 2),
+    ),
+  );
 
   // Check if email already exists in Firestore
   Future<bool> _checkEmailExists(String email) async {
@@ -116,17 +213,318 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.customer != null) {
-      _customerNameController.text = widget.customer!.customerName;
-      _phoneNumberController.text = widget.customer!.phoneNumber;
-      _emailController.text = widget.customer!.emailAddress;
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewPadding.bottom;
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: CustomScrollView(
+        slivers: [
+          // Enhanced App Bar - consistent with add_vehicle.dart
+          SliverAppBar(
+            expandedHeight: 120,
+            floating: false,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            leading: Container(
+              margin: const EdgeInsets.all(8),
+              child: Material(
+                color: _kLightGrey,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: _kDarkText,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              title: Text(
+                widget.customer != null ? 'Edit Customer' : 'Add Customer',
+                style: const TextStyle(
+                  color: _kDarkText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
+              ),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      _kLightGrey.withValues(alpha: 0.3),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Form(
+                  key: _formKey,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCustomerDetailsCard(),
+                        const SizedBox(height: 32),
+                        _buildSaveButton(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerDetailsCard() {
+    return _buildCard(
+      icon: Icons.person_rounded,
+      title: 'Customer Information',
+      child: Column(
+        children: [
+          _buildFormField(
+            label: 'Customer Name',
+            child: TextFormField(
+              controller: _customerNameController,
+              decoration: _input('Enter customer name', icon: Icons.person_outline_rounded),
+              validator: _req,
+              textCapitalization: TextCapitalization.words,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Phone Number',
+            child: TextFormField(
+              controller: _phoneNumberController,
+              decoration: _input('Enter phone number', icon: Icons.phone_rounded).copyWith(
+                helperText: 'Format: 0xx-xxx xxxx (Malaysian numbers only)',
+                helperStyle: TextStyle(
+                  fontSize: 13,
+                  color: _kPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              validator: _phoneValidator,
+              keyboardType: TextInputType.phone,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Email Address',
+            child: TextFormField(
+              controller: _emailController,
+              decoration: _input('Enter email address', icon: Icons.email_rounded),
+              validator: _emailValidator,
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kCardShadow,
+            offset: const Offset(0, 2),
+            blurRadius: 12,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _kPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: _kPrimary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: _kDarkText,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormField({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: _kDarkText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kPrimary, _kSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kPrimary.withValues(alpha: 0.3),
+            offset: const Offset(0, 4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: _isLoading ? null : _submitCustomerToFirestore,
+        icon: _isLoading 
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Icon(Icons.save_rounded, color: Colors.white),
+        label: Text(
+          widget.customer != null ? 'Update Customer' : 'Save Customer',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
+
+  String? _phoneValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Phone number is required';
     }
+    String phoneNumber = value.trim().replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present for validation
+    if (!phoneNumber.startsWith('0')) {
+      phoneNumber = '0$phoneNumber';
+    }
+    
+    // Check if it's a valid Malaysian phone number (10-11 digits with leading 0)
+    if (phoneNumber.length < 10 || phoneNumber.length > 11) {
+      return 'Please enter a valid Malaysian phone number';
+    }
+    
+    // Check if it starts with valid Malaysian mobile prefixes (01x)
+    if (!phoneNumber.startsWith('01')) {
+      return 'Please enter a valid Malaysian mobile number starting with 01';
+    }
+    
+    return null;
+  }
+
+  String? _emailValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Email is required';
+    }
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      return 'Please enter a valid email address';
+    }
+    return null;
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kError
+                      ? Icons.error_rounded
+                      : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   Future<void> _submitCustomerToFirestore() async {
     if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     
     setState(() {
       _isLoading = true;
@@ -136,12 +534,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       // Check for duplicate email
       bool emailExists = await _checkEmailExists(_emailController.text);
       if (emailExists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ This email address is already registered!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('This email address is already registered!', _kError);
         setState(() {
           _isLoading = false;
         });
@@ -151,12 +544,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       // Check for duplicate phone number
       bool phoneExists = await _checkPhoneExists(_phoneNumberController.text);
       if (phoneExists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ This phone number is already registered!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('This phone number is already registered!', _kError);
         setState(() {
           _isLoading = false;
         });
@@ -168,227 +556,27 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         'phoneNumber': _formatPhoneNumber(_phoneNumberController.text),
         'emailAddress': _emailController.text.trim(),
         'vehicleIds': [],
+        'isDeleted': false,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+      
       if (widget.documentId != null) {
         // Edit
         await _firestore.collection('customers').doc(widget.documentId).update(customerData);
+        _showSnackBar('Customer updated successfully!', _kSuccess);
       } else {
         // Add
         customerData['createdAt'] = FieldValue.serverTimestamp();
         await _firestore.collection('customers').add(customerData);
+        _showSnackBar('Customer added successfully!', _kSuccess);
       }
       Navigator.pop(context, true);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      _showSnackBar('Failed to save customer: $e', _kError);
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.2,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.customer != null ? 'Edit Customer' : 'Add Customer',
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                'Customer Details',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 16),
-
-              _buildInputField(
-                label: 'Customer Name',
-                controller: _customerNameController,
-                hintText: 'Enter customer name',
-              ),
-              SizedBox(height: 16),
-
-              _buildInputField(
-                label: 'Phone Number',
-                controller: _phoneNumberController,
-                hintText: 'Enter phone number (e.g., 0123456789)',
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Phone number is required';
-                  }
-                  String phoneNumber = value.trim().replaceAll(RegExp(r'[^\d]'), '');
-                  
-                  // Add leading zero if not present for validation
-                  if (!phoneNumber.startsWith('0')) {
-                    phoneNumber = '0$phoneNumber';
-                  }
-                  
-                  // Check if it's a valid Malaysian phone number (10-11 digits with leading 0)
-                  if (phoneNumber.length < 10 || phoneNumber.length > 11) {
-                    return 'Please enter a valid Malaysian phone number';
-                  }
-                  
-                  // Check if it starts with valid Malaysian mobile prefixes (01x)
-                  if (!phoneNumber.startsWith('01')) {
-                    return 'Please enter a valid Malaysian mobile number starting with 01';
-                  }
-                  
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-
-              _buildInputField(
-                label: 'Email Address',
-                controller: _emailController,
-                hintText: 'Enter email address',
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Email is required';
-                  }
-                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                    return 'Please enter a valid email address';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitCustomerToFirestore,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          widget.customer != null ? 'Update Customer' : 'Add Customer',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required String label,
-    required TextEditingController controller,
-    required String hintText,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-        SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          validator: validator ?? (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '$label is required';
-            }
-            return null;
-          },
-          style: TextStyle(
-            fontSize: 15,
-            color: Colors.black,
-          ),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(
-              fontSize: 15,
-              color: Colors.grey[500],
-            ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.blue),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.red),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.red),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  void dispose() {
-    _customerNameController.dispose();
-    _phoneNumberController.dispose();
-    _emailController.dispose();
-    super.dispose();
   }
 }
