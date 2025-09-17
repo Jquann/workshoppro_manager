@@ -7,6 +7,7 @@ final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDi
 
 class InventoryPartVM {
   final String category;
+  final String partId;
   final String name;
   final double price;
   final int quantity;
@@ -14,13 +15,14 @@ class InventoryPartVM {
 
   const InventoryPartVM({
     required this.category,
+    required this.partId,
     required this.name,
     required this.price,
     required this.quantity,
     this.unit,
   });
 
-  String get key => '$category|$name';
+  String get key => '$category|$partId';
 }
 
 class AddService extends StatefulWidget {
@@ -645,6 +647,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     for (final m in rows) {
       final vm = InventoryPartVM(
         category: category,
+        partId: (m['partId'] ?? m['id'] ?? '') as String,
         name: (m['name'] ?? '') as String,
         price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
         quantity: (m['quantity'] ?? 0) as int,
@@ -808,7 +811,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
 
       // reduce stock
       for (final e in _stockDeltas.entries) {
-        final parts = e.key.split('|'); // [category, name]
+        final parts = e.key.split('|'); // [category, partId]
         if (parts.length != 2) continue;
         await FirestoreService().reduceStock(parts[0], parts[1], e.value);
       }
