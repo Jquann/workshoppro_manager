@@ -57,22 +57,8 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
               });
             }
 
-            fetchedParts.add(Part(
-              id: partData['partId'] ?? partData['sparePartId'] ?? '',
-              name: partData['name'] ?? partName, // <-- Use Firestore 'name' field if present, else fallback to key
-              quantity: quantity,
-              isLowStock: isLowStock, // Use the calculated low stock status
-              category: categoryDoc.id,
-              manufacturer: partData['manufacturer'] ?? '',
-              description: partData['description'] ?? '',
-              documentId: categoryDoc.id,
-              lowStockThreshold: lowStockThreshold, // Include the threshold from Firestore
-              supplier: partData['supplier'] ?? '',
-              supplierEmail: partData['supplierEmail'] ?? '',
-              price: (partData['price'] ?? 0.0).toDouble(),
-              unit: partData['unit'] ?? '',
-              sparePartId: partData['sparePartId'] ?? '',
-            ));
+            // Use factory constructor to load suppliers and all fields
+            fetchedParts.add(Part.fromFirestore(partData, categoryDoc.id));
           }
         }
       }

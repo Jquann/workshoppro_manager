@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:workshoppro_manager/pages/inventory_control/procurement_dialog.dart';
+import 'package:workshoppro_manager/pages/inventory_control/procurement_dialog.dart' as pd show EnhancedProcurementDialog;
 import '../../models/part.dart';
+import 'edit_part_bottom_sheet.dart';
 
 class PartDetailsScreen extends StatelessWidget {
   final Part? part;
 
   const PartDetailsScreen({Key? key, this.part}) : super(key: key);
 
-  Future<void> _deletePart(BuildContext context, String categoryId, String partName) async {
+  Future<void> _deletePart(BuildContext context, String categoryId, String partId) async {
     final firestore = FirebaseFirestore.instance;
     try {
       // First check if quantity is 0
       final doc = await firestore.collection('inventory_parts').doc(categoryId).get();
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
-        final partData = data[partName] as Map<String, dynamic>?;
+        final partData = data[partId] as Map<String, dynamic>?;
 
         if (partData != null) {
           int quantity = partData['quantity'] ?? 0;
@@ -35,7 +36,7 @@ class PartDetailsScreen extends StatelessWidget {
       }
 
       // Quantity is 0, proceed with deletion
-      await firestore.collection('inventory_parts').doc(categoryId).update({partName: FieldValue.delete()});
+      await firestore.collection('inventory_parts').doc(categoryId).update({partId: FieldValue.delete()});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Part deleted successfully!'),
@@ -53,7 +54,7 @@ class PartDetailsScreen extends StatelessWidget {
     }
   }
 
-  void _showDeleteDialog(BuildContext context, String categoryId, String partName) {
+  void _showDeleteDialog(BuildContext context, String categoryId, String partId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -71,7 +72,7 @@ class PartDetailsScreen extends StatelessWidget {
             Text('Are you sure you want to delete this part?'),
             SizedBox(height: 8),
             Text(
-              'Part: $partName',
+              'Part: $partId',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
@@ -100,7 +101,7 @@ class PartDetailsScreen extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _deletePart(context, categoryId, partName);
+              _deletePart(context, categoryId, partId);
             },
             child: Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -110,407 +111,21 @@ class PartDetailsScreen extends StatelessWidget {
   }
 
   void _showEditPartBottomSheet(BuildContext context, Part part) {
-    final TextEditingController nameController = TextEditingController(text: part.name);
-    final TextEditingController supplierController = TextEditingController(text: part.supplier);
-    final TextEditingController supplierEmailController = TextEditingController(text: part.supplierEmail);
-    final TextEditingController thresholdController = TextEditingController(text: part.lowStockThreshold.toString());
-    final TextEditingController descriptionController = TextEditingController(text: part.description);
-    final TextEditingController priceController = TextEditingController(text: part.price > 0 ? part.price.toStringAsFixed(2) : '');
-    final TextEditingController unitController = TextEditingController(text: part.unit);
-    final _formKey = GlobalKey<FormState>();
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.95,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[600],
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, color: Colors.white, size: 28),
-                      SizedBox(width: 12),
-                      Text(
-                        'Edit Part Information',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.all(20),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Overview Section
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.info, color: Colors.blue[700]),
-                                      SizedBox(width: 8),
-                                      Text('Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildReadOnlyField('Part ID', part.id),
-                                  SizedBox(height: 8),
-                                  _buildReadOnlyField('Category', part.category),
-                                  SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: nameController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Part Name *',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.build),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Part name is required';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          // Stock Info Section
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.inventory, color: Colors.orange[700]),
-                                      SizedBox(width: 8),
-                                      Text('Stock Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildReadOnlyField('Current Quantity', '${part.quantity}'),
-                                  SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: thresholdController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: InputDecoration(
-                                      labelText: 'Low Stock Threshold *',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.warning),
-                                      helperText: 'Alert when quantity falls below this number',
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Threshold is required';
-                                      }
-                                      final threshold = int.tryParse(value.trim());
-                                      if (threshold == null || threshold < 0) {
-                                        return 'Please enter a valid number (0 or greater)';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: priceController,
-                                          keyboardType: TextInputType.number,
-                                          decoration: InputDecoration(
-                                            labelText: 'Price (RM)',
-                                            border: OutlineInputBorder(),
-                                            prefixText: 'RM ', // Only show RM, no icon
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: unitController,
-                                          decoration: InputDecoration(
-                                            labelText: 'Unit',
-                                            border: OutlineInputBorder(),
-                                            prefixIcon: Icon(Icons.straighten),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          // Supplier Info Section
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.business, color: Colors.green[700]),
-                                      SizedBox(width: 8),
-                                      Text('Supplier Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: supplierController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Supplier',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.business),
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: supplierEmailController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Supplier Email',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.email),
-                                      helperText: 'Email used for procurement requests',
-                                    ),
-                                    keyboardType: TextInputType.emailAddress,
-                                    validator: (value) {
-                                      if (value != null && value.isNotEmpty && !value.contains('@')) {
-                                        return 'Enter a valid email address';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          // Description Section (removed barcode)
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.description, color: Colors.purple[700]),
-                                      SizedBox(width: 8),
-                                      Text('Other Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: descriptionController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Description',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.description),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Sticky Footer Action Buttons
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(24),
-                      bottomRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (_formKey.currentState!.validate()) {
-                              try {
-                                await _updatePart(
-                                  context,
-                                  part,
-                                  nameController.text.trim(),
-                                  supplierController.text.trim(),
-                                  int.parse(thresholdController.text.trim()),
-                                  supplierEmailController.text.trim(),
-                                  descriptionController.text.trim(),
-                                  double.tryParse(priceController.text.trim()) ?? 0.0,
-                                  unitController.text.trim(),
-                                );
-                                Navigator.pop(ctx);
-                                Navigator.pop(context); // Go back to previous screen
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('❌ Error updating part: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[600],
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Save Changes',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => EditPartBottomSheet(part: part),
     );
   }
 
-  Widget _buildReadOnlyField(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
-          ),
-        ),
-        SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _updatePart(BuildContext context, Part part, String newName, String newSupplier, int newThreshold, String newSupplierEmail, String newDescription, double newPrice, String newUnit) async {
-    final firestore = FirebaseFirestore.instance;
-    try {
-      await firestore.collection('inventory_parts').doc(part.category).update({
-        part.name: {
-          ...part.toFirestore(),
-          'name': newName,
-          'supplier': newSupplier,
-          'lowStockThreshold': newThreshold,
-          'supplierEmail': newSupplierEmail,
-          'description': newDescription,
-          'price': newPrice,
-          'unit': newUnit,
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ Part updated successfully!'), backgroundColor: Colors.green),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error updating part: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  // Replace your existing _showProcurementRequestDialog method with this simple version:
   // Replace your existing _showProcurementRequestDialog method with this simple version:
   void _showProcurementRequestDialog(BuildContext context, Part part) {
     showDialog(
       context: context,
-      builder: (ctx) => EnhancedProcurementDialog(part: part),
+      builder: (ctx) => pd.EnhancedProcurementDialog(part: part),
     );
   }
 
@@ -528,25 +143,44 @@ class PartDetailsScreen extends StatelessWidget {
           manufacturer: 'EngineCorp',
           description: 'High-quality spark plug for automotive engines',
           documentId: '',
-          lowStockThreshold: 15, // Use default threshold for demo part
+          lowStockThreshold: 15,
         );
 
+    // Get the part ID directly from the id field (as shown in database)
+    String partId = displayPart.id.isNotEmpty
+        ? displayPart.id
+        : 'PRT${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Colors.grey[50], // Lighter background
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header with gradient
             Container(
               padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.blue[800]!, Colors.blue[600]!],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Row(
                 children: [
                   Text(
                     'Part Details',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -559,122 +193,191 @@ class PartDetailsScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                      offset: Offset(0, -5),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
-                    // Header inside white container
+                    // Header inside white container with better design
                     Container(
                       padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Colors.grey[200]!,
+                            width: 1,
+                          ),
+                        ),
+                      ),
                       child: Row(
                         children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(8),
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.blue[200]!,
+                                width: 1.5,
                               ),
-                              child: Icon(
-                                Icons.arrow_back,
-                                color: Colors.black,
+                            ),
+                            child: IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: Icon(
+                                Icons.arrow_back_ios_new,
+                                color: Colors.blue[700],
                                 size: 20,
                               ),
                             ),
                           ),
                           SizedBox(width: 16),
-                          Text(
-                            'Part Details',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Part Information',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                Text(
+                                  'ID: $partId',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
 
-                    // Content
+                    // Content with improved design
                     Expanded(
                       child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        padding: EdgeInsets.all(20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Part Title
-                            Row(
-                              children: [
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: _getCategoryColor(
-                                      displayPart.category,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    _getCategoryIcon(displayPart.category),
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
+                            // Part Title Card with enhanced design
+                            Container(
+                              padding: EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Colors.blue[50]!, Colors.white],
                                 ),
-                                SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        displayPart.name,
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                      if (displayPart
-                                          .description
-                                          .isNotEmpty) ...[
-                                        SizedBox(height: 4),
-                                        Text(
-                                          displayPart.description,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                          ),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.blue[200]!,
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withValues(alpha: 0.08),
+                                    blurRadius: 20,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: _getCategoryColor(displayPart.category),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _getCategoryColor(displayPart.category).withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 4),
                                         ),
                                       ],
-                                    ],
+                                    ),
+                                    child: Icon(
+                                      _getCategoryIcon(displayPart.category),
+                                      color: Colors.white,
+                                      size: 28,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  SizedBox(width: 20),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          displayPart.name,
+                                          style: TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Part ID: $partId',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[600],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (displayPart.description.isNotEmpty) ...[
+                                          SizedBox(height: 8),
+                                          Text(
+                                            displayPart.description,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[600],
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            SizedBox(height: 20),
+                            SizedBox(height: 24),
 
-                            // Part Info Tags
+                            // Part Info Tags with better design
                             Wrap(
                               spacing: 12,
-                              runSpacing: 8,
+                              runSpacing: 12,
                               children: [
                                 _buildInfoTag(
-                                  'Part ID: ${displayPart.id}',
-                                  Colors.grey[300]!,
+                                  'Category: ${displayPart.category}',
+                                  _getCategoryColor(displayPart.category).withValues(alpha: 0.15),
+                                  textColor: _getCategoryColor(displayPart.category),
                                 ),
-                                _buildInfoTag(
-                                  displayPart.category,
-                                  _getCategoryColor(
-                                    displayPart.category,
-                                  ).withValues(alpha: 0.2),
-                                ),
+                                if (displayPart.unit.isNotEmpty)
+                                  _buildInfoTag(
+                                    'Unit: ${displayPart.unit}',
+                                    Colors.purple[100]!,
+                                    textColor: Colors.purple[700]!,
+                                  ),
                                 if (displayPart.isLowStock)
                                   _buildInfoTag(
-                                    'Low Stock',
+                                    '⚠️ Low Stock Alert',
                                     Colors.red[100]!,
                                     textColor: Colors.red[700]!,
                                   ),
@@ -683,51 +386,88 @@ class PartDetailsScreen extends StatelessWidget {
                             SizedBox(height: 32),
 
                             // Stock Information Section
-                            _buildSectionHeader('Stock Information'),
+                            _buildSectionHeader('Stock Information', Icons.inventory_2),
                             SizedBox(height: 16),
 
-                            // Stock Info Card
+                            // Stock Info Card with enhanced design
                             Container(
-                              padding: EdgeInsets.all(20),
+                              padding: EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
                               ),
                               child: Column(
                                 children: [
                                   _buildInfoRow(
                                     'Current Quantity',
                                     '${displayPart.quantity}',
+                                    Icons.inventory,
+                                    Colors.blue,
                                   ),
-                                  SizedBox(height: 12),
-                                  _buildInfoRow('Reorder Level', '${displayPart.lowStockThreshold}'),
-                                  SizedBox(height: 12),
+                                  SizedBox(height: 16),
+                                  _buildInfoRow(
+                                    'Reorder Level',
+                                    '${displayPart.lowStockThreshold}',
+                                    Icons.warning,
+                                    Colors.orange,
+                                  ),
+                                  SizedBox(height: 20),
                                   _buildStockLevelBar(displayPart.quantity, displayPart.lowStockThreshold),
-                                  SizedBox(height: 12),
+                                  SizedBox(height: 16),
                                   _buildInfoRow(
-                                    'Supplier',
-                                    displayPart.supplier.isNotEmpty
-                                        ? displayPart.supplier
-                                        : 'Not specified',
+                                    'Price per Unit',
+                                    displayPart.price > 0 ? 'RM ${displayPart.price.toStringAsFixed(2)}' : 'Not specified',
+                                    Icons.attach_money,
+                                    Colors.green,
                                   ),
-                                  SizedBox(height: 12),
+                                  SizedBox(height: 16),
                                   _buildInfoRow(
-                                    'Status',
-                                    displayPart.isLowStock
-                                        ? 'Low Stock'
-                                        : 'In Stock',
+                                    'Stock Status',
+                                    displayPart.isLowStock ? 'Low Stock' : 'In Stock',
+                                    displayPart.isLowStock ? Icons.error : Icons.check_circle,
+                                    displayPart.isLowStock ? Colors.red : Colors.green,
                                   ),
                                   if (displayPart.isLowStock || displayPart.quantity <= displayPart.lowStockThreshold) ...[
-                                    SizedBox(height: 12),
-                                    ElevatedButton(
-                                      onPressed: () => _showProcurementRequestDialog(context, displayPart),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    SizedBox(height: 20),
+                                    Container(
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        onPressed: () => _showProcurementRequestDialog(context, displayPart),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.orange[600],
+                                          foregroundColor: Colors.white,
+                                          padding: EdgeInsets.symmetric(vertical: 16),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          elevation: 2,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.shopping_cart, size: 20),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'Request to Reload Stock',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      child: Text('Request to Reload Stock'),
                                     ),
                                   ],
                                 ],
@@ -736,15 +476,16 @@ class PartDetailsScreen extends StatelessWidget {
                             SizedBox(height: 32),
 
                             // Usage History Section
-                            _buildSectionHeader('Recent Activity'),
+                            _buildSectionHeader('Recent Activity', Icons.history),
                             SizedBox(height: 16),
 
-                            // Usage History Items (Sample data - you can extend this with real data)
+                            // Usage History Items with better design
                             _buildUsageHistoryItem(
                               'Used in Service',
                               '03/03/2025',
                               '-2',
                               Colors.red,
+                              Icons.remove_circle_outline,
                             ),
                             SizedBox(height: 12),
                             _buildUsageHistoryItem(
@@ -752,10 +493,11 @@ class PartDetailsScreen extends StatelessWidget {
                               '01/03/2025',
                               '+20',
                               Colors.green,
+                              Icons.add_circle_outline,
                             ),
                             SizedBox(height: 40),
 
-                            // Action Buttons
+                            // Action Buttons with enhanced design
                             Row(
                               children: [
                                 Expanded(
@@ -764,26 +506,31 @@ class PartDetailsScreen extends StatelessWidget {
                                       _showEditPartBottomSheet(context, displayPart);
                                     },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue[50],
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
+                                      backgroundColor: Colors.blue[600],
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(vertical: 16),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      elevation: 0,
+                                      elevation: 2,
                                     ),
-                                    child: Text(
-                                      'Edit Part',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.blue[700],
-                                      ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.edit, size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Edit Part',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 12),
+                                SizedBox(width: 16),
                                 Expanded(
                                   child: ElevatedButton(
                                     onPressed: () {
@@ -791,38 +538,39 @@ class PartDetailsScreen extends StatelessWidget {
                                         _showDeleteDialog(
                                           context,
                                           displayPart.documentId,
-                                          displayPart.name,
+                                          displayPart.id, // Use id instead of name
                                         );
                                       } else {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
+                                        ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
-                                            content: Text(
-                                              '❌ Cannot delete: No documentId',
-                                            ),
+                                            content: Text('❌ Cannot delete: No documentId'),
                                             backgroundColor: Colors.red,
                                           ),
                                         );
                                       }
                                     },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red[50],
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
+                                      backgroundColor: Colors.red[600],
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(vertical: 16),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      elevation: 0,
+                                      elevation: 2,
                                     ),
-                                    child: Text(
-                                      'Delete Part',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.red[700],
-                                      ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.delete, size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Delete Part',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -843,46 +591,88 @@ class PartDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black,
-      ),
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.blue[100],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.blue[700],
+            size: 20,
+          ),
+        ),
+        SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildInfoTag(String text, Color backgroundColor, {Color? textColor}) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: (textColor ?? Colors.black).withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Text(
         text,
         style: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           color: textColor ?? Colors.black,
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, IconData icon, Color iconColor) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: iconColor,
+            size: 20,
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
         Text(
           value,
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
           ),
         ),
       ],
@@ -894,41 +684,80 @@ class PartDetailsScreen extends StatelessWidget {
     String date,
     String quantity,
     Color quantityColor,
+    IconData icon,
   ) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey[300]!,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.08),
+            blurRadius: 15,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                date,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-          Text(
-            quantity,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: quantityColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
               color: quantityColor,
+              size: 20,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  date,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: quantityColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: quantityColor.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              quantity,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: quantityColor,
+              ),
             ),
           ),
         ],
@@ -938,47 +767,86 @@ class PartDetailsScreen extends StatelessWidget {
 
   Widget _buildStockLevelBar(int quantity, int reorderLevel) {
     double percent = reorderLevel > 0 ? (quantity / reorderLevel) : 1.0;
-    percent = percent.clamp(0.0, 2.0); // Cap at 2x reorder level
+    percent = percent.clamp(0.0, 2.0);
     Color barColor;
-    if (percent > 1.2) {
-      barColor = Colors.green;
-    } else if (percent > 1.0) {
-      barColor = Colors.orange;
-    } else {
-      barColor = Colors.red;
+    String statusText;
 
+    if (percent > 1.2) {
+      barColor = Colors.green[600]!;
+      statusText = 'Stock Sufficient';
+    } else if (percent > 1.0) {
+      barColor = Colors.orange[600]!;
+      statusText = 'Near Reorder Level';
+    } else {
+      barColor = Colors.red[600]!;
+      statusText = 'Below Reorder Level';
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Stock Level: $quantity / $reorderLevel',
-          style: TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: barColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: barColor.withValues(alpha: 0.2),
+          width: 1,
         ),
-        SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: percent > 2.0 ? 1.0 : percent / 2.0, // 100% = 2x reorder level
-            minHeight: 16,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Stock Level Progress',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '$quantity / $reorderLevel',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: barColor,
+                ),
+              ),
+            ],
           ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          percent <= 1.0
-              ? 'Below Reorder Level'
-              : percent <= 1.2
-                  ? 'Near Reorder Level'
-                  : 'Stock Sufficient',
-          style: TextStyle(
-            fontSize: 12,
-            color: barColor,
-            fontWeight: FontWeight.bold,
+          SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: percent > 2.0 ? 1.0 : percent / 2.0,
+              minHeight: 8,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            ),
           ),
-        ),
-      ],
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                percent <= 1.0 ? Icons.warning : Icons.check_circle,
+                size: 16,
+                color: barColor,
+              ),
+              SizedBox(width: 6),
+              Text(
+                statusText,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: barColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
