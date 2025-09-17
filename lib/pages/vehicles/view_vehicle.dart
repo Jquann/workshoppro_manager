@@ -217,7 +217,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                             end: Alignment.bottomRight,
                             colors: [
                               Colors.white,
-                              _kLightGrey.withOpacity(0.5),
+                              _kLightGrey.withValues(alpha: 0.5),
                             ],
                           ),
                         ),
@@ -259,9 +259,9 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10 * s, vertical: 4 * s),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         text,
@@ -297,7 +297,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 Container(
                   padding: EdgeInsets.all(12 * s),
                   decoration: BoxDecoration(
-                    color: _kPrimary.withOpacity(0.1),
+                    color: _kPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -341,9 +341,9 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _kDivider.withOpacity(0),
+                    _kDivider.withValues(alpha: 0),
                     _kDivider,
-                    _kDivider.withOpacity(0),
+                    _kDivider.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -435,7 +435,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 Container(
                   padding: EdgeInsets.all(12 * s),
                   decoration: BoxDecoration(
-                    color: _kSecondary.withOpacity(0.1),
+                    color: _kSecondary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -472,7 +472,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 if (!isInactive)
                   Container(
                     decoration: BoxDecoration(
-                      color: _kPrimary.withOpacity(0.1),
+                      color: _kPrimary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: TextButton.icon(
@@ -508,9 +508,9 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _kDivider.withOpacity(0),
+                    _kDivider.withValues(alpha: 0),
                     _kDivider,
-                    _kDivider.withOpacity(0),
+                    _kDivider.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -540,7 +540,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                         Icon(
                           Icons.history_rounded,
                           size: 48 * s,
-                          color: _kGrey.withOpacity(0.5),
+                          color: _kGrey.withValues(alpha: 0.5),
                         ),
                         SizedBox(height: 12 * s),
                         Text(
@@ -555,7 +555,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                         Text(
                           'Service history will appear here',
                           style: TextStyle(
-                            color: _kGrey.withOpacity(0.7),
+                            color: _kGrey.withValues(alpha: 0.7),
                             fontSize: 14 * s,
                           ),
                         ),
@@ -588,9 +588,9 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : 16 * s),
       decoration: BoxDecoration(
-        color: _kLightGrey.withOpacity(0.5),
+        color: _kLightGrey.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kDivider.withOpacity(0.5)),
+        border: Border.all(color: _kDivider.withValues(alpha: 0.5)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -609,7 +609,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 Container(
                   padding: EdgeInsets.all(10 * s),
                   decoration: BoxDecoration(
-                    color: _kSuccess.withOpacity(0.1),
+                    color: _kSuccess.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -638,7 +638,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 4 * s),
                             decoration: BoxDecoration(
-                              color: _kPrimary.withOpacity(0.1),
+                              color: _kPrimary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -687,7 +687,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: (isInactive ? _kSuccess : _kDanger).withOpacity(0.3),
+            color: (isInactive ? _kSuccess : _kDanger).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),

@@ -19,7 +19,6 @@ class _VehicleUIState extends State<VehicleUI> with TickerProviderStateMixin {
   static const _kSuccess = Color(0xFF34C759);
   static const _kGrey = Color(0xFF8E8E93);
   static const _kLightGrey = Color(0xFFF2F2F7);
-  static const _kDivider = Color(0xFFE5E5EA);
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
