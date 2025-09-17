@@ -72,6 +72,13 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
 
   // Parts list being edited
   late final List<PartLine> _parts = List.of(widget.record.parts);
+  late String _status;
+  static const List<String> _statusOptions = [
+    ServiceRecordModel.statusAssign,
+    ServiceRecordModel.statusInProgress,
+    ServiceRecordModel.statusCompleted,
+    ServiceRecordModel.statusCancel,
+  ];
 
   // For inventory dropdowns
   static const List<String> _categories = <String>[
@@ -103,6 +110,7 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
         .animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
+    _status = widget.record.status;
 
     // Preload inventory for ALL categories so we can map names->categories for delta calc.
     _preloadInventory();
@@ -380,10 +388,36 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
               textCapitalization: TextCapitalization.words,
             ),
           ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Status',
+            child: DropdownButtonFormField<String>(
+              value: _status,
+              isExpanded: true,
+              decoration: _input('Select status', icon: Icons.flag_rounded),
+              items: _statusOptions.map((s) {
+                return DropdownMenuItem(
+                  value: s,
+                  child: Text(
+                    s[0].toUpperCase() + s.substring(1), // nice label
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _status = v);
+              },
+              validator: _req,
+            ),
+          ),
+
         ],
       ),
     );
   }
+
+
 
   Widget _buildPartsCard() {
     return _buildCard(
@@ -805,7 +839,7 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
       mechanic: _mech.text.trim(),
-      status: widget.record.status, // keep original status
+      status: _status,
       parts: List.of(_parts),
       labor: hours > 0 ? [LaborLine(name: 'Labor', hours: hours, rate: rate)] : const [],
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
