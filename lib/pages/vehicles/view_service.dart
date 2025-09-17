@@ -58,7 +58,7 @@ class _ViewServiceState extends State<ViewService>
   bool get _canEdit {
     final s = _record.status.trim().toLowerCase();
     if (s == ServiceRecordModel.statusCompleted || s == ServiceRecordModel.statusCancel) return false;
-    if (s.contains('completed') || s.contains('cancel')) return false;
+    if (s.contains('completed') || s.contains('cancelled')) return false;
     return true;
   }
 

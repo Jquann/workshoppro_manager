@@ -64,10 +64,10 @@ class ServiceRecordModel {
   final double? totalDb;
 
   // Status constants (keep as you defined)
-  static const String statusAssign = 'assign';
+  static const String statusAssign = 'scheduled';
   static const String statusInProgress = 'in progress';
   static const String statusCompleted = 'completed';
-  static const String statusCancel = 'cancel';
+  static const String statusCancel = 'cancelled';
 
   ServiceRecordModel({
     required this.id,
