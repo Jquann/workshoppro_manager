@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/invoice.dart';
+import '../../firestore_service.dart';
 import 'invoice_list.dart';
 
 class InvoiceDashboard extends StatefulWidget {
@@ -13,169 +14,41 @@ class InvoiceDashboard extends StatefulWidget {
 
 class _InvoiceDashboardState extends State<InvoiceDashboard> {
   List<Invoice> invoices = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   void initState() {
     super.initState();
-    _loadSampleData();
+    _loadInvoicesFromFirestore();
   }
 
-  void _loadSampleData() {
-    // Sample invoice data
-    final sampleData = [
-      {
-        "invoiceId": "INV-2025-013",
-        "customerId": "CUS-1012",
-        "vehicleId": "VH-9090",
-        "jobId": "JOB-5670",
-        "assignedMechanicId": "MECH-010",
-        "issueDate": "2025-09-10T10:00:00Z",
-        "status": "Approved",
-        "paymentStatus": "Unpaid",
-        "paymentDate": null,
-        "items": [
-          {
-            "description": "Oil Change",
-            "quantity": 1,
-            "unitPrice": 180.00,
-            "total": 180.00,
-          },
-          {
-            "description": "Wheel Alignment",
-            "quantity": 1,
-            "unitPrice": 120.00,
-            "total": 120.00,
-          },
-        ],
-        "subtotal": 300.00,
-        "tax": 18.00,
-        "grandTotal": 318.00,
-        "notes": "Customer requested synthetic oil.",
-        "createdBy": "manager_02",
-        "createdAt": "2025-09-10T10:00:00Z",
-        "updatedAt": "2025-09-10T11:00:00Z",
-      },
-      {
-        "invoiceId": "INV-2025-014",
-        "customerId": "CUS-1015",
-        "vehicleId": "VH-9111",
-        "jobId": "JOB-5671",
-        "assignedMechanicId": "MECH-011",
-        "issueDate": "2025-09-11T09:30:00Z",
-        "status": "Pending",
-        "paymentStatus": "Unpaid",
-        "paymentDate": null,
-        "items": [
-          {
-            "description": "Brake Pad Replacement",
-            "quantity": 2,
-            "unitPrice": 150.00,
-            "total": 300.00,
-          },
-        ],
-        "subtotal": 300.00,
-        "tax": 18.00,
-        "grandTotal": 318.00,
-        "notes": "Urgent service requested.",
-        "createdBy": "manager_01",
-        "createdAt": "2025-09-11T09:30:00Z",
-        "updatedAt": "2025-09-11T10:00:00Z",
-      },
-      {
-        "invoiceId": "INV-2025-015",
-        "customerId": "CUS-1020",
-        "vehicleId": "VH-9222",
-        "jobId": "JOB-5672",
-        "assignedMechanicId": "MECH-007",
-        "issueDate": "2025-09-12T14:00:00Z",
-        "status": "Approved",
-        "paymentStatus": "Paid",
-        "paymentDate": "2025-09-13T10:15:00Z",
-        "items": [
-          {
-            "description": "Engine Overhaul",
-            "quantity": 1,
-            "unitPrice": 2500.00,
-            "total": 2500.00,
-          },
-          {
-            "description": "Coolant",
-            "quantity": 2,
-            "unitPrice": 80.00,
-            "total": 160.00,
-          },
-        ],
-        "subtotal": 2660.00,
-        "tax": 159.60,
-        "grandTotal": 2819.60,
-        "notes": "Customer opted for full overhaul package.",
-        "createdBy": "manager_03",
-        "createdAt": "2025-09-12T14:00:00Z",
-        "updatedAt": "2025-09-13T10:20:00Z",
-      },
-      {
-        "invoiceId": "INV-2025-016",
-        "customerId": "CUS-1030",
-        "vehicleId": "VH-9333",
-        "jobId": "JOB-5673",
-        "assignedMechanicId": "MECH-008",
-        "issueDate": "2025-09-13T08:45:00Z",
-        "status": "Rejected",
-        "paymentStatus": "Unpaid",
-        "paymentDate": null,
-        "items": [
-          {
-            "description": "Transmission Repair",
-            "quantity": 1,
-            "unitPrice": 1800.00,
-            "total": 1800.00,
-          },
-        ],
-        "subtotal": 1800.00,
-        "tax": 108.00,
-        "grandTotal": 1908.00,
-        "notes": "Rejected due to incorrect parts listed.",
-        "createdBy": "manager_02",
-        "createdAt": "2025-09-13T08:45:00Z",
-        "updatedAt": "2025-09-13T09:10:00Z",
-      },
-      {
-        "invoiceId": "INV-2025-017",
-        "customerId": "CUS-1040",
-        "vehicleId": "VH-9444",
-        "jobId": "JOB-5674",
-        "assignedMechanicId": "MECH-009",
-        "issueDate": "2025-09-14T15:20:00Z",
-        "status": "Approved",
-        "paymentStatus": "Paid",
-        "paymentDate": "2025-09-15T11:00:00Z",
-        "items": [
-          {
-            "description": "Battery Replacement",
-            "quantity": 1,
-            "unitPrice": 450.00,
-            "total": 450.00,
-          },
-          {
-            "description": "Air Filter",
-            "quantity": 1,
-            "unitPrice": 80.00,
-            "total": 80.00,
-          },
-        ],
-        "subtotal": 530.00,
-        "tax": 31.80,
-        "grandTotal": 561.80,
-        "notes": "Paid via online banking.",
-        "createdBy": "manager_01",
-        "createdAt": "2025-09-14T15:20:00Z",
-        "updatedAt": "2025-09-15T11:05:00Z",
-      },
-    ];
-
+  void _loadInvoicesFromFirestore() {
     setState(() {
-      invoices = sampleData.map((json) => Invoice.fromJson(json)).toList();
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    _firestoreService.invoicesStream().listen(
+      (List<Invoice> fetchedInvoices) {
+        if (mounted) {
+          setState(() {
+            invoices = fetchedInvoices;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Failed to load invoices: $error';
+            _isLoading = false;
+          });
+        }
+      },
+    );
   }
 
   int get pendingCount =>
@@ -223,169 +96,249 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
           ),
         ),
         centerTitle: true,
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Invoice Overview
-                const Text(
-                  'Invoice Overview',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatusCard(
-                        'Pending',
-                        pendingCount.toString(),
-                        Colors.orange,
-                        Icons.pending_actions,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatusCard(
-                        'Approved',
-                        approvedCount.toString(),
-                        Colors.blue,
-                        Icons.thumb_up,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatusCard(
-                        'Rejected',
-                        rejectedCount.toString(),
-                        Colors.red,
-                        Icons.thumb_down,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Payment Overview
-                const Text(
-                  'Payment Overview',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatusCard(
-                        'Paid',
-                        paidCount.toString(),
-                        Colors.green,
-                        Icons.check_circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatusCard(
-                        'Unpaid',
-                        unpaidCount.toString(),
-                        Colors.red,
-                        Icons.cancel,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Revenue Overview
-                const Text(
-                  'Revenue Overview',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildRevenueCard(
-                        'Total Revenue',
-                        'RM ${totalRevenue.toStringAsFixed(2)}',
-                        Colors.green,
-                        Icons.attach_money,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildRevenueCard(
-                        'Pending Revenue',
-                        'RM ${pendingRevenue.toStringAsFixed(2)}',
-                        Colors.orange,
-                        Icons.schedule,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // View All Invoices Button - Static at bottom
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => InvoiceList(invoices: invoices),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF007AFF),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.list),
-                    SizedBox(width: 8),
-                    Text(
-                      'View All Invoices',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: _loadInvoicesFromFirestore,
           ),
         ],
       ),
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading invoices...'),
+                ],
+              ),
+            )
+          : _errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: TextStyle(fontSize: 16, color: Colors.red[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadInvoicesFromFirestore,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          : Stack(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Invoice Overview
+                      const Text(
+                        'Invoice Overview',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatusCard(
+                              'Pending',
+                              pendingCount.toString(),
+                              Colors.orange,
+                              Icons.pending_actions,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatusCard(
+                              'Approved',
+                              approvedCount.toString(),
+                              Colors.blue,
+                              Icons.thumb_up,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatusCard(
+                              'Rejected',
+                              rejectedCount.toString(),
+                              Colors.red,
+                              Icons.thumb_down,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Payment Overview
+                      const Text(
+                        'Payment Overview',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatusCard(
+                              'Paid',
+                              paidCount.toString(),
+                              Colors.green,
+                              Icons.check_circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatusCard(
+                              'Unpaid',
+                              unpaidCount.toString(),
+                              Colors.red,
+                              Icons.cancel,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Revenue Overview
+                      const Text(
+                        'Revenue Overview',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildRevenueCard(
+                              'Total Revenue',
+                              'RM ${totalRevenue.toStringAsFixed(2)}',
+                              Colors.green,
+                              Icons.attach_money,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildRevenueCard(
+                              'Pending Revenue',
+                              'RM ${pendingRevenue.toStringAsFixed(2)}',
+                              Colors.orange,
+                              Icons.schedule,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      if (invoices.isEmpty) ...[
+                        const SizedBox(height: 40),
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.receipt_long_outlined,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No invoices found',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Invoices will appear here once services are converted to invoices',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // View All Invoices Button - Static at bottom
+                if (invoices.isNotEmpty)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const InvoiceList(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF007AFF),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.list),
+                            SizedBox(width: 8),
+                            Text(
+                              'View All Invoices',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 
