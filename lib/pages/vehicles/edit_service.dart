@@ -7,6 +7,7 @@ final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDi
 
 class InventoryPartVM {
   final String category;
+  final String partId;
   final String name;
   final double price;
   final int quantity;
@@ -14,13 +15,14 @@ class InventoryPartVM {
 
   const InventoryPartVM({
     required this.category,
+    required this.partId,
     required this.name,
     required this.price,
     required this.quantity,
     this.unit,
   });
 
-  String get key => '$category|$name';
+  String get key => '$category|$partId';
 }
 
 class EditService extends StatefulWidget {
@@ -168,6 +170,7 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
       for (final m in rows) {
         final vm = InventoryPartVM(
           category: c,
+          partId: (m['partId'] ?? m['id'] ?? '') as String,
           name: (m['name'] ?? '') as String,
           price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
           quantity: (m['quantity'] ?? 0) as int,
@@ -186,6 +189,7 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
       final vm = InventoryPartVM(
         category: category,
         name: (m['name'] ?? '') as String,
+        partId: (m['partId'] ?? m['id'] ?? '') as String,
         price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
         quantity: (m['quantity'] ?? 0) as int,
         unit: m['unit'] as String?,
@@ -201,7 +205,7 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
     for (final vm in _invIndex.values) {
       if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) return vm;
     }
-    return null; // manual/custom parts won't match → no stock change
+    return null;
   }
 
   // ---------- totals / labor ----------
@@ -852,7 +856,8 @@ class _EditServiceState extends State<EditService> with TickerProviderStateMixin
         final d = a - b;
         if (d == 0) continue;
 
-        final parts = k.split('|'); // [category, name]
+        final parts = k.split('|'); // [category, partId]
+
         if (parts.length != 2) continue;
 
         if (d > 0) {
