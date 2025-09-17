@@ -522,7 +522,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               FutureBuilder<QuerySnapshot>(
                                 future: _firestore
                                     .collection('procurement_requests')
-                                    .orderBy('timestamp', descending: true)
+                                    .orderBy('requestedAt', descending: true)
                                     .limit(3)
                                     .get(),
                                 builder: (context, snapshot) {
@@ -852,9 +852,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget _buildProcurementPreviewItem(Map<String, dynamic> data) {
     final requestId = data['requestId'] ?? '';
     final partName = data['partName'] ?? 'Unknown Part';
-    final quantity = data['quantity'] ?? 0;
+    final quantity = data['requestedQty'] ?? data['quantity'] ?? 0;
     final status = data['status'] ?? 'Pending';
-    final timestamp = (data['timestamp'] as Timestamp).toDate();
+    final supplier = data['supplier'] ?? 'N/A';
+    final timestamp = (data['requestedAt'] is Timestamp)
+        ? (data['requestedAt'] as Timestamp).toDate()
+        : null;
     final isUrgent = status == 'Urgent';
 
     return Container(
@@ -890,6 +893,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
+                  'Supplier: $supplier', // This will now show the supplier name
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
                   'Status: $status',
                   style: TextStyle(
                     fontSize: 14,
@@ -905,7 +916,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${timestamp.day}/${timestamp.month}/${timestamp.year}',
+                timestamp != null ? '${timestamp.day}/${timestamp.month}/${timestamp.year}' : '',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[500],
