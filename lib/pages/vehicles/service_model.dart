@@ -53,6 +53,7 @@ class ServiceRecordModel {
   DateTime date;
   String description;
   String mechanic;
+  String status; // string-based status
   List<PartLine> parts;
   List<LaborLine> labor;
   String? notes;
@@ -62,11 +63,18 @@ class ServiceRecordModel {
   final double? laborTotalDb;
   final double? totalDb;
 
+  // Status constants (keep as you defined)
+  static const String statusAssign = 'assign';
+  static const String statusInProgress = 'in progress';
+  static const String statusCompleted = 'completed';
+  static const String statusCancel = 'cancel';
+
   ServiceRecordModel({
     required this.id,
     required this.date,
     required this.description,
     required this.mechanic,
+    this.status = statusAssign, // Default to "assign"
     this.parts = const [],
     this.labor = const [],
     this.notes,
@@ -75,12 +83,12 @@ class ServiceRecordModel {
     this.totalDb,
   });
 
-  // compute from arrays
+  // computed totals
   double get partsTotal => parts.fold(0.0, (s, p) => s + p.unitPrice * p.quantity);
-  double get laborTotal  => labor.fold(0.0, (s, l) => s + l.rate * l.hours);
-  double get total       => partsTotal + laborTotal;
+  double get laborTotal => labor.fold(0.0, (s, l) => s + l.rate * l.hours);
+  double get total => partsTotal + laborTotal;
 
-  // prefer DB totals if present, else compute
+  // prefer DB totals if present
   double get displayTotal => (totalDb ?? (partsTotalDb ?? partsTotal) + (laborTotalDb ?? laborTotal));
 
   factory ServiceRecordModel.fromMap(String id, Map<String, dynamic> m) {
@@ -95,6 +103,7 @@ class ServiceRecordModel {
       date: dt,
       description: (m['description'] ?? '').toString(),
       mechanic: (m['mechanic'] ?? '').toString(),
+      status: (m['status'] ?? statusAssign).toString(),
       parts: partsList.map((e) => PartLine.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
       labor: laborList.map((e) => LaborLine.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
       notes: (m['notes'] as String?),
@@ -112,6 +121,7 @@ class ServiceRecordModel {
       'date': Timestamp.fromDate(date),
       'description': description,
       'mechanic': mechanic,
+      'status': status,
       'parts': parts.map((e) => e.toMap()).toList(),
       'labor': labor.map((e) => e.toMap()).toList(),
       if (notes != null && notes!.isNotEmpty) 'notes': notes,
@@ -121,4 +131,14 @@ class ServiceRecordModel {
       'total': t,
     };
   }
+
+  // status options used by UI
+  static List<String> get statusOptions => [
+    statusAssign,
+    statusInProgress,
+    statusCompleted,
+    statusCancel,
+  ];
+
+  bool get isStatusValid => statusOptions.contains(status);
 }

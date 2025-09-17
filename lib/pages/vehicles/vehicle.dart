@@ -4,9 +4,7 @@ import 'vehicle_model.dart';
 import 'add_vehicle.dart';
 import 'view_vehicle.dart';
 
-const _kBlue = Color(0xFF007AFF);
 const _kGrey = Color(0xFF8E8E93);
-const _kDivider = Color(0xFFE5E5EA);
 const _kSurface = Color(0xFFF2F2F7);
 
 class VehiclesPage extends StatefulWidget {
@@ -212,7 +210,6 @@ class _VehiclesPageState extends State<VehiclesPage> {
 class InactiveVehiclesPage extends StatelessWidget {
   const InactiveVehiclesPage({super.key});
 
-  static const _kBlue = Color(0xFF007AFF);
   static const _kGrey = Color(0xFF8E8E93);
 
   @override

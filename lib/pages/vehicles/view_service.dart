@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'service_model.dart';
+import 'edit_service.dart';
+import 'package:workshoppro_manager/firestore_service.dart';
 
-final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
+final _currency =
+NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
 class ViewService extends StatefulWidget {
   final String vehicleId;
@@ -18,13 +21,17 @@ class ViewService extends StatefulWidget {
   State<ViewService> createState() => _ViewServiceState();
 }
 
-class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin {
+class _ViewServiceState extends State<ViewService>
+    with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Enhanced color scheme matching ViewVehicle
+  // Keep a mutable copy so we can refresh after editing
+  late ServiceRecordModel _record;
+
+  // Color tokens
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -36,11 +43,9 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
   static const _kCardShadow = Color(0x1A000000);
 
   String _fmtHoursMins(double h) {
-    // Convert fractional hours to total minutes
     final totalMins = (h * 60).round();
     final hrs = totalMins ~/ 60;
     final mins = totalMins % 60;
-
     if (hrs > 0 && mins > 0) {
       return '$hrs hr ${mins.toString().padLeft(2, '0')} min';
     } else if (hrs > 0) {
@@ -50,24 +55,28 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
     }
   }
 
+  bool get _canEdit {
+    final s = _record.status.trim().toLowerCase();
+    if (s == ServiceRecordModel.statusCompleted || s == ServiceRecordModel.statusCancel) return false;
+    if (s.contains('completed') || s.contains('cancel')) return false;
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
+    _record = widget.record;
+
+    _fadeController =
+        AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
+    _slideController =
+        AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
     );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
 
     _fadeController.forward();
     _slideController.forward();
@@ -78,6 +87,45 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshRecord() async {
+    // Re-read current service list once and pick the one we just edited
+    final list =
+    await FirestoreService().serviceStream(widget.vehicleId).first;
+    final updated = list.firstWhere(
+          (x) => x.id == _record.id,
+      orElse: () => _record,
+    );
+    setState(() => _record = updated);
+  }
+
+  // Reusable toolbar chip button (matches leading/back style)
+  Widget _toolbarIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    EdgeInsets margin = const EdgeInsets.all(8),
+    String? tooltip,
+  }) {
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: _kCardShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(icon, color: Colors.black, size: 20),
+        onPressed: onTap,
+      ),
+    );
   }
 
   @override
@@ -94,7 +142,6 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
           position: _slideAnimation,
           child: CustomScrollView(
             slivers: [
-              // Enhanced App Bar matching ViewVehicle
               SliverAppBar(
                 expandedHeight: 120,
                 floating: false,
@@ -102,24 +149,37 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                 backgroundColor: Colors.white,
                 elevation: 0,
                 shadowColor: _kCardShadow,
-                leading: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _kCardShadow,
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+
+                // Back (left)
+                leading: _toolbarIconButton(
+                  icon: Icons.arrow_back_ios_new,
+                  onTap: () => Navigator.pop(context),
+                  tooltip: 'Back',
                 ),
+
+                // Edit (right)
+                actions: [
+                  if (_canEdit)
+                    _toolbarIconButton(
+                      icon: Icons.edit_rounded,
+                      tooltip: 'Edit service',
+                      onTap: () async {
+                        final changed = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EditService(
+                              vehicleId: widget.vehicleId,
+                              record: _record,
+                            ),
+                          ),
+                        );
+                        if (changed == true) {
+                          await _refreshRecord(); // <- reload and repaint
+                        }
+                      },
+                    ),
+                ],
+
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: true,
                   title: Row(
@@ -157,28 +217,18 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                   padding: EdgeInsets.all(16 * s),
                   child: Column(
                     children: [
-                      // Service Overview Card
                       _buildServiceOverviewCard(s),
                       SizedBox(height: 24 * s),
-
-                      // Parts Section
                       _buildPartsSection(s),
                       SizedBox(height: 24 * s),
-
-                      // Labor Section
                       _buildLaborSection(s),
                       SizedBox(height: 24 * s),
-
-                      // Total Summary Card
                       _buildTotalCard(s),
-
-                      // Notes section
-                      if ((widget.record.notes ?? '').isNotEmpty) ...[
+                      if ((_record.notes ?? '').isNotEmpty) ...[
                         SizedBox(height: 24 * s),
                         _buildNotesSection(s),
                       ],
-
-                      SizedBox(height: 32 * s), // Bottom spacing
+                      SizedBox(height: 32 * s),
                     ],
                   ),
                 ),
@@ -237,7 +287,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                       ),
                       SizedBox(height: 4 * s),
                       Text(
-                        _fmt(widget.record.date),
+                        _fmt(_record.date),
                         style: TextStyle(
                           fontSize: (14 * s).clamp(13, 15),
                           color: _kGrey,
@@ -269,8 +319,11 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
             child: Column(
               children: [
-                _enhancedInfoRow('Description', widget.record.description, Icons.description_rounded, s),
-                _enhancedInfoRow('Mechanic', widget.record.mechanic, Icons.person_rounded, s, isLast: true),
+                _enhancedInfoRow(
+                    'Description', _record.description, Icons.description_rounded, s),
+                _enhancedInfoRow(
+                    'Mechanic', _record.mechanic, Icons.person_rounded, s,
+                    isLast: true),
               ],
             ),
           ),
@@ -279,7 +332,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
     );
   }
 
-  Widget _enhancedInfoRow(String label, String value, IconData icon, double s, {bool isLast = false}) {
+  Widget _enhancedInfoRow(String label, String value, IconData icon, double s,
+      {bool isLast = false}) {
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : 16 * s),
       child: Row(
@@ -290,11 +344,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
               color: _kLightGrey,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              icon,
-              size: 20 * s,
-              color: _kGrey,
-            ),
+            child: Icon(icon, size: 20 * s, color: _kGrey),
           ),
           SizedBox(width: 16 * s),
           Expanded(
@@ -351,11 +401,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                     color: _kSuccess.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(
-                    Icons.settings_rounded,
-                    color: _kSuccess,
-                    size: 24 * s,
-                  ),
+                  child: Icon(Icons.settings_rounded, color: _kSuccess, size: 24 * s),
                 ),
                 SizedBox(width: 16 * s),
                 Expanded(
@@ -372,7 +418,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                       ),
                       SizedBox(height: 4 * s),
                       Text(
-                        '${widget.record.parts.length} ${widget.record.parts.length == 1 ? 'part' : 'parts'} used',
+                        '${_record.parts.length} ${_record.parts.length == 1 ? 'part' : 'parts'} used',
                         style: TextStyle(
                           fontSize: (14 * s).clamp(13, 15),
                           color: _kGrey,
@@ -400,34 +446,24 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
               ),
             ),
           ),
-          if (widget.record.parts.isEmpty)
+          if (_record.parts.isEmpty)
             Padding(
               padding: EdgeInsets.all(24 * s),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.inventory_2_rounded,
-                      size: 48 * s,
-                      color: _kGrey.withValues(alpha: 0.5),
-                    ),
+                    Icon(Icons.inventory_2_rounded,
+                        size: 48 * s, color: _kGrey.withValues(alpha: 0.5)),
                     SizedBox(height: 12 * s),
-                    Text(
-                      'No parts used',
-                      style: TextStyle(
-                        color: _kGrey,
-                        fontSize: 16 * s,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    Text('No parts used',
+                        style: TextStyle(
+                            color: _kGrey,
+                            fontSize: 16 * s,
+                            fontWeight: FontWeight.w500)),
                     SizedBox(height: 4 * s),
-                    Text(
-                      'This service didn’t require any parts',
-                      style: TextStyle(
-                        color: _kGrey.withValues(alpha: 0.7),
-                        fontSize: 14 * s,
-                      ),
-                    ),
+                    Text('This service didn’t require any parts',
+                        style: TextStyle(
+                            color: _kGrey.withValues(alpha: 0.7), fontSize: 14 * s)),
                   ],
                 ),
               ),
@@ -436,11 +472,10 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             Padding(
               padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
               child: Column(
-                children: widget.record.parts.asMap().entries.map((entry) {
+                children: _record.parts.asMap().entries.map((entry) {
                   final index = entry.key;
                   final part = entry.value;
-                  final isLastItem = index == widget.record.parts.length - 1;
-
+                  final isLastItem = index == _record.parts.length - 1;
                   return _buildPartItem(part, s, isLastItem);
                 }).toList(),
               ),
@@ -476,7 +511,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12 * s, vertical: 6 * s),
+                  padding:
+                  EdgeInsets.symmetric(horizontal: 12 * s, vertical: 6 * s),
                   decoration: BoxDecoration(
                     color: _kSuccess.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -495,9 +531,11 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             SizedBox(height: 12 * s),
             Row(
               children: [
-                _buildInfoChip('Qty: ${part.quantity}', Icons.inventory_2_rounded, s),
+                _buildInfoChip('Qty: ${part.quantity}',
+                    Icons.inventory_2_rounded, s),
                 SizedBox(width: 12 * s),
-                _buildInfoChip('${_currency.format(part.unitPrice)} each', Icons.money_sharp, s),
+                _buildInfoChip('${_currency.format(part.unitPrice)} each',
+                    Icons.money_sharp, s),
               ],
             ),
           ],
@@ -531,11 +569,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                     color: _kWarning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(
-                    Icons.handyman_rounded,
-                    color: _kWarning,
-                    size: 24 * s,
-                  ),
+                  child: Icon(Icons.handyman_rounded,
+                      color: _kWarning, size: 24 * s),
                 ),
                 SizedBox(width: 16 * s),
                 Expanded(
@@ -552,7 +587,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                       ),
                       SizedBox(height: 4 * s),
                       Text(
-                        '${widget.record.labor.length} ${widget.record.labor.length == 1 ? 'task' : 'tasks'} performed',
+                        '${_record.labor.length} ${_record.labor.length == 1 ? 'task' : 'tasks'} performed',
                         style: TextStyle(
                           fontSize: (14 * s).clamp(13, 15),
                           color: _kGrey,
@@ -580,34 +615,24 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
               ),
             ),
           ),
-          if (widget.record.labor.isEmpty)
+          if (_record.labor.isEmpty)
             Padding(
               padding: EdgeInsets.all(24 * s),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.work_outline_rounded,
-                      size: 48 * s,
-                      color: _kGrey.withValues(alpha: 0.5),
-                    ),
+                    Icon(Icons.work_outline_rounded,
+                        size: 48 * s, color: _kGrey.withValues(alpha: 0.5)),
                     SizedBox(height: 12 * s),
-                    Text(
-                      'No labor charges',
-                      style: TextStyle(
-                        color: _kGrey,
-                        fontSize: 16 * s,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    Text('No labor charges',
+                        style: TextStyle(
+                            color: _kGrey,
+                            fontSize: 16 * s,
+                            fontWeight: FontWeight.w500)),
                     SizedBox(height: 4 * s),
-                    Text(
-                      'This service had no billable labor',
-                      style: TextStyle(
-                        color: _kGrey.withValues(alpha: 0.7),
-                        fontSize: 14 * s,
-                      ),
-                    ),
+                    Text('This service had no billable labor',
+                        style: TextStyle(
+                            color: _kGrey.withValues(alpha: 0.7), fontSize: 14 * s)),
                   ],
                 ),
               ),
@@ -616,11 +641,10 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             Padding(
               padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
               child: Column(
-                children: widget.record.labor.asMap().entries.map((entry) {
+                children: _record.labor.asMap().entries.map((entry) {
                   final index = entry.key;
                   final labor = entry.value;
-                  final isLastItem = index == widget.record.labor.length - 1;
-
+                  final isLastItem = index == _record.labor.length - 1;
                   return _buildLaborItem(labor, s, isLastItem);
                 }).toList(),
               ),
@@ -656,7 +680,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12 * s, vertical: 6 * s),
+                  padding:
+                  EdgeInsets.symmetric(horizontal: 12 * s, vertical: 6 * s),
                   decoration: BoxDecoration(
                     color: _kWarning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -675,9 +700,11 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             SizedBox(height: 12 * s),
             Row(
               children: [
-                _buildInfoChip(_fmtHoursMins(labor.hours), Icons.schedule_rounded, s),
+                _buildInfoChip(_fmtHoursMins(labor.hours),
+                    Icons.schedule_rounded, s),
                 SizedBox(width: 12 * s),
-                _buildInfoChip('${_currency.format(labor.rate)}/hr', Icons.trending_up_rounded, s),
+                _buildInfoChip('${_currency.format(labor.rate)}/hr',
+                    Icons.trending_up_rounded, s),
               ],
             ),
           ],
@@ -738,11 +765,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                 color: const Color(0xFFFFFFFF).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                Icons.receipt_long_rounded,
-                color: Colors.white,
-                size: 24 * s,
-              ),
+              child: Icon(Icons.receipt_long_rounded,
+                  color: Colors.white, size: 24 * s),
             ),
             SizedBox(width: 16 * s),
             Text(
@@ -755,7 +779,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
             ),
             const Spacer(),
             Text(
-              _currency.format(widget.record.displayTotal),
+              _currency.format(_record.displayTotal),
               style: TextStyle(
                 color: const Color(0xFFFFFFFF),
                 fontSize: (24 * s).clamp(22, 26),
@@ -793,11 +817,8 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                     color: _kDanger.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(
-                    Icons.note_alt_rounded,
-                    color: _kDanger,
-                    size: 24 * s,
-                  ),
+                  child: Icon(Icons.note_alt_rounded,
+                      color: _kDanger, size: 24 * s),
                 ),
                 SizedBox(width: 16 * s),
                 Expanded(
@@ -853,7 +874,7 @@ class _ViewServiceState extends State<ViewService> with TickerProviderStateMixin
                 border: Border.all(color: _kDivider.withValues(alpha: 0.5)),
               ),
               child: Text(
-                widget.record.notes!,
+                _record.notes!,
                 style: TextStyle(
                   color: _kGrey,
                   fontSize: (15 * s).clamp(14, 16),

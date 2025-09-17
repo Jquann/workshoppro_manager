@@ -32,7 +32,7 @@ class AddService extends StatefulWidget {
 }
 
 class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
-  // Enhanced color scheme
+  // colors
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -44,10 +44,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
-  // Hourly labor rate (RM per hour)
-  static const double _hourlyRate = 80.0; // RM 80/hour
-
-  // Category → default hours PER UNIT (used when you add parts)
+  // Labor policy
+  static const double _hourlyRate = 80.0; // RM/hour
   static const Map<String, double> _defaultHoursByCategory = {
     'Body': 0.3,
     'Brakes': 0.8,
@@ -66,22 +64,20 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   final _mech = TextEditingController();
   final _notes = TextEditingController();
 
-  final _partName = TextEditingController();
   final _partQty = TextEditingController();
   final _partPrice = TextEditingController();
 
   final List<PartLine> _parts = [];
 
-  // Animation controllers
-  late AnimationController _fadeAnimationController;
-  late AnimationController _slideAnimationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  // animations
+  late final AnimationController _fadeAnimationController;
+  late final AnimationController _slideAnimationController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
 
-  // ---- Inventory UI state ----
+  // inventory
   static const List<String> _categories = <String>[
-    'Body','Brakes','Consumables','Electrical','Engine',
-    'Exhaust','Maintenance','Suspension','Transmission',
+    'Body','Brakes','Consumables','Electrical','Engine','Exhaust','Maintenance','Suspension','Transmission',
   ];
   String? _selectedCategory;
   List<InventoryPartVM> _availableParts = [];
@@ -93,26 +89,12 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _date.text = _fmt(DateTime.now());
-
-    // Initialize animations
-    _fadeAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _slideAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut),
-    );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
-
-    // Start animations
+    _fadeAnimationController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
+    _slideAnimationController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
   }
@@ -125,24 +107,22 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     _desc.dispose();
     _mech.dispose();
     _notes.dispose();
-    _partName.dispose();
     _partQty.dispose();
     _partPrice.dispose();
     super.dispose();
   }
 
-  // ---- parsing helpers ----
+  // utils
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
+  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
+  String _fmt(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  // ---- Enhanced UI tokens ----
   InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
     hintText: hint,
     hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
     prefixIcon: icon != null
-        ? Container(
-      padding: const EdgeInsets.all(12),
-      child: Icon(icon, size: 20, color: _kGrey),
-    )
+        ? Container(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: _kGrey))
         : null,
     suffixText: suffix,
     suffixStyle: TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
@@ -172,30 +152,16 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
-  ButtonStyle get _primaryBtn => ElevatedButton.styleFrom(
-    backgroundColor: _kPrimary,
-    foregroundColor: Colors.white,
-    minimumSize: const Size.fromHeight(56),
-    elevation: 0,
-    shadowColor: _kPrimary.withValues(alpha: 0.3),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-  );
-
-  // ---- totals ----
+  // totals
   double get _partsTotal => _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
 
-  // Lookup helper for inventory VM by part line
   InventoryPartVM? _lookupInventory(PartLine p) {
     for (final vm in _invIndex.values) {
-      if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) {
-        return vm;
-      }
+      if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) return vm;
     }
     return null;
   }
 
-  // Computed labor hours from parts and category defaults
   double get _computedHours {
     double h = 0.0;
     for (final p in _parts) {
@@ -206,12 +172,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     return h;
   }
 
-  String _fmtHours(double h) =>
-      (h == h.roundToDouble()) ? h.toInt().toString() : h.toStringAsFixed(1);
-
-  // Labor amount (RM) = computed hours × hourlyRate
   double get _laborAuto => _computedHours * _hourlyRate;
-
   double get _grandTotal => _partsTotal + _laborAuto;
 
   @override
@@ -221,7 +182,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       backgroundColor: const Color(0xFFFAFAFA),
       body: CustomScrollView(
         slivers: [
-          // Enhanced App Bar
           SliverAppBar(
             expandedHeight: 120,
             floating: false,
@@ -237,40 +197,24 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: _kDarkText,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: _kDarkText, size: 20),
                 ),
               ),
             ),
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
-              title: const Text(
-                'Add Service',
-                style: TextStyle(
-                  color: _kDarkText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                ),
-              ),
+              title: const Text('Add Service',
+                  style: TextStyle(color: _kDarkText, fontWeight: FontWeight.w700, fontSize: 20)),
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white,
-                      _kLightGrey.withValues(alpha: 0.3),
-                    ],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [Colors.white, _kLightGrey.withValues(alpha: 0.3)],
                   ),
                 ),
               ),
             ),
           ),
-
-          // Content
           SliverToBoxAdapter(
             child: FadeTransition(
               opacity: _fadeAnimation,
@@ -305,6 +249,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       ),
     );
   }
+
+  // ----- sections
 
   Widget _buildServiceDetailsCard() {
     return _buildCard(
@@ -342,6 +288,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               textCapitalization: TextCapitalization.words,
             ),
           ),
+          // NOTE: no status dropdown here — always auto "assign" on save.
         ],
       ),
     );
@@ -370,17 +317,9 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       child: Column(
         children: [
           const SizedBox(height: 12),
-          _buildInfoRow(
-            'Hourly Rate',
-            '${_currency.format(_hourlyRate)} ',
-            icon: Icons.schedule_rounded,
-          ),
+          _buildInfoRow('Hourly Rate', _currency.format(_hourlyRate), icon: Icons.schedule_rounded),
           const SizedBox(height: 12),
-          _buildInfoRow(
-            'Labor Cost',
-            _currency.format(_laborAuto),
-            icon: Icons.build_rounded,
-          ),
+          _buildInfoRow('Labor Cost', _currency.format(_laborAuto), icon: Icons.build_rounded),
         ],
       ),
     );
@@ -395,112 +334,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         decoration: _input('Enter any additional notes'),
         maxLines: 4,
         textCapitalization: TextCapitalization.sentences,
-      ),
-    );
-  }
-
-  Widget _buildCard({
-    required IconData icon,
-    required String title,
-    required Widget child,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _kCardShadow,
-            offset: const Offset(0, 2),
-            blurRadius: 12,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _kPrimary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: _kPrimary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _kDarkText,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFormField({required String label, required Widget child}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: _kDarkText,
-          ),
-        ),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, {IconData? icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: _kLightGrey.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 16, color: _kGrey),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: _kGrey.withValues(alpha: 0.9),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: _kDarkText,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -543,55 +376,139 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
-  // ---------- helpers ----------
-  Widget _label(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(t,
-        style: const TextStyle(
-            fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black)),
-  );
+  Widget _buildCard({required IconData icon, required String title, required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: _kCardShadow, offset: const Offset(0, 2), blurRadius: 12)],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _kPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: _kPrimary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _kDarkText)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          child,
+        ]),
+      ),
+    );
+  }
 
-  Widget _kvRow(String k, String v) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
+  Widget _buildFormField({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: Text(k, style: const TextStyle(color: _kGrey, fontSize: 14))),
-        Text(v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _kDarkText)),
+        const SizedBox(height: 8),
+        child,
       ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(color: _kLightGrey.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: _kGrey),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(label,
+                style: TextStyle(color: _kGrey.withValues(alpha: 0.9), fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _kDarkText)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalsCard() => Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [_kPrimary.withValues(alpha: 0.05), _kSecondary.withValues(alpha: 0.05)],
+      ),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: _kPrimary.withValues(alpha: 0.2)),
+      boxShadow: [BoxShadow(color: _kCardShadow, offset: const Offset(0, 2), blurRadius: 12)],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration:
+                BoxDecoration(color: _kPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.receipt_rounded, color: _kPrimary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text('Service Summary',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _kDarkText)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _totalRow('Parts', _partsTotal, icon: Icons.build_circle_rounded),
+          const SizedBox(height: 12),
+          _totalRow('Labor', _laborAuto, icon: Icons.work_rounded),
+          const SizedBox(height: 16),
+          Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [
+            _kPrimary.withValues(alpha: 0.3), _kSecondary.withValues(alpha: 0.3),
+          ]))),
+          const SizedBox(height: 16),
+          _totalRow('Total', _grandTotal, bold: true, icon: Icons.account_balance_wallet_rounded),
+        ],
+      ),
     ),
   );
 
-  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
-
-  String _fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final initial = DateTime.tryParse(_date.text) ?? now;
-    final d = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year + 1),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: _kPrimary,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: _kDarkText,
-            ),
+  Widget _totalRow(String k, double v, {bool bold = false, IconData? icon}) => Row(
+    children: [
+      if (icon != null) ...[
+        Icon(icon, size: 16, color: bold ? _kPrimary : _kGrey),
+        const SizedBox(width: 8),
+      ],
+      Expanded(
+        child: Text(
+          k,
+          style: TextStyle(
+            fontSize: bold ? 16 : 15,
+            color: bold ? _kDarkText : _kGrey.withValues(alpha: 0.8),
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
           ),
-          child: child!,
-        );
-      },
-    );
-    if (d != null) _date.text = _fmt(d);
-  }
+        ),
+      ),
+      Text(
+        _currency.format(v),
+        style: TextStyle(
+          fontSize: bold ? 18 : 15,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+          color: bold ? _kPrimary : _kDarkText,
+        ),
+      ),
+    ],
+  );
 
-  // ---------- Enhanced Inventory editor ----------
+  // ----- inventory editor
+
   Widget _inventoryPartEditor() {
     final stockLine = (_selectedPart == null)
         ? null
@@ -604,15 +521,11 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       ),
       child: Row(
         children: [
-          Icon(Icons.inventory_rounded, size: 16, color: _kSuccess),
+          const Icon(Icons.inventory_rounded, size: 16, color: _kSuccess),
           const SizedBox(width: 8),
           Text(
             'Stock: ${_selectedPart!.quantity} ${_selectedPart!.unit ?? "pcs"}',
-            style: TextStyle(
-              color: _kSuccess,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(color: _kSuccess, fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -627,15 +540,12 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             decoration: _input('Select category', icon: Icons.category_rounded),
             value: _selectedCategory,
             isExpanded: true,
-            items: _categories
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
+            items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (cat) async {
               if (cat == null) return;
               setState(() {
                 _selectedCategory = cat;
                 _selectedPart = null;
-                _partName.clear();
                 _partPrice.clear();
                 _partQty.clear();
                 _availableParts = [];
@@ -646,7 +556,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 16),
-
         _buildFormField(
           label: 'Part',
           child: DropdownButtonFormField<InventoryPartVM>(
@@ -659,14 +568,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               child: Row(
                 children: [
                   Expanded(child: Text(p.name)),
-                  Text(
-                    _currency.format(p.price),
-                    style: TextStyle(
-                      color: _kGrey,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text(_currency.format(p.price),
+                      style: TextStyle(color: _kGrey, fontSize: 12, fontWeight: FontWeight.w500)),
                 ],
               ),
             ))
@@ -675,18 +578,12 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               if (p == null) return;
               setState(() {
                 _selectedPart = p;
-                _partName.text = p.name;
                 _partPrice.text = p.price.toStringAsFixed(2);
               });
             },
           ),
         ),
-
-        if (stockLine != null) ...[
-          const SizedBox(height: 12),
-          stockLine,
-        ],
-
+        if (stockLine != null) ...[const SizedBox(height: 12), stockLine],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -719,19 +616,9 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               padding: const EdgeInsets.only(top: 20),
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_kPrimary, _kSecondary],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  gradient: const LinearGradient(colors: [_kPrimary, _kSecondary], begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _kPrimary.withValues(alpha: 0.3),
-                      offset: const Offset(0, 2),
-                      blurRadius: 6,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: _kPrimary.withValues(alpha: 0.3), offset: const Offset(0, 2), blurRadius: 6)],
                 ),
                 child: Material(
                   color: Colors.transparent,
@@ -769,7 +656,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     return list;
   }
 
-  // ---------- add/merge part, track stock ----------
   void _onAddPartFromInventory() {
     if (_selectedPart == null) {
       _showSnackBar('Please select a part', _kWarning);
@@ -797,21 +683,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     }
 
     setState(() {
-      // merge if same name & unit price
-      final idx = _parts.indexWhere(
-            (p) => p.name == part.name && p.unitPrice == part.price,
-      );
+      final idx = _parts.indexWhere((p) => p.name == part.name && p.unitPrice == part.price);
       if (idx >= 0) {
         final cur = _parts[idx];
-        _parts[idx] = PartLine(
-          name: cur.name,
-          quantity: cur.quantity + q,
-          unitPrice: cur.unitPrice,
-        );
+        _parts[idx] = PartLine(name: cur.name, quantity: cur.quantity + q, unitPrice: cur.unitPrice);
       } else {
         _parts.add(PartLine(name: part.name, quantity: q, unitPrice: part.price));
       }
-
       _stockDeltas[key] = alreadyUsed + q;
       _partQty.clear();
     });
@@ -836,44 +714,27 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               color: _kPrimary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.build_circle_rounded, size: 16, color: _kPrimary),
+            child: const Icon(Icons.build_circle_rounded, size: 16, color: _kPrimary),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _kDarkText,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${p.quantity} × ${_currency.format(p.unitPrice)} = ${_currency.format(p.unitPrice * p.quantity)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _kGrey.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(p.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _kDarkText)),
+              const SizedBox(height: 2),
+              Text(
+                '${p.quantity} × ${_currency.format(p.unitPrice)} = ${_currency.format(p.unitPrice * p.quantity)}',
+                style: TextStyle(fontSize: 12, color: _kGrey.withValues(alpha: 0.8)),
+              ),
+            ]),
           ),
           Container(
-            decoration: BoxDecoration(
-              color: _kError.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: BoxDecoration(color: _kError.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   setState(() {
-                    // roll back stock delta
                     final inv = _lookupInventory(p);
                     if (inv != null) {
                       final k = inv.key;
@@ -900,101 +761,95 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
-  // ---- Enhanced totals card ----
-  Widget _buildTotalsCard() => Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          _kPrimary.withValues(alpha: 0.05),
-          _kSecondary.withValues(alpha: 0.05),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: _kPrimary.withValues(alpha: 0.2)),
-      boxShadow: [
-        BoxShadow(
-          color: _kCardShadow,
-          offset: const Offset(0, 2),
-          blurRadius: 12,
-        ),
-      ],
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
+  // ----- save
+
+  Future<void> _onSave() async {
+    if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+
+    final hours = _computedHours;
+    final laborLines = <LaborLine>[];
+    if (hours > 0) {
+      laborLines.add(LaborLine(name: 'Labor', hours: hours, rate: _hourlyRate));
+    }
+
+    final record = ServiceRecordModel(
+      id: '',
+      date: DateTime.parse(_date.text),
+      description: _desc.text.trim(),
+      mechanic: _mech.text.trim(),
+      status: ServiceRecordModel.statusAssign, // <-- ALWAYS auto 'assign'
+      parts: List.of(_parts),
+      labor: laborLines,
+      notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+    );
+
+    // loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: const Padding(
+          padding: EdgeInsets.all(20),
+          child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _kPrimary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.receipt_rounded, color: _kPrimary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Service Summary',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: _kDarkText,
-                ),
-              ),
+              CircularProgressIndicator(color: _kPrimary, strokeWidth: 3),
+              SizedBox(width: 20),
+              Text('Saving service...'),
             ],
           ),
-          const SizedBox(height: 20),
-          _totalRow('Parts', _partsTotal, icon: Icons.build_circle_rounded),
-          const SizedBox(height: 12),
-          _totalRow('Labor', _laborAuto, icon: Icons.work_rounded),
-          const SizedBox(height: 16),
-          Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _kPrimary.withValues(alpha: 0.3),
-                  _kSecondary.withValues(alpha: 0.3),
-                ],
-              ),
+        ),
+      ),
+    );
+
+    try {
+      await FirestoreService().addService(widget.vehicleId, record);
+
+      // reduce stock
+      for (final e in _stockDeltas.entries) {
+        final parts = e.key.split('|'); // [category, name]
+        if (parts.length != 2) continue;
+        await FirestoreService().reduceStock(parts[0], parts[1], e.value);
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // close loading
+        Navigator.pop(context); // close page
+        _showSnackBar('Service saved successfully!', _kSuccess);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        _showSnackBar('Failed to save service: $e', _kError);
+      }
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final initial = DateTime.tryParse(_date.text) ?? now;
+    final d = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 1),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: _kPrimary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: _kDarkText,
             ),
           ),
-          const SizedBox(height: 16),
-          _totalRow('Total', _grandTotal, bold: true, icon: Icons.account_balance_wallet_rounded),
-        ],
-      ),
-    ),
-  );
-
-  Widget _totalRow(String k, double v, {bool bold = false, IconData? icon}) => Row(
-    children: [
-      if (icon != null) ...[
-        Icon(icon, size: 16, color: bold ? _kPrimary : _kGrey),
-        const SizedBox(width: 8),
-      ],
-      Expanded(
-        child: Text(
-          k,
-          style: TextStyle(
-            fontSize: bold ? 16 : 15,
-            color: bold ? _kDarkText : _kGrey.withValues(alpha: 0.8),
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-      Text(
-        _currency.format(v),
-        style: TextStyle(
-          fontSize: bold ? 18 : 15,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-          color: bold ? _kPrimary : _kDarkText,
-        ),
-      ),
-    ],
-  );
+          child: child!,
+        );
+      },
+    );
+    if (d != null) _date.text = _fmt(d);
+  }
 
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1021,85 +876,4 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       ),
     );
   }
-
-  // ---- SAVE ----
-  Future<void> _onSave() async {
-    if (!_form.currentState!.validate()) return;
-    FocusScope.of(context).unfocus();
-
-    // Labor saved with computed hours and hourly rate (RM 80/hour)
-    final hours = _computedHours;
-    final laborLines = <LaborLine>[];
-    if (hours > 0) {
-      laborLines.add(LaborLine(
-        name: 'Labor',
-        hours: hours,
-        rate: _hourlyRate,
-      ));
-    }
-
-    final record = ServiceRecordModel(
-      id: '',
-      date: DateTime.parse(_date.text),
-      description: _desc.text.trim(),
-      mechanic: _mech.text.trim(),
-      parts: List.of(_parts),
-      labor: laborLines,
-      notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-    );
-
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              CircularProgressIndicator(color: _kPrimary, strokeWidth: 3),
-              const SizedBox(width: 20),
-              const Text('Saving service...'),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    try {
-      await FirestoreService().addService(widget.vehicleId, record);
-
-      // reduce stock according to deltas
-      for (final e in _stockDeltas.entries) {
-        final parts = e.key.split('|'); // [category, name]
-        if (parts.length != 2) continue;
-        await FirestoreService().reduceStock(parts[0], parts[1], e.value);
-      }
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        Navigator.pop(context); // Close add service page
-        _showSnackBar('Service saved successfully!', _kSuccess);
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        _showSnackBar('Failed to save service: $e', _kError);
-      }
-    }
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-  const _SectionTitle(this.text);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10, top: 8),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-    ),
-  );
 }
