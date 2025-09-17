@@ -5,6 +5,9 @@ import '../../models/part.dart';
 import 'procurement_service.dart';
 import 'procurement_tracking_screen.dart';
 import 'gmail_email_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'inventory_data_manager.dart';
+import 'supplier_price.dart';
 
 class EnhancedProcurementDialog extends StatefulWidget {
   final Part part;
@@ -22,6 +25,10 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
   String _selectedSupplier = '';
   DateTime? _requiredByDate;
   bool _isSubmitting = false;
+  final InventoryDataManager _inventoryManager = InventoryDataManager(FirebaseFirestore.instance);
+  final SupplierPricingManager _supplierPricingManager = SupplierPricingManager(FirebaseFirestore.instance);
+  bool _isSupplierActionLoading = false;
+  bool _isEnhancedSupplierActionLoading = false;
 
   @override
   void initState() {
@@ -338,61 +345,74 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
   }
 
   Widget _buildGmailActionButtons() {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(16),
-          bottomRight: Radius.circular(16),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextButton(
-              onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(fontSize: 16)),
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
             ),
           ),
-          SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitGmailEmailRequest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[600],
-                padding: EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                  child: Text('Cancel', style: TextStyle(fontSize: 16)),
+                ),
               ),
-              child: _isSubmitting
-                  ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
+              SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitGmailEmailRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  SizedBox(width: 8),
-                  Text('Sending...', style: TextStyle(fontSize: 16, color: Colors.white)),
-                ],
-              )
-                  : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.email, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
-                  Text('Send via Gmail', style: TextStyle(fontSize: 16, color: Colors.white)),
-                ],
+                  child: _isSubmitting
+                      ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Sending...', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    ],
+                  )
+                      : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.email, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text('Send via Gmail', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        SizedBox(height: 12),
+
+        SizedBox(height: 12),
+
+        if (_isSupplierActionLoading || _isEnhancedSupplierActionLoading)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(),
+          ),
+      ],
     );
   }
 
