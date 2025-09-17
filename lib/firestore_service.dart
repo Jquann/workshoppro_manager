@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle_model.dart';
+import 'models/invoice.dart';
 import 'pages/vehicles/service_model.dart';
 
 class FirestoreService {
   final _db = FirebaseFirestore.instance;
 
   CollectionReference get _vc => _db.collection('vehicles');
+
   CollectionReference get _counters => _db.collection('counters');
 
   // -------------------- INVENTORY --------------------
@@ -31,7 +33,11 @@ class FirestoreService {
     return out;
   }
 
-  Future<void> reduceStock(String category, String partName, int usedQty) async {
+  Future<void> reduceStock(
+    String category,
+    String partName,
+    int usedQty,
+  ) async {
     if (usedQty <= 0) return;
     final ref = _inventory.doc(category);
     await _db.runTransaction((tx) async {
@@ -74,14 +80,15 @@ class FirestoreService {
       await reduceStock(category, partName, -delta);
     }
   }
+
   // ------------------ END INVENTORY ------------------
 
   // ===== ID GENERATOR =====
   Future<String> _nextFormattedId(
-      String counterName,
-      String prefix,
-      int paddingLength,
-      ) async {
+    String counterName,
+    String prefix,
+    int paddingLength,
+  ) async {
     final ref = _counters.doc(counterName);
     return _db.runTransaction<String>((tx) async {
       final snap = await tx.get(ref);
@@ -101,7 +108,9 @@ class FirestoreService {
     // In-memory filter for status to avoid composite index requirements.
     return _vc.orderBy('customerName').snapshots().map((s) {
       var list = s.docs
-          .map((d) => VehicleModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+          .map(
+            (d) => VehicleModel.fromMap(d.id, d.data() as Map<String, dynamic>),
+          )
           .toList();
 
       if (status != null) {
@@ -113,7 +122,8 @@ class FirestoreService {
         final needle = q.toLowerCase();
         list = list.where((v) {
           final hay =
-          '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.carPlate}'.toLowerCase();
+              '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.carPlate}'
+                  .toLowerCase();
           return hay.contains(needle);
         }).toList();
       }
@@ -178,10 +188,16 @@ class FirestoreService {
     return _svc(vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((s) => s.docs
-        .map((d) =>
-        ServiceRecordModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+        .map(
+          (s) => s.docs
+              .map(
+                (d) => ServiceRecordModel.fromMap(
+                  d.id,
+                  d.data() as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
+        );
   }
 
   Future<String> addService(String vehicleId, ServiceRecordModel r) async {
@@ -196,11 +212,9 @@ class FirestoreService {
     return serviceId;
   }
 
-  Future<void> updateService(String vehicleId, ServiceRecordModel r) =>
-      _svc(vehicleId).doc(r.id).update({
-        ...r.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  Future<void> updateService(String vehicleId, ServiceRecordModel r) => _svc(
+    vehicleId,
+  ).doc(r.id).update({...r.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
 
   Future<void> deleteService(String vehicleId, String id) =>
       _svc(vehicleId).doc(id).delete();
@@ -208,29 +222,139 @@ class FirestoreService {
   // ===== Photos for service (NEW) =====
   /// Appends photo URLs to `photos` array on the service document.
   Future<void> updateServicePhotos(
-      String vehicleId,
-      String serviceId,
-      List<String> urls,
-      ) async {
+    String vehicleId,
+    String serviceId,
+    List<String> urls,
+  ) async {
     if (urls.isEmpty) return;
-    await _svc(vehicleId).doc(serviceId).set(
-      {
-        'photos': FieldValue.arrayUnion(urls),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _svc(vehicleId).doc(serviceId).set({
+      'photos': FieldValue.arrayUnion(urls),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   /// (Optional) Replace the entire photos array.
   Future<void> setServicePhotos(
-      String vehicleId,
-      String serviceId,
-      List<String> urls,
-      ) async {
+    String vehicleId,
+    String serviceId,
+    List<String> urls,
+  ) async {
     await _svc(vehicleId).doc(serviceId).update({
       'photos': urls,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // ===== Invoice =====
+  CollectionReference get _invoices => _db.collection('invoices');
+
+  /// Creates an invoice from a service record
+  Future<String> addInvoice(
+    String vehicleId,
+    ServiceRecordModel serviceRecord,
+    String customerName,
+    String vehiclePlate,
+    String assignedMechanicId,
+    String createdBy,
+  ) async {
+    // Generate invoice ID in format IV0001, IV0002, etc.
+    final invoiceId = await _nextFormattedId('invoices', 'IV', 4);
+
+    // Calculate totals
+    final partsTotal = serviceRecord.partsTotal;
+    final laborTotal = serviceRecord.laborTotal;
+    final subtotal = partsTotal + laborTotal;
+    const taxRate = 0.06; // 6% tax
+    final tax = subtotal * taxRate;
+    final grandTotal = subtotal + tax;
+
+    final now = DateTime.now();
+
+    final invoice = Invoice(
+      invoiceId: invoiceId,
+      customerName: customerName,
+      vehiclePlate: vehiclePlate,
+      jobId: serviceRecord.id,
+      // Use service record ID as job ID
+      assignedMechanicId: assignedMechanicId,
+      status: 'Pending',
+      // Default status
+      paymentStatus: 'Unpaid',
+      // Default payment status
+      paymentDate: null,
+      issueDate: now,
+      createdAt: now,
+      updatedAt: now,
+      parts: serviceRecord.parts,
+      labor: serviceRecord.labor,
+      subtotal: subtotal,
+      tax: tax,
+      grandTotal: grandTotal,
+      notes: serviceRecord.notes ?? '',
+      createdBy: createdBy,
+    );
+
+    await _invoices.doc(invoiceId).set({
+      ...invoice.toJson(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    return invoiceId;
+  }
+
+  /// Get all invoices
+  Stream<List<Invoice>> invoicesStream() {
+    return _invoices
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => Invoice.fromJson({
+                  'invoiceId': doc.id,
+                  ...doc.data() as Map<String, dynamic>,
+                }),
+              )
+              .toList(),
+        );
+  }
+
+  /// Get a specific invoice
+  Future<Invoice?> getInvoice(String invoiceId) async {
+    final doc = await _invoices.doc(invoiceId).get();
+    if (!doc.exists) return null;
+    return Invoice.fromJson({
+      'invoiceId': doc.id,
+      ...doc.data() as Map<String, dynamic>,
+    });
+  }
+
+  /// Update invoice status
+  Future<void> updateInvoiceStatus(String invoiceId, String status) async {
+    await _invoices.doc(invoiceId).update({
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Update payment status
+  Future<void> updatePaymentStatus(
+    String invoiceId,
+    String paymentStatus, {
+    DateTime? paymentDate,
+  }) async {
+    final updateData = <String, Object>{
+      'paymentStatus': paymentStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (paymentStatus == 'Paid' && paymentDate != null) {
+      updateData['paymentDate'] = paymentDate.toIso8601String();
+    } else if (paymentStatus == 'Unpaid') {
+      updateData['paymentDate'] = FieldValue.delete();
+    }
+
+    await _invoices.doc(invoiceId).update(updateData);
   }
 }
