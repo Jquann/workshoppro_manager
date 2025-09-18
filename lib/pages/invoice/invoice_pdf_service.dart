@@ -11,7 +11,7 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/invoice.dart';
-import '../vehicles/service_model.dart';
+import '../../models/service_model.dart';
 
 class InvoicePdfService {
   static final _currency = NumberFormat.currency(

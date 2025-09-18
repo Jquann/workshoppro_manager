@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
-import 'vehicle_model.dart';
-import 'service_model.dart';
+import '../../models/vehicle_model.dart';
+import '../../models/service_model.dart';
 import 'edit_vehicle.dart';
 import 'view_service.dart';
 import 'add_service.dart';

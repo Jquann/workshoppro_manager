@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
-import 'vehicle_model.dart';
+import '../../models/vehicle_model.dart';
 import 'add_vehicle.dart';
 import 'view_vehicle.dart';
 
