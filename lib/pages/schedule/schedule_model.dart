@@ -12,6 +12,7 @@ class ScheduleModel {
   final String? vehicleId;
   final String? mechanicId;
   final String? mechanicName;
+  final String? partsCategory; // Parts replaced category
   final String status; // 'scheduled', 'in_progress', 'completed', 'cancelled'
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -28,6 +29,7 @@ class ScheduleModel {
     this.vehicleId,
     this.mechanicId,
     this.mechanicName,
+    this.partsCategory,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -46,9 +48,14 @@ class ScheduleModel {
       vehicleId: data['vehicleId'],
       mechanicId: data['mechanicId'],
       mechanicName: data['mechanicName'],
+      partsCategory: data['partsCategory'],
       status: data['status'] ?? 'scheduled',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: data['createdAt'] != null 
+          ? (data['createdAt'] as Timestamp).toDate() 
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] != null 
+          ? (data['updatedAt'] as Timestamp).toDate() 
+          : DateTime.now(),
     );
   }
 
@@ -64,6 +71,7 @@ class ScheduleModel {
       'vehicleId': vehicleId,
       'mechanicId': mechanicId,
       'mechanicName': mechanicName,
+      'partsCategory': partsCategory,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),

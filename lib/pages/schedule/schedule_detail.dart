@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'schedule_model.dart';
 import 'add_schedule.dart';
+import '../vehicles/add_service.dart';
 
 class ScheduleDetailPage extends StatefulWidget {
   final String scheduleId;
@@ -182,22 +183,77 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(schedule.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _getStatusText(schedule.status),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Status section with enhanced design
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _getStatusColor(schedule.status).withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _getStatusColor(schedule.status).withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(schedule.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _getStatusIcon(schedule.status),
                     color: _getStatusColor(schedule.status),
+                    size: 18,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Current Status',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _kGrey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _getStatusText(schedule.status),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _getStatusColor(schedule.status),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _showStatusEditDialog(schedule),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _kGrey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.edit,
+                      size: 16,
+                      color: _kGrey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           Container(
@@ -297,12 +353,21 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
             _buildDetailItem('Mechanic', schedule.mechanicName!),
             const SizedBox(height: 16),
           ],
+          if (schedule.partsCategory != null) ...[
+            _buildDetailItem('Parts Category', schedule.partsCategory!),
+            const SizedBox(height: 16),
+          ],
           _buildDetailItem('Status', _getStatusText(schedule.status)),
           const SizedBox(height: 16),
           _buildDetailItem('Created', _formatDateTime(schedule.createdAt)),
           if (schedule.updatedAt != schedule.createdAt) ...[
             const SizedBox(height: 16),
             _buildDetailItem('Updated', _formatDateTime(schedule.updatedAt)),
+          ],
+          // Add Access to Service button for non-cancelled schedules
+          if (schedule.status.toLowerCase() != 'cancelled') ...[
+            const SizedBox(height: 24),
+            _buildAccessToServiceButton(schedule),
           ],
         ],
       ),
@@ -336,6 +401,45 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAccessToServiceButton(ScheduleModel schedule) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kPrimary, const Color(0xFF5856D6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kPrimary.withOpacity(0.3),
+            offset: const Offset(0, 4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: () => _navigateToAddService(schedule),
+        icon: const Icon(Icons.build_rounded, color: Colors.white, size: 24),
+        label: const Text(
+          'Access to Service',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
   }
 
@@ -407,6 +511,21 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     }
   }
 
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'scheduled':
+        return Icons.schedule;
+      case 'in_progress':
+        return Icons.build;
+      case 'completed':
+        return Icons.check_circle;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help_outline;
+    }
+  }
+
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
@@ -418,6 +537,39 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
         builder: (context) => AddSchedulePage(schedule: schedule),
       ),
     );
+  }
+
+  void _navigateToAddService(ScheduleModel schedule) async {
+    // Check if vehicleId exists
+    if (schedule.vehicleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No vehicle associated with this schedule'),
+          backgroundColor: _kError,
+        ),
+      );
+      return;
+    }
+
+    // Import AddService and navigate with schedule data pre-filled
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddService(
+          vehicleId: schedule.vehicleId!,
+          scheduleId: schedule.id,
+          customerName: schedule.customerName,
+          mechanicName: schedule.mechanicName,
+          serviceType: schedule.serviceType,
+          partsCategory: schedule.partsCategory,
+        ),
+      ),
+    );
+
+    // If service was successfully added, update schedule status to completed
+    if (result == true) {
+      await _updateScheduleStatus(schedule.id, 'completed');
+    }
   }
 
   void _showDeleteConfirmation(ScheduleModel schedule) {
@@ -463,6 +615,98 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
           backgroundColor: _kError,
         ),
       );
+    }
+  }
+
+  void _showStatusEditDialog(ScheduleModel schedule) {
+    final List<String> allowedStatuses = ['scheduled', 'in_progress', 'cancelled'];
+    String selectedStatus = schedule.status;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Update Status'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: allowedStatuses.map((status) {
+                  return RadioListTile<String>(
+                    title: Text(_getStatusText(status)),
+                    value: status,
+                    groupValue: selectedStatus,
+                    activeColor: _kPrimary,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedStatus = value!;
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _updateScheduleStatus(schedule.id, selectedStatus);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kError
+                      ? Icons.error_rounded
+                      : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Future<void> _updateScheduleStatus(String scheduleId, String newStatus) async {
+    try {
+      await _firestore.collection('schedules').doc(scheduleId).update({
+        'status': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      _showSnackBar('Status updated to ${_getStatusText(newStatus)}', _kSuccess);
+    } catch (e) {
+      _showSnackBar('Failed to update status: $e', _kError);
     }
   }
 }
