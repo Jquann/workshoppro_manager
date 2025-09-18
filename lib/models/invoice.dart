@@ -3,13 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Invoice {
   final String invoiceId; // IV0001
-  final String customerName; // 
+  final String customerName; //
   final String vehiclePlate;
   final String jobId;
   final String assignedMechanicId;
 
   final String status; // Pending, Approved, Rejected
   final String paymentStatus; // Paid, Unpaid
+  final String? paymentMethod; // Cash, Credit Card, Bank Transfer, Cheque
   final DateTime? paymentDate;
 
   final DateTime issueDate;
@@ -33,6 +34,7 @@ class Invoice {
     required this.assignedMechanicId,
     required this.status,
     required this.paymentStatus,
+    this.paymentMethod,
     this.paymentDate,
     required this.issueDate,
     required this.createdAt,
@@ -47,8 +49,11 @@ class Invoice {
   });
 
   // Computed totals
-  double get partsTotal => parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
-  double get laborTotal => labor.fold<double>(0, (s, l) => s + l.rate * l.hours);
+  double get partsTotal =>
+      parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
+
+  double get laborTotal =>
+      labor.fold<double>(0, (s, l) => s + l.rate * l.hours);
 
   // Helper method to parse date from either Timestamp or String
   static DateTime _parseDate(dynamic value) {
@@ -70,6 +75,7 @@ class Invoice {
       assignedMechanicId: json['assignedMechanicId'] ?? '',
       status: json['status'] ?? 'Pending',
       paymentStatus: json['paymentStatus'] ?? 'Unpaid',
+      paymentMethod: json['paymentMethod'],
       paymentDate: json['paymentDate'] != null
           ? _parseDate(json['paymentDate'])
           : null,
@@ -99,6 +105,7 @@ class Invoice {
       'assignedMechanicId': assignedMechanicId,
       'status': status,
       'paymentStatus': paymentStatus,
+      'paymentMethod': paymentMethod,
       'paymentDate': paymentDate?.toIso8601String(),
       'issueDate': issueDate.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),

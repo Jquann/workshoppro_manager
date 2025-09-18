@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'service_to_invoice.dart';
 import '../../models/invoice.dart';
 import '../../firestore_service.dart';
 import 'invoice_list.dart';
@@ -97,6 +98,18 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sync_alt),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ServiceToInvoiceMigration(),
+                ),
+              );
+            },
+            tooltip: 'Service to Invoice Migration',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: _loadInvoicesFromFirestore,
