@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'service_model.dart';
+import '../../models/service_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 
 final _currency = NumberFormat.currency(

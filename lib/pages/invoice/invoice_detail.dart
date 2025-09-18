@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'invoice_pdf_service.dart';
 import '../../models/invoice.dart';
-import '../vehicles/service_model.dart';
+import '../../models/service_model.dart';
 import '../../firestore_service.dart';
 
 class InvoiceDetail extends StatefulWidget {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../firestore_service.dart';
-import '../vehicles/service_model.dart';
-import '../vehicles/vehicle_model.dart';
+import '../../models/service_model.dart';
+import '../../models/vehicle_model.dart';
 
 class ServiceToInvoiceMigration extends StatefulWidget {
   const ServiceToInvoiceMigration({super.key});
