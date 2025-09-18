@@ -16,6 +16,7 @@ class Part {
   final String sparePartId;
   final int lowStockThreshold;
   final String supplierEmail;
+  final List<Map<String, dynamic>> suppliers;
 
   Part({
     required this.id,
@@ -33,12 +34,13 @@ class Part {
     this.sparePartId = '',
     this.lowStockThreshold = 15,
     this.supplierEmail = '',
+    this.suppliers = const [],
   });
 
   // Factory constructor to create Part from Firestore document
   factory Part.fromFirestore(Map<String, dynamic> data, String docId) {
     return Part(
-      id: data['partId'] ?? data['sparePartId'] ?? '',
+      id: data['id'] ?? data['partId'] ?? data['sparePartId'] ?? '',
       name: data['name'] ?? '',
       quantity: data['quantity'] ?? 0,
       isLowStock: data['isLowStock'] ?? false,
@@ -53,13 +55,14 @@ class Part {
       sparePartId: data['sparePartId'] ?? '',
       lowStockThreshold: data['lowStockThreshold'] ?? 15,
       supplierEmail: data['supplierEmail'] ?? '',
+      suppliers: (data['suppliers'] as List<dynamic>? ?? []).map((e) => Map<String, dynamic>.from(e)).toList(),
     );
   }
 
   // Convert Part to Map for Firestore
   Map<String, dynamic> toFirestore() {
     return {
-      'partId': id,
+      'id': id,
       'name': name,
       'quantity': quantity,
       'isLowStock': isLowStock,
@@ -73,6 +76,7 @@ class Part {
       'sparePartId': sparePartId,
       'lowStockThreshold': lowStockThreshold,
       'supplierEmail': supplierEmail,
+      'suppliers': suppliers,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

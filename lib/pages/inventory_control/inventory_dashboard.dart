@@ -138,7 +138,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: _fetchInventoryStats,
+                        onTap: () async {
+                          setState(() {
+                            _isLoading = true;
+                          });
+                          await _fetchInventoryStats();
+                        },
                         child: Container(
                           width: 40,
                           height: 40,

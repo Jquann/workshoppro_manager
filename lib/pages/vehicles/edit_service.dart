@@ -25,16 +25,17 @@ class InventoryPartVM {
   String get key => '$category|$partId';
 }
 
-class AddService extends StatefulWidget {
+class EditService extends StatefulWidget {
   final String vehicleId;
-  const AddService({super.key, required this.vehicleId});
+  final ServiceRecordModel record;
+  const EditService({super.key, required this.vehicleId, required this.record});
 
   @override
-  State<AddService> createState() => _AddServiceState();
+  State<EditService> createState() => _EditServiceState();
 }
 
-class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
-  // colors
+class _EditServiceState extends State<EditService> with TickerProviderStateMixin {
+  // --- colors (match AddService) ---
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -46,7 +47,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
-  // Labor policy
+  // --- Labor policy (same as AddService) ---
   static const double _hourlyRate = 80.0; // RM/hour
   static const Map<String, double> _defaultHoursByCategory = {
     'Body': 0.3,
@@ -61,15 +62,36 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   };
 
   final _form = GlobalKey<FormState>();
-  final _date = TextEditingController();
-  final _desc = TextEditingController();
-  final _mech = TextEditingController();
-  final _notes = TextEditingController();
+  late final TextEditingController _date = TextEditingController(text: _fmt(widget.record.date));
+  late final TextEditingController _desc = TextEditingController(text: widget.record.description);
+  late final TextEditingController _mech = TextEditingController(text: widget.record.mechanic);
+  late final TextEditingController _notes = TextEditingController(text: widget.record.notes ?? '');
 
   final _partQty = TextEditingController();
   final _partPrice = TextEditingController();
 
-  final List<PartLine> _parts = [];
+  // Parts list being edited
+  late final List<PartLine> _parts = List.of(widget.record.parts);
+  late String _status;
+  static const List<String> _statusOptions = [
+    ServiceRecordModel.statusAssign,
+    ServiceRecordModel.statusInProgress,
+    ServiceRecordModel.statusCompleted,
+    ServiceRecordModel.statusCancel,
+  ];
+
+  // For inventory dropdowns
+  static const List<String> _categories = <String>[
+    'Body','Brakes','Consumables','Electrical','Engine','Exhaust','Maintenance','Suspension','Transmission',
+  ];
+  String? _selectedCategory;
+  List<InventoryPartVM> _availableParts = [];
+  InventoryPartVM? _selectedPart;
+
+  // Inventory indices
+  final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
+  // Track deltas vs ORIGINAL record to adjust stock correctly on save.
+  late final List<PartLine> _originalParts = List.of(widget.record.parts);
 
   // animations
   late final AnimationController _fadeAnimationController;
@@ -77,20 +99,9 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   late final Animation<double> _fadeAnimation;
   late final Animation<Offset> _slideAnimation;
 
-  // inventory
-  static const List<String> _categories = <String>[
-    'Body','Brakes','Consumables','Electrical','Engine','Exhaust','Maintenance','Suspension','Transmission',
-  ];
-  String? _selectedCategory;
-  List<InventoryPartVM> _availableParts = [];
-  InventoryPartVM? _selectedPart;
-  final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
-  final Map<String, int> _stockDeltas = {}; // "cat|name" -> qty used (to reduce)
-
   @override
   void initState() {
     super.initState();
-    _date.text = _fmt(DateTime.now());
     _fadeAnimationController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _slideAnimationController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
@@ -99,6 +110,10 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         .animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
+    _status = widget.record.status;
+
+    // Preload inventory for ALL categories so we can map names->categories for delta calc.
+    _preloadInventory();
   }
 
   @override
@@ -114,7 +129,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // utils
+  // ---------- utils ----------
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
   String _fmt(DateTime d) =>
@@ -154,15 +169,55 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
-  // totals
-  double get _partsTotal => _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
+  // ----- inventory helpers -----
+
+  Future<void> _preloadInventory() async {
+    final svc = FirestoreService();
+    for (final c in _categories) {
+      final rows = await svc.getPartsByCategory(c);
+      for (final m in rows) {
+        final vm = InventoryPartVM(
+          category: c,
+          partId: (m['partId'] ?? m['id'] ?? '') as String,
+          name: (m['name'] ?? '') as String,
+          price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
+          quantity: (m['quantity'] ?? 0) as int,
+          unit: m['unit'] as String?,
+        );
+        _invIndex[vm.key] = vm;
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<List<InventoryPartVM>> _fetchParts(String category) async {
+    final rows = await FirestoreService().getPartsByCategory(category);
+    final list = <InventoryPartVM>[];
+    for (final m in rows) {
+      final vm = InventoryPartVM(
+        category: category,
+        name: (m['name'] ?? '') as String,
+        partId: (m['partId'] ?? m['id'] ?? '') as String,
+        price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
+        quantity: (m['quantity'] ?? 0) as int,
+        unit: m['unit'] as String?,
+      );
+      list.add(vm);
+      _invIndex[vm.key] = vm;
+    }
+    return list;
+  }
 
   InventoryPartVM? _lookupInventory(PartLine p) {
+    // Strict match: same name and (almost) same price.
     for (final vm in _invIndex.values) {
       if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) return vm;
     }
     return null;
   }
+
+  // ---------- totals / labor ----------
+  double get _partsTotal => _parts.fold<double>(0, (s, p) => s + p.unitPrice * p.quantity);
 
   double get _computedHours {
     double h = 0.0;
@@ -177,6 +232,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   double get _laborAuto => _computedHours * _hourlyRate;
   double get _grandTotal => _partsTotal + _laborAuto;
 
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
@@ -205,7 +261,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             ),
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
-              title: const Text('Add Service',
+              title: const Text('Edit Service',
                   style: TextStyle(color: _kDarkText, fontWeight: FontWeight.w700, fontSize: 20)),
               background: Container(
                 decoration: BoxDecoration(
@@ -252,7 +308,49 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
-  // ----- sections
+  // ----- sections (same card style as AddService) -----
+
+  Widget _buildCard({required IconData icon, required String title, required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: _kCardShadow, offset: const Offset(0, 2), blurRadius: 12)],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _kPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: _kPrimary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _kDarkText)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          child,
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildFormField({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _kDarkText)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
 
   Widget _buildServiceDetailsCard() {
     return _buildCard(
@@ -290,11 +388,36 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               textCapitalization: TextCapitalization.words,
             ),
           ),
-          // NOTE: no status dropdown here — always auto "assign" on save.
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Status',
+            child: DropdownButtonFormField<String>(
+              value: _status,
+              isExpanded: true,
+              decoration: _input('Select status', icon: Icons.flag_rounded),
+              items: _statusOptions.map((s) {
+                return DropdownMenuItem(
+                  value: s,
+                  child: Text(
+                    s[0].toUpperCase() + s.substring(1), // nice label
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _status = v);
+              },
+              validator: _req,
+            ),
+          ),
+
         ],
       ),
     );
   }
+
+
 
   Widget _buildPartsCard() {
     return _buildCard(
@@ -305,7 +428,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           _inventoryPartEditor(),
           if (_parts.isNotEmpty) ...[
             const SizedBox(height: 16),
-            ..._parts.map((part) => _buildPartPill(part)).toList(),
+            ..._parts.map((part) => _buildPartPill(part)),
           ],
         ],
       ),
@@ -322,6 +445,11 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           _buildInfoRow('Hourly Rate', _currency.format(_hourlyRate), icon: Icons.schedule_rounded),
           const SizedBox(height: 12),
           _buildInfoRow('Labor Cost', _currency.format(_laborAuto), icon: Icons.build_rounded),
+          const SizedBox(height: 8),
+          Text(
+            'Labor is auto-calculated from parts by category using your default hours policy.',
+            style: TextStyle(fontSize: 12, color: _kGrey.withValues(alpha: 0.9)),
+          ),
         ],
       ),
     );
@@ -378,68 +506,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCard({required IconData icon, required String title, required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: _kCardShadow, offset: const Offset(0, 2), blurRadius: 12)],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _kPrimary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: _kPrimary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _kDarkText)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          child,
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildFormField({required String label, required Widget child}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _kDarkText)),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, {IconData? icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(color: _kLightGrey.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 16, color: _kGrey),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Text(label,
-                style: TextStyle(color: _kGrey.withValues(alpha: 0.9), fontSize: 14, fontWeight: FontWeight.w500)),
-          ),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _kDarkText)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTotalsCard() => Container(
     decoration: BoxDecoration(
       gradient: LinearGradient(
@@ -482,6 +548,26 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
+  Widget _buildInfoRow(String label, String value, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(color: _kLightGrey.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: _kGrey),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(label,
+                style: TextStyle(color: _kGrey.withValues(alpha: 0.9), fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _kDarkText)),
+        ],
+      ),
+    );
+  }
+
   Widget _totalRow(String k, double v, {bool bold = false, IconData? icon}) => Row(
     children: [
       if (icon != null) ...[
@@ -509,7 +595,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ],
   );
 
-  // ----- inventory editor
+  // ----- inventory editor (match AddService) -----
 
   Widget _inventoryPartEditor() {
     final stockLine = (_selectedPart == null)
@@ -641,24 +727,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
-  Future<List<InventoryPartVM>> _fetchParts(String category) async {
-    final rows = await FirestoreService().getPartsByCategory(category);
-    final list = <InventoryPartVM>[];
-    for (final m in rows) {
-      final vm = InventoryPartVM(
-        category: category,
-        partId: (m['partId'] ?? m['id'] ?? '') as String,
-        name: (m['name'] ?? '') as String,
-        price: (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
-        quantity: (m['quantity'] ?? 0) as int,
-        unit: m['unit'] as String?,
-      );
-      list.add(vm);
-      _invIndex[vm.key] = vm;
-    }
-    return list;
-  }
-
   void _onAddPartFromInventory() {
     if (_selectedPart == null) {
       _showSnackBar('Please select a part', _kWarning);
@@ -673,27 +741,29 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
 
     final part = _selectedPart!;
     final stock = part.quantity;
-    final key = part.key;
 
-    final alreadyUsed = _stockDeltas[key] ?? 0;
-    if (alreadyUsed + q > stock) {
-      final left = stock - alreadyUsed;
+    // Determine how many of THIS exact part (name+price) already in list
+    final currentUsed = _parts
+        .where((p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01)
+        .fold<int>(0, (s, p) => s + p.quantity);
+
+    if (currentUsed + q > stock) {
+      final left = stock - currentUsed;
       _showSnackBar(
-        'Only $stock in stock for "${part.name}". You already added $alreadyUsed. You can add up to $left more.',
+        'Only $stock in stock for "${part.name}". You already added $currentUsed. You can add up to $left more.',
         _kError,
       );
       return;
     }
 
     setState(() {
-      final idx = _parts.indexWhere((p) => p.name == part.name && p.unitPrice == part.price);
+      final idx = _parts.indexWhere((p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01);
       if (idx >= 0) {
         final cur = _parts[idx];
         _parts[idx] = PartLine(name: cur.name, quantity: cur.quantity + q, unitPrice: cur.unitPrice);
       } else {
         _parts.add(PartLine(name: part.name, quantity: q, unitPrice: part.price));
       }
-      _stockDeltas[key] = alreadyUsed + q;
       _partQty.clear();
     });
 
@@ -738,17 +808,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   setState(() {
-                    final inv = _lookupInventory(p);
-                    if (inv != null) {
-                      final k = inv.key;
-                      final cur = _stockDeltas[k] ?? 0;
-                      final next = cur - p.quantity;
-                      if (next > 0) {
-                        _stockDeltas[k] = next;
-                      } else {
-                        _stockDeltas.remove(k);
-                      }
-                    }
                     _parts.remove(p);
                   });
                 },
@@ -764,26 +823,25 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
-  // ----- save
+  // ----- save -----
 
   Future<void> _onSave() async {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
+    // compute auto labor so toMap() writes laborTotal/total correctly
     final hours = _computedHours;
-    final laborLines = <LaborLine>[];
-    if (hours > 0) {
-      laborLines.add(LaborLine(name: 'Labor', hours: hours, rate: _hourlyRate));
-    }
+    final rate = _hourlyRate;
 
-    final record = ServiceRecordModel(
-      id: '',
+    // Build updated record (keep status unchanged)
+    final updated = ServiceRecordModel(
+      id: widget.record.id,
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
       mechanic: _mech.text.trim(),
-      status: ServiceRecordModel.statusAssign, // <-- ALWAYS auto 'assign'
+      status: _status,
       parts: List.of(_parts),
-      labor: laborLines,
+      labor: hours > 0 ? [LaborLine(name: 'Labor', hours: hours, rate: rate)] : const [],
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
 
@@ -799,7 +857,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             children: [
               CircularProgressIndicator(color: _kPrimary, strokeWidth: 3),
               SizedBox(width: 20),
-              Text('Saving service...'),
+              Text('Updating service...'),
             ],
           ),
         ),
@@ -807,25 +865,52 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
 
     try {
-      await FirestoreService().addService(widget.vehicleId, record);
+      // 1) Update service
+      await FirestoreService().updateService(widget.vehicleId, updated);
 
-      // reduce stock
-      for (final e in _stockDeltas.entries) {
-        final parts = e.key.split('|'); // [category, partId]
+      // 2) Compute inventory delta vs original and apply
+      Map<String, int> countByKey(List<PartLine> parts) {
+        final m = <String, int>{};
+        for (final p in parts) {
+          final vm = _lookupInventory(p);
+          if (vm == null) continue; // skip parts not from inventory
+          m[vm.key] = (m[vm.key] ?? 0) + p.quantity;
+        }
+        return m;
+      }
+
+      final before = countByKey(_originalParts);
+      final after = countByKey(_parts);
+
+      // For each key union, calc delta = after - before
+      final keys = <String>{...before.keys, ...after.keys};
+      for (final k in keys) {
+        final b = before[k] ?? 0;
+        final a = after[k] ?? 0;
+        final d = a - b;
+        if (d == 0) continue;
+
+        final parts = k.split('|'); // [category, partId]
+
         if (parts.length != 2) continue;
-        await FirestoreService().reduceStock(parts[0], parts[1], e.value);
+
+        if (d > 0) {
+          // used more -> reduce stock
+          await FirestoreService().reduceStock(parts[0], parts[1], d);
+        } else {
+          // used less -> restock (-d)
+          await FirestoreService().increaseStock(parts[0], parts[1], -d);
+        }
       }
 
-      if (mounted) {
-        Navigator.pop(context); // close loading
-        Navigator.pop(context); // close page
-        _showSnackBar('Service saved successfully!', _kSuccess);
-      }
+      if (!mounted) return;
+      Navigator.pop(context);          // close loading dialog
+      Navigator.pop(context, true);    // close edit page & signal "updated"
+      _showSnackBar('Service updated successfully!', _kSuccess);
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showSnackBar('Failed to save service: $e', _kError);
-      }
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      _showSnackBar('Failed to update service: $e', _kError);
     }
   }
 
