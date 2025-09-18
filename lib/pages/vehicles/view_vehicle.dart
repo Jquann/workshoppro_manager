@@ -11,6 +11,16 @@ final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDi
 
 const String kRestorePassword = 'admin123'; // TODO: change this
 
+// --- Service status filter state (kept global as you wrote) ---
+String _statusFilter = 'all';
+final List<String> _statusTabs = const [
+  'all',
+  ServiceRecordModel.statusAssign,      // 'scheduled'
+  ServiceRecordModel.statusInProgress,  // 'in progress'
+  ServiceRecordModel.statusCompleted,   // 'completed'
+  ServiceRecordModel.statusCancel,      // 'cancelled'
+];
+
 class ViewVehicle extends StatefulWidget {
   final String vehicleId;
   const ViewVehicle({super.key, required this.vehicleId});
@@ -263,7 +273,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
 
   Widget _buildVehicleInfoCard(VehicleModel v, double s) {
     final isInactive = (v.status == 'inactive');
-    
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -306,7 +316,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                     'This vehicle is currently inactive',
                     style: TextStyle(
                       color: _kDanger,
-                      fontSize: (13 * s).clamp(12, 14),
+                      fontSize: (10 * s).clamp(12, 14),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -349,7 +359,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                             ),
                           ),
                           // Status badge only for active vehicles (inactive shown in banner above)
-                          if (!isInactive) 
+                          if (!isInactive)
                             _buildStatusBadge('Active', _kSuccess, s),
                         ],
                       ),
@@ -447,6 +457,60 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     );
   }
 
+  // ===== Status filter helpers =====
+  String _normalizeStatus(String raw) {
+    final s = (raw.isEmpty ? '' : raw).trim().toLowerCase();
+    if (s.contains('cancel')) return ServiceRecordModel.statusCancel;
+    if (s.contains('complete')) return ServiceRecordModel.statusCompleted;
+    if (s.contains('progress')) return ServiceRecordModel.statusInProgress;
+    return ServiceRecordModel.statusAssign; // default bucket: scheduled
+  }
+
+  List<ServiceRecordModel> _filterByStatus(List<ServiceRecordModel> list) {
+    if (_statusFilter == 'all') return list;
+    return list.where((r) => _normalizeStatus(r.status) == _statusFilter).toList();
+  }
+
+  String _statusLabel(String key) {
+    switch (key) {
+      case 'all': return 'All';
+      case ServiceRecordModel.statusAssign: return 'Scheduled';
+      case ServiceRecordModel.statusInProgress: return 'In progress';
+      case ServiceRecordModel.statusCompleted: return 'Completed';
+      case ServiceRecordModel.statusCancel: return 'Cancelled';
+      default: return key;
+    }
+  }
+
+  Widget _buildStatusFilterBar(double s) {
+    return Wrap(
+      spacing: 8 * s,
+      runSpacing: 8 * s,
+      children: _statusTabs.map((tab) {
+        final selected = (_statusFilter == tab);
+        return ChoiceChip(
+          label: Text(
+            _statusLabel(tab),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: (12 * s).clamp(11, 13),
+              color: selected ? Colors.white : _kGrey,
+            ),
+          ),
+          selected: selected,
+          onSelected: (_) => setState(() => _statusFilter = tab),
+          backgroundColor: _kLightGrey,
+          selectedColor: _kPrimary,
+          shape: StadiumBorder(
+            side: BorderSide(color: selected ? _kPrimary : _kDivider),
+          ),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildServiceHistorySection(VehicleModel v, FirestoreService db, double s, bool isInactive) {
     return Container(
       decoration: BoxDecoration(
@@ -493,7 +557,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                       ),
                       SizedBox(height: 4 * s),
                       Text(
-                        'All service records',
+                        'Showing ${_statusLabel(_statusFilter)}',
                         style: TextStyle(
                           fontSize: (14 * s).clamp(13, 15),
                           color: _kGrey,
@@ -535,6 +599,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
               ],
             ),
           ),
+          // Divider
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 24 * s),
             child: Container(
@@ -550,6 +615,12 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
               ),
             ),
           ),
+          // Status filter bar
+          Padding(
+            padding: EdgeInsets.fromLTRB(24 * s, 12 * s, 24 * s, 0),
+            child: _buildStatusFilterBar(s),
+          ),
+          // Stream list
           StreamBuilder<List<ServiceRecordModel>>(
             stream: db.serviceStream(v.id),
             builder: (context, sSnap) {
@@ -565,20 +636,22 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                 );
               }
               final items = sSnap.data!;
-              if (items.isEmpty) {
+              final filtered = _filterByStatus(items);
+
+              if (filtered.isEmpty) {
                 return Padding(
                   padding: EdgeInsets.all(24 * s),
                   child: Center(
                     child: Column(
                       children: [
                         Icon(
-                          Icons.history_rounded,
+                          Icons.inbox_rounded,
                           size: 48 * s,
                           color: _kGrey.withValues(alpha: 0.5),
                         ),
                         SizedBox(height: 12 * s),
                         Text(
-                          'No service records yet',
+                          'No ${_statusLabel(_statusFilter).toLowerCase()} records',
                           style: TextStyle(
                             color: _kGrey,
                             fontSize: 16 * s,
@@ -587,7 +660,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                         ),
                         SizedBox(height: 4 * s),
                         Text(
-                          'Service history will appear here',
+                          'Try a different status',
                           style: TextStyle(
                             color: _kGrey.withValues(alpha: 0.7),
                             fontSize: 14 * s,
@@ -602,10 +675,10 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
               return Padding(
                 padding: EdgeInsets.fromLTRB(24 * s, 16 * s, 24 * s, 24 * s),
                 child: Column(
-                  children: items.asMap().entries.map((entry) {
+                  children: filtered.asMap().entries.map((entry) {
                     final index = entry.key;
                     final r = entry.value;
-                    final isLastItem = index == items.length - 1;
+                    final isLastItem = index == filtered.length - 1;
 
                     return _buildServiceRecordCard(r, v.id, s, isLastItem);
                   }).toList(),
@@ -618,7 +691,50 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildServiceRecordCard(ServiceRecordModel r, String vehicleId, double s, bool isLast) {
+  // ---------------- STATUS VISUAL HELPERS ----------------
+  ({IconData icon, Color color, Color bg, String label}) _statusLook(String raw) {
+    final s = (raw.isEmpty ? '' : raw).trim().toLowerCase();
+
+    if (s == ServiceRecordModel.statusCancel || s.contains('cancel')) {
+      return (icon: Icons.cancel_rounded, color: _kDanger, bg: _kDanger.withValues(alpha: 0.10), label: 'Cancelled');
+    }
+    if (s == ServiceRecordModel.statusCompleted || s.contains('completed')) {
+      return (icon: Icons.verified_rounded, color: _kSuccess, bg: _kSuccess.withValues(alpha: 0.10), label: 'Completed');
+    }
+    if (s == ServiceRecordModel.statusInProgress || s.contains('in progress')) {
+      return (icon: Icons.build_circle_rounded, color: _kWarning, bg: _kWarning.withValues(alpha: 0.10), label: 'In progress');
+    }
+    // default -> scheduled
+    return (icon: Icons.event_available_rounded, color: _kPrimary, bg: _kPrimary.withValues(alpha: 0.10), label: 'Scheduled');
+  }
+
+  Widget _statusPill(String text, Color color, double s) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 4 * s),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: (12 * s).clamp(11, 13),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceRecordCard(
+      ServiceRecordModel r,
+      String vehicleId,
+      double s,
+      bool isLast,
+      ) {
+    final look = _statusLook(r.status); // pick icon/color/pill by status
+
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : 16 * s),
       decoration: BoxDecoration(
@@ -640,19 +756,22 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
             padding: EdgeInsets.all(16 * s),
             child: Row(
               children: [
+                // Leading status icon (color-coded)
                 Container(
                   padding: EdgeInsets.all(10 * s),
                   decoration: BoxDecoration(
-                    color: _kSuccess.withValues(alpha: 0.1),
+                    color: look.bg,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    Icons.check_circle_rounded,
-                    color: _kSuccess,
+                    look.icon,
+                    color: look.color,
                     size: 20 * s,
                   ),
                 ),
                 SizedBox(width: 16 * s),
+
+                // Middle content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,6 +788,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                               ),
                             ),
                           ),
+                          // Amount chip
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 8 * s, vertical: 4 * s),
                             decoration: BoxDecoration(
@@ -687,6 +807,8 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                         ],
                       ),
                       SizedBox(height: 6 * s),
+
+                      // Description
                       Text(
                         r.description,
                         style: TextStyle(
@@ -697,15 +819,21 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+
+                      SizedBox(height: 8 * s),
+
+                      // Status pill
+                      Row(
+                        children: [
+                          _statusPill(look.label, look.color, s),
+                        ],
+                      ),
                     ],
                   ),
                 ),
+
                 SizedBox(width: 8 * s),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 16 * s,
-                  color: _kGrey,
-                ),
+                Icon(Icons.arrow_forward_ios_rounded, size: 16 * s, color: _kGrey),
               ],
             ),
           ),

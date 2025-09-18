@@ -19,9 +19,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   List<Widget> get _pages => [
     // Vehicles Page
-    Center(
-      child: VehiclesPage(scaffoldKey: widget.scaffoldKey),
-    ),
+    VehiclesPage(scaffoldKey: widget.scaffoldKey),
     // Schedule Page
     SchedulePage(scaffoldKey: widget.scaffoldKey),
     // CRM Page
