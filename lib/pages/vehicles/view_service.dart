@@ -217,6 +217,8 @@ class _ViewServiceState extends State<ViewService>
                   padding: EdgeInsets.all(16 * s),
                   child: Column(
                     children: [
+                      _buildStatusBar(s),
+                      SizedBox(height: 16 * s),
                       _buildServiceOverviewCard(s),
                       SizedBox(height: 24 * s),
                       _buildPartsSection(s),
@@ -884,6 +886,159 @@ class _ViewServiceState extends State<ViewService>
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ------- STATUS BAR (Stepper) -------
+
+  int _statusIndexOf(String raw) {
+    final s = raw.trim().toLowerCase();
+    if (s == ServiceRecordModel.statusCancel) return -1;          // cancelled
+    if (s == ServiceRecordModel.statusCompleted || s.contains('completed')) return 2;
+    if (s == ServiceRecordModel.statusInProgress || s.contains('in progress')) return 1;
+    // default to scheduled
+    return 0;
+  }
+
+  Widget _buildStatusBar(double s) {
+    // Step definitions
+    final steps = <({String label, IconData icon})>[
+      (label: 'Scheduled',   icon: Icons.event_available_rounded),
+      (label: 'In progress', icon: Icons.build_rounded),
+      (label: 'Completed',   icon: Icons.verified_rounded),
+    ];
+
+    final idx = _statusIndexOf(_record.status);
+
+    // Cancelled UI
+    if (idx == -1) {
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: 16 * s, vertical: 14 * s),
+        decoration: BoxDecoration(
+          color: _kDanger.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kDanger.withValues(alpha: 0.35)),
+          boxShadow: [
+            BoxShadow(color: _kCardShadow, blurRadius: 14, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(10 * s),
+              decoration: BoxDecoration(
+                color: _kDanger.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.cancel_rounded, color: _kDanger, size: 22 * s),
+            ),
+            SizedBox(width: 12 * s),
+            Expanded(
+              child: Text(
+                'Cancelled',
+                style: TextStyle(
+                  color: _kDanger,
+                  fontWeight: FontWeight.w800,
+                  fontSize: (16 * s).clamp(15, 18),
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10 * s, vertical: 6 * s),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: _kDanger.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                _record.status,
+                style: TextStyle(color: _kDanger, fontWeight: FontWeight.w600, fontSize: (12 * s).clamp(11, 13)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Color dotColor(int i) => (i <= idx) ? _kSuccess : _kGrey.withValues(alpha: 0.6);
+    Color dotBg(int i)    => (i <= idx) ? _kSuccess.withValues(alpha: 0.12) : _kLightGrey;
+    Color lineColor(int i) => (i < idx) ? _kSuccess : _kDivider;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16 * s, vertical: 16 * s),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: _kCardShadow, blurRadius: 20, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Icons + connecting lines
+          Row(
+            children: List.generate(steps.length * 2 - 1, (i) {
+              if (i.isOdd) {
+                // connector
+                return Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: EdgeInsets.symmetric(horizontal: 6 * s),
+                    decoration: BoxDecoration(
+                      color: lineColor((i ~/ 2)),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                );
+              } else {
+                final stepIdx = i ~/ 2;
+                final step = steps[stepIdx];
+                return Column(
+                  children: [
+                    Container(
+                      width: 44 * s,
+                      height: 44 * s,
+                      decoration: BoxDecoration(
+                        color: dotBg(stepIdx),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: (stepIdx <= idx) ? _kSuccess : _kDivider,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Icon(step.icon, size: 22 * s, color: dotColor(stepIdx)),
+                    ),
+                  ],
+                );
+              }
+            }),
+          ),
+          SizedBox(height: 10 * s),
+          // Labels
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(steps.length, (i) {
+              return Expanded(
+                child: Align(
+                  alignment: i == 0
+                      ? Alignment.centerLeft
+                      : (i == steps.length - 1 ? Alignment.centerRight : Alignment.center),
+                  child: Text(
+                    steps[i].label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: (12 * s).clamp(11, 13),
+                      fontWeight: (i <= idx) ? FontWeight.w700 : FontWeight.w500,
+                      color: (i <= idx) ? Colors.black : _kGrey,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          SizedBox(height: 8 * s),
         ],
       ),
     );

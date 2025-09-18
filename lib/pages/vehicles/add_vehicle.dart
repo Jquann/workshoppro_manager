@@ -251,8 +251,14 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
                         if (widget.customerId == null) _buildCustomerCard(),
                         if (widget.customerId == null) const SizedBox(height: 24),
                         _buildVehicleDetailsCard(),
-                        const SizedBox(height: 32),
-                        _buildSaveButton(),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(child: _buildResetButton()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSaveButton()),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -514,6 +520,74 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  Widget _buildResetButton() {
+    return OutlinedButton.icon(
+      onPressed: _resetForm,
+      icon: const Icon(Icons.restart_alt_rounded),
+      label: const Text('Reset'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _kDarkText,
+        minimumSize: const Size.fromHeight(56),
+        side: BorderSide(color: _kDivider),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+      ),
+    );
+  }
+
+  Future<void> _resetForm() async {
+    FocusScope.of(context).unfocus();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.restart_alt_rounded, color: _kPrimary),
+            SizedBox(width: 8),
+            Text('Reset form'),
+          ],
+        ),
+        content: const Text('Clear all fields and selections?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _kPrimary),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    setState(() {
+      // Clear all text fields
+      _make.clear();
+      _model.clear();
+      _year.clear();
+      _carPlate.clear();
+      _desc.clear();
+      _customerController.clear();
+
+      // Reset customer selection (only if user is picking in this screen)
+      if (widget.customerId == null) {
+        selectedCustomerId = null;
+        selectedCustomerName = null;
+        _showCustomerSuggestions = false;
+        _filteredCustomers = _allCustomers;
+      }
+    });
+
+    // IMPORTANT: don't call _form.currentState?.reset() here.
+    _showSnackBar('Form cleared', _kSuccess);
   }
 
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;

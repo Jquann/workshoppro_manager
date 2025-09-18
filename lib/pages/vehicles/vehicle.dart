@@ -3,6 +3,8 @@ import 'package:workshoppro_manager/firestore_service.dart';
 import '../../models/vehicle_model.dart';
 import 'add_vehicle.dart';
 import 'view_vehicle.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 const _kGrey = Color(0xFF8E8E93);
 const _kSurface = Color(0xFFF2F2F7);
@@ -17,12 +19,36 @@ class VehiclesPage extends StatefulWidget {
 
 class _VehiclesPageState extends State<VehiclesPage> {
   final db = FirestoreService();
+
+  // Voice-search state (kept minimal; no flow changes)
+  final _searchCtrl = TextEditingController();
   String q = '';
+  bool _listening = false;
+  late final SpeechToText _stt;
+
+  @override
+  void initState() {
+    super.initState();
+    _stt = SpeechToText();
+  }
+
+  @override
+  void dispose() {
+    _stt.stop();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   InputDecoration _searchInput(double s) => InputDecoration(
     hintText: 'Search',
     hintStyle: TextStyle(color: _kGrey, fontSize: (14 * s).clamp(13, 16)),
     prefixIcon: const Icon(Icons.search, color: _kGrey),
+    suffixIcon: IconButton(
+      tooltip: _listening ? 'Stop' : 'Voice Search',
+      icon: Icon(_listening ? Icons.mic : Icons.mic_none,
+          color: _listening ? Colors.red : _kGrey),
+      onPressed: _toggleVoice,
+    ),
     filled: true,
     fillColor: _kSurface,
     contentPadding: EdgeInsets.symmetric(horizontal: 14 * s, vertical: 12 * s),
@@ -32,6 +58,98 @@ class _VehiclesPageState extends State<VehiclesPage> {
     ),
   );
 
+  // ---- Permission & locale helpers ----
+  Future<bool> _ensureMicPermission() async {
+    final status = await Permission.microphone.status;
+    if (status.isGranted) return true;
+    final req = await Permission.microphone.request();
+    if (req.isGranted) return true;
+
+    if (req.isPermanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enable Microphone in App Settings')),
+      );
+      await openAppSettings();
+    }
+    return false;
+  }
+
+  Future<String?> _pickLocaleId() async {
+    try {
+      final sys = await _stt.systemLocale();
+      final id = sys?.localeId;
+      if (id != null && id.isNotEmpty) return id;
+    } catch (_) {}
+    // Fallbacks (uncomment one if needed)
+    // return 'en_US';
+    return 'ms_MY';
+  }
+
+  // ---- Start/stop voice recognition ----
+  Future<void> _toggleVoice() async {
+    if (_listening) {
+      await _stt.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+
+    // 1) Permission
+    if (!await _ensureMicPermission()) return;
+
+    // 2) Initialize STT
+    final available = await _stt.initialize(
+      onError: (e) {
+        debugPrint('STT error: $e');
+        if (mounted) {
+          setState(() => _listening = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Speech error: ${e.errorMsg ?? e.toString()}')),
+          );
+        }
+      },
+      onStatus: (status) {
+        debugPrint('STT status: $status');
+        final s = status.toLowerCase();
+        if (s.contains('notlistening') || s.contains('done')) {
+          if (mounted) setState(() => _listening = false);
+        }
+      },
+    );
+
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speech service unavailable. Install/enable Google app & Speech Services.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    // 3) Locale & timing
+    final locale = await _pickLocaleId();
+    if (mounted) setState(() => _listening = true);
+
+    await _stt.listen(
+      onResult: (result) {
+        final text = result.recognizedWords.trim();
+        debugPrint('STT result: "$text" (final=${result.finalResult})');
+        _searchCtrl.text = text;
+        _searchCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: _searchCtrl.text.length),
+        );
+        if (mounted) setState(() => q = text);
+      },
+      listenMode: ListenMode.dictation,   // longer window than confirmation
+      partialResults: true,
+      cancelOnError: true,
+      localeId: locale,                   // try ms_MY or en_US if needed
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,8 +158,10 @@ class _VehiclesPageState extends State<VehiclesPage> {
           icon: const Icon(Icons.menu, color: Colors.black),
           onPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
         ),
-        title: const Text('Vehicle',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Vehicle',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+        ),
         centerTitle: true,
         elevation: 0.2,
         backgroundColor: Colors.white,
@@ -72,8 +192,10 @@ class _VehiclesPageState extends State<VehiclesPage> {
                     Padding(
                       padding: EdgeInsets.fromLTRB(16 * s, 10 * s, 16 * s, 10 * s),
                       child: TextField(
+                        controller: _searchCtrl,
                         decoration: _searchInput(s),
                         onChanged: (v) => setState(() => q = v),
+                        textInputAction: TextInputAction.search,
                       ),
                     ),
                     Expanded(
@@ -83,7 +205,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
                           if (!snap.hasData) {
                             return const Center(child: CircularProgressIndicator());
                           }
-                          // Show only ACTIVE
+                          // Only ACTIVE (unchanged)
                           final items =
                           snap.data!.where((v) => v.status == 'active').toList();
 
@@ -120,7 +242,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            // TOP: year make model (bold, black)
+                                            // TOP: year make model
                                             Text(
                                               '${v.year} ${v.make} ${v.model}',
                                               maxLines: 1,
@@ -132,7 +254,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
                                               ),
                                             ),
                                             SizedBox(height: 2 * s),
-                                            // BOTTOM: car plate (grey)
+                                            // BOTTOM: car plate
                                             Text(
                                               plate,
                                               maxLines: 1,
@@ -254,8 +376,7 @@ class InactiveVehiclesPage extends StatelessWidget {
                     }
 
                     return ListView.separated(
-                      padding:
-                      EdgeInsets.symmetric(vertical: 8 * s, horizontal: 16 * s),
+                      padding: EdgeInsets.symmetric(vertical: 8 * s, horizontal: 16 * s),
                       itemCount: items.length,
                       separatorBuilder: (_, __) =>
                       const Divider(height: 1, color: Colors.transparent),
