@@ -17,7 +17,8 @@ class GmailEmailService {
     required Part part,
     required int quantity,
     required String priority,
-    required String supplier,
+    required String supplierName,
+    required String supplierEmail,
     DateTime? requiredBy,
     String notes = '',
     // New optional params to allow external control
@@ -44,8 +45,8 @@ class GmailEmailService {
       'currentStock': part.quantity,
       'lowStockThreshold': part.lowStockThreshold,
       'priority': priority,
-      'supplier': supplier,
-      'supplierEmail': getSupplierEmail(supplier),
+      'supplier': supplierName,
+      'supplierEmail': supplierEmail,
       'requiredByDate': requiredBy,
       'specialNotes': notes,
       'status': 'Sending Email...', // Initial status
@@ -70,7 +71,8 @@ class GmailEmailService {
         part,
         quantity,
         priority,
-        supplier,
+        supplierName,
+        supplierEmail,
         requiredBy,
         notes,
         requestId,
@@ -104,7 +106,8 @@ class GmailEmailService {
     Part part,
     int quantity,
     String priority,
-    String supplier,
+    String supplierName,
+    String supplierEmail,
     DateTime? requiredBy,
     String notes,
     String requestId, {
@@ -146,7 +149,7 @@ class GmailEmailService {
         </div>
         
         <div class="content">
-            <h2>Dear $supplier Team,</h2>
+            <h2>Dear $supplierName Team,</h2>
             <p>We would like to request the following spare part for our workshop:</p>
             
             <div class="part-details ${priority.toLowerCase()}">
@@ -195,7 +198,7 @@ class GmailEmailService {
 
     final message = Message()
       ..from = Address(_gmailUsername, 'Greenstem Automotive Workshop')
-      ..recipients.add(getSupplierEmail(supplier))
+      ..recipients.add(supplierEmail)
       ..subject = '[${priority.toUpperCase()}] Procurement Request - ${part.name} - Order #$requestId${poNumber != null ? ' | PO $poNumber' : ''}'
       ..html = htmlContent;
 
@@ -314,6 +317,7 @@ class GmailEmailService {
         data['requestedQty'],
         data['priority'],
         data['supplier'],
+        data['supplierEmail'],
         data['requiredByDate']?.toDate(),
         data['specialNotes'] ?? '',
         requestId,

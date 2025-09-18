@@ -21,17 +21,29 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
   final _formKey = GlobalKey<FormState>();
 
   String _selectedPriority = 'Medium';
-  String? _selectedSupplierId;
+  Map<String, dynamic>? _selectedSupplier;
   DateTime? _requiredByDate;
   bool _isSubmitting = false;
   bool _isLoadingSuppliers = true;
   List<Map<String, dynamic>> _suppliers = [];
+  double _totalPrice = 0.0;
 
   @override
   void initState() {
     super.initState();
     _qtyController.text = widget.part.lowStockThreshold.toString();
+    _qtyController.addListener(_updateTotalPrice);
     _fetchSuppliers();
+  }
+
+  void _updateTotalPrice() {
+    final qty = int.tryParse(_qtyController.text) ?? 0;
+    final price = _selectedSupplier != null && _selectedSupplier!['price'] != null
+        ? (_selectedSupplier!['price'] as num).toDouble()
+        : 0.0;
+    setState(() {
+      _totalPrice = qty > 0 ? price * qty : 0.0;
+    });
   }
 
   Future<void> _fetchSuppliers() async {
@@ -63,6 +75,7 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
               String value = (s['email'] ?? s['name'] ?? displayName).toString();
               if (value.trim().isEmpty) continue;
               suppliers.add({
+                'name': s['name'] ?? '',
                 'displayName': displayName,
                 'value': value,
                 'email': s['email']?.toString(),
@@ -91,16 +104,17 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
 
       // Ensure selected value matches one of items; otherwise set to null
       String? nextSelected;
-      if (_selectedSupplierId != null && deduped.any((s) => s['value'].toString() == _selectedSupplierId)) {
-        nextSelected = _selectedSupplierId;
+      if (_selectedSupplier != null && deduped.any((s) => s['value'].toString() == _selectedSupplier!['value'])) {
+        nextSelected = _selectedSupplier!['value'];
       } else if (deduped.isNotEmpty) {
         nextSelected = deduped.first['value'] as String?;
       }
 
       setState(() {
         _suppliers = deduped;
-        _selectedSupplierId = nextSelected;
+        _selectedSupplier = nextSelected != null ? deduped.firstWhere((s) => s['value'] == nextSelected) : null;
       });
+      _updateTotalPrice();
 
     } catch (e) {
       print('Error fetching suppliers: $e');
@@ -108,7 +122,7 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
       final demo = _getDemoSuppliers();
       setState(() {
         _suppliers = demo;
-        _selectedSupplierId = demo.isNotEmpty ? demo.first['value'] : null;
+        _selectedSupplier = demo.isNotEmpty ? demo.first : null;
       });
     } finally {
       setState(() { _isLoadingSuppliers = false; });
@@ -182,6 +196,7 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
 
   @override
   void dispose() {
+    _qtyController.removeListener(_updateTotalPrice);
     _qtyController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -441,50 +456,87 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
                         style: TextStyle(color: Colors.red[400], fontWeight: FontWeight.bold),
                       ),
                     )
-                  : DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _selectedSupplierId,
-                      hint: Text('Select a supplier'),
-                      items: _suppliers.map((supplier) {
-                        final value = supplier['value']?.toString();
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            _supplierLabel(supplier),
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DropdownButtonFormField<Map<String, dynamic>>(
+                          isExpanded: true,
+                          value: _selectedSupplier,
+                          hint: Text('Select a supplier'),
+                          items: _suppliers.map((supplier) {
+                            return DropdownMenuItem<Map<String, dynamic>>(
+                              value: supplier,
+                              child: Text(
+                                _supplierLabel(supplier),
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          selectedItemBuilder: (context) {
+                            return _suppliers.map((supplier) {
+                              return Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _supplierLabel(supplier),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                ),
+                              );
+                            }).toList();
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedSupplier = value;
+                            });
+                            _updateTotalPrice();
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Select Supplier',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: EdgeInsets.all(16),
+                            labelStyle: TextStyle(color: Colors.grey[600]),
                           ),
-                        );
-                      }).toList(),
-                      selectedItemBuilder: (context) {
-                        return _suppliers.map((supplier) {
-                          return Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              _supplierLabel(supplier),
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please select a supplier';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 12),
+                        if (_selectedSupplier != null && _selectedSupplier!['price'] != null)
+                          Container(
+                            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green[200]!),
                             ),
-                          );
-                        }).toList();
-                      },
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedSupplierId = val;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Select Supplier',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: EdgeInsets.all(16),
-                        labelStyle: TextStyle(color: Colors.grey[600]),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a supplier';
-                        }
-                        return null;
-                      },
+                            child: Row(
+                              children: [
+                                Icon(Icons.attach_money, color: Colors.green[700], size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Total Price: RM${_totalPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: Colors.green[800],
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  '(${_selectedSupplier!['price']} × ${_qtyController.text})',
+                                  style: TextStyle(
+                                    color: Colors.green[600],
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
         ],
       ),
@@ -947,7 +999,6 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     final qty = int.tryParse(_qtyController.text) ?? 0;
     if (qty <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -955,27 +1006,24 @@ class _EnhancedProcurementDialogState extends State<EnhancedProcurementDialog> {
       );
       return;
     }
-    if (_selectedSupplierId == null || _selectedSupplierId!.isEmpty) {
+    if (_selectedSupplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a supplier'), backgroundColor: Colors.red),
       );
       return;
     }
-
     setState(() => _isSubmitting = true);
     try {
       final requestId = await GmailEmailService.submitProcurementRequestWithGmail(
         part: widget.part,
         quantity: qty,
         priority: _selectedPriority,
-        supplier: _selectedSupplierId!,
-        requestIdOverride: null,
-        poNumber: null,
-        requestedAt: DateTime.now(),
+        supplierName: _selectedSupplier?['name'] ?? '',
+        supplierEmail: _selectedSupplier?['email'] ?? '',
+        requiredBy: _requiredByDate,
+        notes: _notesController.text,
         requestorName: 'Workshop Manager',
         requestorId: 'WM-001',
-        requiredBy: _requiredByDate,
-        notes: _notesController.text.trim(),
       );
 
       _showSuccess(requestId);

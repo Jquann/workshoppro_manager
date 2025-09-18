@@ -134,17 +134,17 @@ class PartDetailsScreen extends StatelessWidget {
     // Use provided part or default values
     final displayPart =
         part ??
-        Part(
-          id: 'PRT001',
-          name: 'Spark Plug',
-          quantity: 42,
-          isLowStock: false,
-          category: 'Engine',
-          manufacturer: 'EngineCorp',
-          description: 'High-quality spark plug for automotive engines',
-          documentId: '',
-          lowStockThreshold: 15,
-        );
+            Part(
+              id: 'PRT001',
+              name: 'Spark Plug',
+              quantity: 42,
+              isLowStock: false,
+              category: 'Engine',
+              manufacturer: 'EngineCorp',
+              description: 'High-quality spark plug for automotive engines',
+              documentId: '',
+              lowStockThreshold: 15,
+            );
 
     // Get the part ID directly from the id field (as shown in database)
     String partId = displayPart.id.isNotEmpty
@@ -156,37 +156,6 @@ class PartDetailsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Header with gradient
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.blue[800]!, Colors.blue[600]!],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'Part Details',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // Content
             Expanded(
               child: Container(
@@ -680,12 +649,12 @@ class PartDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildUsageHistoryItem(
-    String title,
-    String date,
-    String quantity,
-    Color quantityColor,
-    IconData icon,
-  ) {
+      String title,
+      String date,
+      String quantity,
+      Color quantityColor,
+      IconData icon,
+      ) {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(

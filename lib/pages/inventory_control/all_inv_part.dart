@@ -146,16 +146,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('All Inventory Parts'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
+      appBar: null, // Remove the top AppBar entirely
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
@@ -182,13 +173,22 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'All Inventory Parts',
-                                style: TextStyle(
-                                  fontSize: headerFontSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.arrow_back),
+                                    onPressed: () => Navigator.pop(context),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'All Inventory Parts',
+                                    style: TextStyle(
+                                      fontSize: headerFontSize,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
                               ),
                               Container(
                                 padding: EdgeInsets.symmetric(
