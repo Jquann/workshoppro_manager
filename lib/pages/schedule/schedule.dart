@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'schedule_model.dart';
 import 'add_schedule.dart';
 import 'schedule_detail.dart';
@@ -252,17 +253,74 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                             return _buildNoFilterResultsState();
                           }
 
-                          return ListView.builder(
-                            padding: EdgeInsets.symmetric(horizontal: 16 * s),
-                            itemCount: filteredSchedules.length,
-                            itemBuilder: (context, index) {
-                              final schedule = ScheduleModel.fromFirestore(
-                                filteredSchedules[index].data() as Map<String, dynamic>,
-                                filteredSchedules[index].id,
-                              );
-                              return _buildScheduleCard(schedule, s);
-                            },
-                          );
+                          // Check if we're showing multiple days and need to group
+                          if (_isDateRangeMultipleDays()) {
+                            final groupedSchedules = _groupSchedulesByDate(filteredSchedules);
+                            final sortedDates = groupedSchedules.keys.toList()..sort();
+                            
+                            return ListView.builder(
+                              padding: EdgeInsets.symmetric(horizontal: 16 * s),
+                              itemCount: sortedDates.length,
+                              itemBuilder: (context, dateIndex) {
+                                final dateKey = sortedDates[dateIndex];
+                                final dateSchedules = groupedSchedules[dateKey]!;
+                                
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Date header
+                                    Container(
+                                      width: double.infinity,
+                                      margin: EdgeInsets.only(
+                                        top: dateIndex == 0 ? 8 * s : 24 * s,
+                                        bottom: 12 * s,
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 16 * s, 
+                                        vertical: 12 * s,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.blue.shade200,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _formatDateHeader(dateKey),
+                                        style: TextStyle(
+                                          fontSize: (16 * s).clamp(15, 18),
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.blue.shade800,
+                                        ),
+                                      ),
+                                    ),
+                                    // Schedules for this date
+                                    ...dateSchedules.map((schedule) => 
+                                      Padding(
+                                        padding: EdgeInsets.only(bottom: 12 * s),
+                                        child: _buildScheduleCard(schedule, s),
+                                      ),
+                                    ).toList(),
+                                  ],
+                                );
+                              },
+                            );
+                          } else {
+                            // Single day view - use original layout
+                            return ListView.builder(
+                              padding: EdgeInsets.symmetric(horizontal: 16 * s),
+                              itemCount: filteredSchedules.length,
+                              itemBuilder: (context, index) {
+                                final schedule = ScheduleModel.fromFirestore(
+                                  filteredSchedules[index].data() as Map<String, dynamic>,
+                                  filteredSchedules[index].id,
+                                );
+                                return _buildScheduleCard(schedule, s);
+                              },
+                            );
+                          }
                         },
                       ),
                     ),
@@ -589,6 +647,48 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
 
       return true;
     }).toList();
+  }
+
+  // Group schedules by date for better organization in date range view
+  Map<String, List<ScheduleModel>> _groupSchedulesByDate(List<QueryDocumentSnapshot> schedules) {
+    final Map<String, List<ScheduleModel>> groupedSchedules = {};
+    
+    for (final doc in schedules) {
+      final schedule = ScheduleModel.fromFirestore(
+        doc.data() as Map<String, dynamic>, 
+        doc.id,
+      );
+      
+      // Format date as key (YYYY-MM-DD for proper sorting)
+      final dateKey = DateFormat('yyyy-MM-dd').format(schedule.startTime);
+      
+      if (!groupedSchedules.containsKey(dateKey)) {
+        groupedSchedules[dateKey] = [];
+      }
+      groupedSchedules[dateKey]!.add(schedule);
+    }
+    
+    // Sort schedules within each date by start time
+    groupedSchedules.forEach((date, scheduleList) {
+      scheduleList.sort((a, b) => a.startTime.compareTo(b.startTime));
+    });
+    
+    return groupedSchedules;
+  }
+
+  // Format date header with day of week
+  String _formatDateHeader(String dateKey) {
+    final date = DateTime.parse(dateKey);
+    final dayName = DateFormat('EEEE').format(date); // Full day name
+    final formattedDate = DateFormat('dd/MM/yyyy').format(date);
+    return '$formattedDate, $dayName';
+  }
+
+  // Check if the date range spans multiple days
+  bool _isDateRangeMultipleDays() {
+    final startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    final endDate = DateTime(_endDate.year, _endDate.month, _endDate.day);
+    return !startDate.isAtSameMomentAs(endDate);
   }
 
   IconData _getServiceIcon(String serviceType) {

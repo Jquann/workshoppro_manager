@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'schedule_model.dart';
+import '../vehicles/add_vehicle.dart';
 
 class AddSchedulePage extends StatefulWidget {
   final ScheduleModel? schedule;
@@ -27,15 +28,16 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _customerController = TextEditingController();
+  final _mechanicController = TextEditingController();
   
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1)); // Default to tomorrow
   TimeOfDay _startTime = TimeOfDay.now();
   TimeOfDay _endTime = TimeOfDay(
     hour: (TimeOfDay.now().hour + 1) % 24,
     minute: TimeOfDay.now().minute,
   );
   String _selectedServiceType = 'Oil Change';
-  String _selectedStatus = 'scheduled';
+  String? _selectedPartsCategory;
   String? _selectedCustomerId;
   String? _selectedCustomerName;
   String? _selectedVehicleId;
@@ -56,11 +58,17 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     'Transmission Service',
   ];
 
-  final List<String> _statusOptions = [
-    'scheduled',
-    'in_progress',
-    'completed',
-    'cancelled',
+  // Parts categories from add_service.dart
+  final List<String> _partsCategories = [
+    'Body',
+    'Brakes', 
+    'Consumables',
+    'Electrical',
+    'Engine',
+    'Exhaust',
+    'Maintenance',
+    'Suspension',
+    'Transmission',
   ];
 
   // Animation controllers
@@ -111,14 +119,17 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     _startTime = TimeOfDay.fromDateTime(schedule.startTime);
     _endTime = TimeOfDay.fromDateTime(schedule.endTime);
     _selectedServiceType = schedule.serviceType;
-    _selectedStatus = schedule.status;
+    _selectedPartsCategory = schedule.partsCategory;
     _selectedCustomerId = schedule.customerId;
     _selectedCustomerName = schedule.customerName;
     _selectedVehicleId = schedule.vehicleId;
     
-    // Populate customer name in text field
+    // Populate customer name and mechanic name in text fields
     if (schedule.customerName != null) {
       _customerController.text = schedule.customerName!;
+    }
+    if (schedule.mechanicName != null) {
+      _mechanicController.text = schedule.mechanicName!;
     }
   }
 
@@ -129,6 +140,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     _titleController.dispose();
     _descriptionController.dispose();
     _customerController.dispose();
+    _mechanicController.dispose();
     super.dispose();
   }
 
@@ -218,24 +230,25 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     final bottom = MediaQuery.of(context).viewPadding.bottom;
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      body: CustomScrollView(
-        slivers: [
-          // Enhanced App Bar
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            leading: Container(
-              margin: const EdgeInsets.all(8),
-              child: Material(
-                color: _kLightGrey,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // Enhanced App Bar
+            SliverAppBar(
+              expandedHeight: 120,
+              floating: false,
+              pinned: true,
+              elevation: 0,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              leading: Container(
+                margin: const EdgeInsets.all(8),
+                child: Material(
+                  color: _kLightGrey,
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => Navigator.pop(context),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.pop(context),
                   child: const Icon(
                     Icons.arrow_back_ios_new_rounded,
                     color: _kDarkText,
@@ -297,6 +310,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -338,21 +352,32 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           ),
           const SizedBox(height: 20),
           _buildFormField(
-            label: 'Status',
+            label: 'Parts Category (Optional)',
             child: DropdownButtonFormField<String>(
-              decoration: _input('Select status', icon: Icons.info),
-              value: _selectedStatus,
-              items: _statusOptions.map((status) {
+              decoration: _input('Select parts category', icon: Icons.category),
+              value: _selectedPartsCategory,
+              hint: const Text('Select category'),
+              items: _partsCategories.map((category) {
                 return DropdownMenuItem(
-                  value: status,
-                  child: Text(_getStatusDisplayName(status)),
+                  value: category,
+                  child: Text(category),
                 );
               }).toList(),
               onChanged: (value) {
                 setState(() {
-                  _selectedStatus = value!;
+                  _selectedPartsCategory = value;
                 });
               },
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildFormField(
+            label: 'Mechanic Name',
+            child: TextFormField(
+              controller: _mechanicController,
+              decoration: _input('Enter mechanic name', icon: Icons.engineering),
+              validator: _req,
+              textCapitalization: TextCapitalization.words,
             ),
           ),
           const SizedBox(height: 20),
@@ -402,6 +427,21 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
               ),
             ),
           ),
+          // Date booking restriction hint (only show for new schedules)
+          if (widget.schedule == null) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'Schedules can only be booked from tomorrow onwards',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _kGrey,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -459,6 +499,18 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Working hours: 8:00 AM - 5:00 PM',
+              style: TextStyle(
+                fontSize: 13,
+                color: _kGrey,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
         ],
       ),
@@ -557,7 +609,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                         const SizedBox(width: 12),
                         Text(
                           'Please select a customer first',
-                          style: TextStyle(color: _kGrey, fontSize: 16),
+                          style: TextStyle(color: _kGrey, fontSize: 13),
                         ),
                       ],
                     ),
@@ -603,15 +655,17 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.pushNamed(
+                                  onPressed: () async {
+                                    await Navigator.push(
                                       context,
-                                      '/add_vehicle',
-                                      arguments: {
-                                        'customerId': _selectedCustomerId,
-                                        'customerName': _selectedCustomerName,
-                                      },
+                                      MaterialPageRoute(
+                                        builder: (context) => AddVehicle(
+                                          customerId: _selectedCustomerId,
+                                          customerName: _selectedCustomerName,
+                                        ),
+                                      ),
                                     );
+                                    // If a vehicle was added, it will automatically refresh via StreamBuilder
                                   },
                                   icon: Icon(Icons.add, size: 18),
                                   label: const Text('Add Vehicle for Customer'),
@@ -634,6 +688,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                         decoration: _input('Select vehicle', icon: Icons.directions_car),
                         value: _selectedVehicleId,
                         hint: const Text('Select vehicle'),
+                        isExpanded: true,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please select a vehicle';
@@ -647,7 +702,14 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                           final carPlate = data['carPlate'] ?? '';
                           return DropdownMenuItem<String>(
                             value: vehicle.id,
-                            child: Text('$make $model ($carPlate)'),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Text(
+                                '$make $model ($carPlate)',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -698,12 +760,15 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                   child: Icon(icon, color: _kPrimary, size: 20),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _kDarkText,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _kDarkText,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -783,26 +848,12 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
 
-  String _getStatusDisplayName(String status) {
-    switch (status) {
-      case 'scheduled':
-        return 'Scheduled';
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
-    }
-  }
-
   Future<void> _selectDate() async {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      initialDate: _selectedDate.isBefore(tomorrow) ? tomorrow : _selectedDate,
+      firstDate: tomorrow, // Only allow booking from tomorrow onwards
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && picked != _selectedDate) {
@@ -818,14 +869,25 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       initialTime: isStartTime ? _startTime : _endTime,
     );
     if (picked != null) {
+      // Check if time is within business hours (8 AM - 5 PM)
+      if (picked.hour < 8 || picked.hour >= 17) {
+        _showSnackBar('Working hours are from 8:00 AM to 5:00 PM only', Colors.red);
+        return;
+      }
+      
       setState(() {
         if (isStartTime) {
           _startTime = picked;
-          // Auto-adjust end time if it's before start time
+          // Auto-adjust end time if it's before start time or outside business hours
           if (_endTime.hour < _startTime.hour || 
-              (_endTime.hour == _startTime.hour && _endTime.minute <= _startTime.minute)) {
+              (_endTime.hour == _startTime.hour && _endTime.minute <= _startTime.minute) ||
+              _endTime.hour >= 17) {
+            int nextHour = _startTime.hour + 1;
+            if (nextHour >= 17) {
+              nextHour = 16; // Cap at 4 PM so end time doesn't exceed 5 PM
+            }
             _endTime = TimeOfDay(
-              hour: (_startTime.hour + 1) % 24,
+              hour: nextHour,
               minute: _startTime.minute,
             );
           }
@@ -864,6 +926,25 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    // Validate business hours (8 AM - 5 PM)
+    if (_startTime.hour < 8 || _startTime.hour >= 17 || _endTime.hour < 8 || _endTime.hour >= 17) {
+      _showSnackBar('Working hours are from 8:00 AM to 5:00 PM only', Colors.red);
+      return;
+    }
+    
+    // Validate date - only allow booking from tomorrow onwards (except for editing existing schedules)
+    if (widget.schedule == null) { // Only check for new schedules, not when editing
+      final today = DateTime.now();
+      final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      final todayOnly = DateTime(today.year, today.month, today.day);
+      
+      if (selectedDateOnly.isAtSameMomentAs(todayOnly) || selectedDateOnly.isBefore(todayOnly)) {
+        _showSnackBar('Schedules can only be booked from tomorrow onwards', Colors.red);
+        return;
+      }
+    }
+    
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -897,8 +978,9 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
         'customerName': _selectedCustomerName,
         'vehicleId': _selectedVehicleId,
         'mechanicId': null, // Can be added later
-        'mechanicName': null,
-        'status': _selectedStatus,
+        'mechanicName': _mechanicController.text.trim().isEmpty ? null : _mechanicController.text.trim(),
+        'partsCategory': _selectedPartsCategory,
+        'status': 'scheduled', // Always default to scheduled as per requirement
         'updatedAt': FieldValue.serverTimestamp(),
       };
 

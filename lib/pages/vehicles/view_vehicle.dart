@@ -189,26 +189,13 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                     ],
                     flexibleSpace: FlexibleSpaceBar(
                       centerTitle: true,
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Vehicle Details',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w700,
-                              fontSize: (20 * s).clamp(18, 22),
-                            ),
-                          ),
-                          if (isInactive) ...[
-                            SizedBox(width: 8 * s),
-                            _buildStatusBadge('Inactive', _kDanger, s),
-                          ] else ...[
-                            SizedBox(width: 8 * s),
-                            _buildStatusBadge('Active', _kSuccess, s),
-                          ],
-                        ],
+                      title: Text(
+                        'Vehicle Details',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                          fontSize: (20 * s).clamp(18, 22),
+                        ),
                       ),
                       background: Container(
                         decoration: BoxDecoration(
@@ -275,6 +262,8 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
   }
 
   Widget _buildVehicleInfoCard(VehicleModel v, double s) {
+    final isInactive = (v.status == 'inactive');
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -290,6 +279,42 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Status banner at the top
+          if (isInactive)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 24 * s, vertical: 12 * s),
+              decoration: BoxDecoration(
+                color: _kDanger.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                border: Border(
+                  bottom: BorderSide(color: _kDanger.withValues(alpha: 0.2)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_rounded,
+                    color: _kDanger,
+                    size: 16 * s,
+                  ),
+                  SizedBox(width: 8 * s),
+                  Text(
+                    'This vehicle is currently inactive',
+                    style: TextStyle(
+                      color: _kDanger,
+                      fontSize: (13 * s).clamp(12, 14),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Spacer(),
+                  _buildStatusBadge('Inactive', _kDanger, s),
+                ],
+              ),
+            ),
           Padding(
             padding: EdgeInsets.fromLTRB(24 * s, 24 * s, 24 * s, 16 * s),
             child: Row(
@@ -311,13 +336,22 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Vehicle Information',
-                        style: TextStyle(
-                          fontSize: (22 * s).clamp(20, 24),
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Vehicle Information',
+                              style: TextStyle(
+                                fontSize: (22 * s).clamp(20, 24),
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                          // Status badge only for active vehicles (inactive shown in banner above)
+                          if (!isInactive) 
+                            _buildStatusBadge('Active', _kSuccess, s),
+                        ],
                       ),
                       SizedBox(height: 4 * s),
                       Text(

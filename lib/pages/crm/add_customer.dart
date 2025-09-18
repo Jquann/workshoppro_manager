@@ -151,12 +151,13 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
     ),
   );
 
-  // Check if email already exists in Firestore
+  // Check if email already exists in Firestore (only among non-deleted records)
   Future<bool> _checkEmailExists(String email) async {
     try {
       final query = await _firestore
           .collection('customers')
           .where('emailAddress', isEqualTo: email.trim())
+          .where('isDeleted', isEqualTo: false)
           .get();
       
       // If editing, exclude the current document
@@ -170,13 +171,14 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
     }
   }
 
-  // Check if phone number already exists in Firestore
+  // Check if phone number already exists in Firestore (only among non-deleted records)
   Future<bool> _checkPhoneExists(String phoneNumber) async {
     try {
       String formattedPhone = _formatPhoneNumber(phoneNumber);
       final query = await _firestore
           .collection('customers')
           .where('phoneNumber', isEqualTo: formattedPhone)
+          .where('isDeleted', isEqualTo: false)
           .get();
       
       // If editing, exclude the current document

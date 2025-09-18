@@ -16,9 +16,37 @@ class _CRMUIState extends State<CRMUI> {
   static const _kBlue = Color(0xFF007AFF);
   static const _kGrey = Color(0xFF8E8E93);
   static const _kDivider = Color(0xFFE5E5EA);
+  static const _kSuccess = Color(0xFF34C759);
+  static const _kError = Color(0xFFFF3B30);
 
   final _firestore = FirebaseFirestore.instance;
   String _q = '';
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kError
+                      ? Icons.error_rounded
+                      : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
 
   InputDecoration _search() => InputDecoration(
     hintText: 'Search',
@@ -78,17 +106,7 @@ class _CRMUIState extends State<CRMUI> {
                 MaterialPageRoute(builder: (_) => const AddCustomerPage()),
               );
               if (result != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Customer added successfully!'),
-                    backgroundColor: const Color(0xFF34C759),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    margin: const EdgeInsets.all(16),
-                  ),
-                );
+                _showSnackBar('Customer added successfully!', _kSuccess);
               }
             },
           )
@@ -246,17 +264,7 @@ class _CRMUIState extends State<CRMUI> {
     );
 
     if (result != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Customer updated successfully!'),
-          backgroundColor: const Color(0xFF34C759),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      _showSnackBar('Customer updated successfully!', _kSuccess);
     }
   }
 
@@ -294,31 +302,11 @@ class _CRMUIState extends State<CRMUI> {
     try {
       await _firestore.collection('customers').doc(docId).delete();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$customerName deleted successfully'),
-            backgroundColor: const Color(0xFF34C759),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        _showSnackBar('$customerName deleted successfully', _kSuccess);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting customer: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        _showSnackBar('Error deleting customer: $e', _kError);
       }
     }
   }

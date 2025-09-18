@@ -18,18 +18,41 @@ class CustomerProfilePage extends StatefulWidget {
 }
 
 class _CustomerProfilePageState extends State<CustomerProfilePage> {
+  static const _kSuccess = Color(0xFF34C759);
+  static const _kError = Color(0xFFFF3B30);
+  
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kError
+                      ? Icons.error_rounded
+                      : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
 
   // Copy to clipboard and show feedback
   void _copyToClipboard(String text, String type) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$type copied to clipboard'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    _showSnackBar('$type copied to clipboard', _kSuccess);
   }
 
   // Show action dialog for phone number
@@ -201,12 +224,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                       Navigator.of(context).pop(); // Close dialog
                       Navigator.of(context).pop(); // Go back to previous screen
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Customer name does not match!'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
+                      _showSnackBar('Customer name does not match!', _kError);
                     }
                   },
                   child: _isDeleting
@@ -243,19 +261,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Customer deleted successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSnackBar('Customer deleted successfully', _kSuccess);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error deleting customer: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnackBar('Error deleting customer: $e', _kError);
     }
   }
 

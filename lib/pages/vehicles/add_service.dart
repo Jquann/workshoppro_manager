@@ -27,7 +27,21 @@ class InventoryPartVM {
 
 class AddService extends StatefulWidget {
   final String vehicleId;
-  const AddService({super.key, required this.vehicleId});
+  final String? scheduleId;
+  final String? customerName;
+  final String? mechanicName;
+  final String? serviceType;
+  final String? partsCategory;
+  
+  const AddService({
+    super.key, 
+    required this.vehicleId,
+    this.scheduleId,
+    this.customerName,
+    this.mechanicName,
+    this.serviceType,
+    this.partsCategory,
+  });
 
   @override
   State<AddService> createState() => _AddServiceState();
@@ -91,6 +105,24 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _date.text = _fmt(DateTime.now());
+    
+    // Auto-populate fields from schedule data if provided
+    if (widget.mechanicName != null) {
+      _mech.text = widget.mechanicName!;
+    }
+    if (widget.serviceType != null) {
+      _desc.text = widget.serviceType!;
+    }
+    if (widget.partsCategory != null) {
+      _selectedCategory = widget.partsCategory;
+      // Load parts for the selected category
+      _fetchParts(widget.partsCategory!).then((parts) {
+        setState(() {
+          _availableParts = parts;
+        });
+      });
+    }
+    
     _fadeAnimationController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _slideAnimationController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
@@ -818,7 +850,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
 
       if (mounted) {
         Navigator.pop(context); // close loading
-        Navigator.pop(context); // close page
+        Navigator.pop(context, true); // close page and return success
         _showSnackBar('Service saved successfully!', _kSuccess);
       }
     } catch (e) {
