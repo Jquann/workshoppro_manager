@@ -57,6 +57,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true, // Add this to handle keyboard
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.2,
@@ -82,18 +83,20 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                const base = 375.0;
-                final s = (c.maxWidth / base).clamp(0.95, 1.15);
-                return Column(
-                  children: [
-                    // Date Range Selector (like search box)
-                    Container(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  const base = 375.0;
+                  final s = (c.maxWidth / base).clamp(0.95, 1.15);
+                  return Column(
+                      children: [
+                        // Date Range Selector (like search box)
+                        Container(
                       margin: EdgeInsets.fromLTRB(16 * s, 10 * s, 16 * s, 10 * s),
                       decoration: BoxDecoration(
                         color: _kSurface,
@@ -172,6 +175,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                                     setState(() {
                                       searchQuery = '';
                                     });
+                                    FocusScope.of(context).unfocus(); // Dismiss keyboard
                                   },
                                 )
                               : null,
@@ -226,111 +230,112 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                       ),
                     ),
 
-                    // Schedule List
-                    Expanded(
-                      child: StreamBuilder<QuerySnapshot>(
-                        stream: _getSchedulesStream(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Text('Error: ${snapshot.error}'),
-                            );
-                          }
+                        // Schedule List
+                        Expanded(
+                          child: StreamBuilder<QuerySnapshot>(
+                            stream: _getSchedulesStream(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Center(
+                                  child: Text('Error: ${snapshot.error}'),
+                                );
+                              }
 
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(color: _kPrimary),
-                            );
-                          }
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(color: _kPrimary),
+                                );
+                              }
 
-                          final schedules = snapshot.data?.docs ?? [];
-                          final filteredSchedules = _filterSchedules(schedules);
+                              final schedules = snapshot.data?.docs ?? [];
+                              final filteredSchedules = _filterSchedules(schedules);
 
-                          // Handle empty states
-                          if (schedules.isEmpty) {
-                            return _buildEmptyState();
-                          } else if (filteredSchedules.isEmpty) {
-                            return _buildNoFilterResultsState();
-                          }
+                              // Handle empty states
+                              if (schedules.isEmpty) {
+                                return _buildEmptyState();
+                              } else if (filteredSchedules.isEmpty) {
+                                return _buildNoFilterResultsState();
+                              }
 
-                          // Check if we're showing multiple days and need to group
-                          if (_isDateRangeMultipleDays()) {
-                            final groupedSchedules = _groupSchedulesByDate(filteredSchedules);
-                            final sortedDates = groupedSchedules.keys.toList()..sort();
-                            
-                            return ListView.builder(
-                              padding: EdgeInsets.symmetric(horizontal: 16 * s),
-                              itemCount: sortedDates.length,
-                              itemBuilder: (context, dateIndex) {
-                                final dateKey = sortedDates[dateIndex];
-                                final dateSchedules = groupedSchedules[dateKey]!;
+                              // Check if we're showing multiple days and need to group
+                              if (_isDateRangeMultipleDays()) {
+                                final groupedSchedules = _groupSchedulesByDate(filteredSchedules);
+                                final sortedDates = groupedSchedules.keys.toList()..sort();
                                 
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Date header
-                                    Container(
-                                      width: double.infinity,
-                                      margin: EdgeInsets.only(
-                                        top: dateIndex == 0 ? 8 * s : 24 * s,
-                                        bottom: 12 * s,
-                                      ),
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 16 * s, 
-                                        vertical: 12 * s,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.shade50,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.blue.shade200,
-                                          width: 1,
+                                return ListView.builder(
+                                  padding: EdgeInsets.symmetric(horizontal: 16 * s),
+                                  itemCount: sortedDates.length,
+                                  itemBuilder: (context, dateIndex) {
+                                    final dateKey = sortedDates[dateIndex];
+                                    final dateSchedules = groupedSchedules[dateKey]!;
+                                    
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Date header
+                                        Container(
+                                          width: double.infinity,
+                                          margin: EdgeInsets.only(
+                                            top: dateIndex == 0 ? 8 * s : 24 * s,
+                                            bottom: 12 * s,
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 16 * s, 
+                                            vertical: 12 * s,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.shade50,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: Colors.blue.shade200,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _formatDateHeader(dateKey),
+                                            style: TextStyle(
+                                              fontSize: (16 * s).clamp(15, 18),
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.blue.shade800,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      child: Text(
-                                        _formatDateHeader(dateKey),
-                                        style: TextStyle(
-                                          fontSize: (16 * s).clamp(15, 18),
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.blue.shade800,
-                                        ),
-                                      ),
-                                    ),
-                                    // Schedules for this date
-                                    ...dateSchedules.map((schedule) => 
-                                      Padding(
-                                        padding: EdgeInsets.only(bottom: 12 * s),
-                                        child: _buildScheduleCard(schedule, s),
-                                      ),
-                                    ).toList(),
-                                  ],
+                                        // Schedules for this date
+                                        ...dateSchedules.map((schedule) => 
+                                          Padding(
+                                            padding: EdgeInsets.only(bottom: 12 * s),
+                                            child: _buildScheduleCard(schedule, s),
+                                          ),
+                                        ).toList(),
+                                      ],
+                                    );
+                                  },
                                 );
-                              },
-                            );
-                          } else {
-                            // Single day view - use original layout
-                            return ListView.builder(
-                              padding: EdgeInsets.symmetric(horizontal: 16 * s),
-                              itemCount: filteredSchedules.length,
-                              itemBuilder: (context, index) {
-                                final schedule = ScheduleModel.fromFirestore(
-                                  filteredSchedules[index].data() as Map<String, dynamic>,
-                                  filteredSchedules[index].id,
+                              } else {
+                                // Single day view - use original layout
+                                return ListView.builder(
+                                  padding: EdgeInsets.symmetric(horizontal: 16 * s),
+                                  itemCount: filteredSchedules.length,
+                                  itemBuilder: (context, index) {
+                                    final schedule = ScheduleModel.fromFirestore(
+                                      filteredSchedules[index].data() as Map<String, dynamic>,
+                                      filteredSchedules[index].id,
+                                    );
+                                    return _buildScheduleCard(schedule, s);
+                                  },
                                 );
-                                return _buildScheduleCard(schedule, s);
-                              },
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -477,6 +482,16 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
   }
 
   Widget _buildEmptyState() {
+    // Check if we're showing today's date
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isShowingToday = _startDate.year == today.year && 
+                          _startDate.month == today.month && 
+                          _startDate.day == today.day &&
+                          _endDate.year == today.year && 
+                          _endDate.month == today.month && 
+                          _endDate.day == today.day;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -488,7 +503,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
           ),
           const SizedBox(height: 16),
           Text(
-            'No schedules found',
+            isShowingToday ? 'No schedules for today' : 'No schedules found',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -496,26 +511,33 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Start by adding a new schedule',
-            style: TextStyle(
-              fontSize: 14,
-              color: _kGrey.withOpacity(0.8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              isShowingToday 
+                  ? 'New schedules can only be booked from tomorrow onwards'
+                  : 'Start by adding a new schedule',
+              style: TextStyle(
+                fontSize: 14,
+                color: _kGrey.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _navigateToAddSchedule,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Schedule'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kPrimary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          if (!isShowingToday)
+            ElevatedButton.icon(
+              onPressed: _navigateToAddSchedule,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Schedule'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
