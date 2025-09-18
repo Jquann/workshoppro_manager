@@ -306,14 +306,29 @@ class _ServiceToInvoiceMigrationState extends State<ServiceToInvoiceMigration> {
                 continue;
               }
 
-              // Create invoice using the existing addInvoice function
+              // Only process completed services
+              if (serviceRecord.status != ServiceRecordModel.statusCompleted) {
+                _addSuccessLog(
+                  'Skipping non-completed service record ${serviceRecord.id} (status: ${serviceRecord.status}) for vehicle ${vehicle.carPlate}',
+                );
+                setState(() => _processedServices++);
+                continue;
+              }
+
+              // Create invoice using the existing addInvoice function with migration defaults
               final invoiceId = await _firestoreService.addInvoice(
                 vehicleDoc.id,
                 serviceRecord,
                 vehicle.customerName,
                 vehicle.carPlate,
                 serviceRecord.mechanic,
-                serviceRecord.mechanic, // createdBy
+                'System Migration', // createdBy
+                customStatus: 'Approved', // Default to Approved for migration
+                customPaymentStatus: 'Paid', // Default to Paid for migration
+                customCreatedAt:
+                    serviceRecord.updatedAt ??
+                    serviceRecord
+                        .date, // Use updatedAt if available, fallback to service date
               );
 
               setState(() {
@@ -436,7 +451,16 @@ class InvoiceMigrationService {
                 continue;
               }
 
-              // Create invoice using the existing addInvoice function
+              // Only process completed services
+              if (serviceRecord.status != ServiceRecordModel.statusCompleted) {
+                print(
+                  'Skipping non-completed service record ${serviceRecord.id} (status: ${serviceRecord.status}) for vehicle ${vehicle.carPlate}',
+                );
+                processedServices++;
+                continue;
+              }
+
+              // Create invoice using the existing addInvoice function with migration defaults
               final invoiceId = await _firestoreService.addInvoice(
                 vehicleDoc.id,
                 serviceRecord,
@@ -444,6 +468,12 @@ class InvoiceMigrationService {
                 vehicle.carPlate,
                 serviceRecord.mechanic,
                 'System Migration', // createdBy
+                customStatus: 'Approved', // Default to Approved for migration
+                customPaymentStatus: 'Paid', // Default to Paid for migration
+                customCreatedAt:
+                    serviceRecord.updatedAt ??
+                    serviceRecord
+                        .date, // Use updatedAt if available, fallback to service date
               );
 
               createdInvoices++;

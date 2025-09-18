@@ -5,7 +5,11 @@ class PartLine {
   final int quantity;
   final double unitPrice;
 
-  const PartLine({required this.name, required this.quantity, required this.unitPrice});
+  const PartLine({
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+  });
 
   factory PartLine.fromMap(Map<String, dynamic> m) => PartLine(
     name: (m['name'] ?? '').toString(),
@@ -29,7 +33,11 @@ class LaborLine {
   final double hours;
   final double rate;
 
-  const LaborLine({required this.name, required this.hours, required this.rate});
+  const LaborLine({
+    required this.name,
+    required this.hours,
+    required this.rate,
+  });
 
   factory LaborLine.fromMap(Map<String, dynamic> m) => LaborLine(
     name: (m['name'] ?? '').toString(),
@@ -41,11 +49,7 @@ class LaborLine {
         : double.tryParse('${m['rate']}') ?? 0.0,
   );
 
-  Map<String, dynamic> toMap() => {
-    'name': name,
-    'hours': hours,
-    'rate': rate,
-  };
+  Map<String, dynamic> toMap() => {'name': name, 'hours': hours, 'rate': rate};
 }
 
 class ServiceRecordModel {
@@ -57,6 +61,10 @@ class ServiceRecordModel {
   List<PartLine> parts;
   List<LaborLine> labor;
   String? notes;
+
+  // Firestore timestamps
+  DateTime? createdAt;
+  DateTime? updatedAt;
 
   // denormalized (from DB) – optional
   final double? partsTotalDb;
@@ -78,25 +86,40 @@ class ServiceRecordModel {
     this.parts = const [],
     this.labor = const [],
     this.notes,
+    this.createdAt,
+    this.updatedAt,
     this.partsTotalDb,
     this.laborTotalDb,
     this.totalDb,
   });
 
   // computed totals
-  double get partsTotal => parts.fold(0.0, (s, p) => s + p.unitPrice * p.quantity);
+  double get partsTotal =>
+      parts.fold(0.0, (s, p) => s + p.unitPrice * p.quantity);
+
   double get laborTotal => labor.fold(0.0, (s, l) => s + l.rate * l.hours);
+
   double get total => partsTotal + laborTotal;
 
   // prefer DB totals if present
-  double get displayTotal => (totalDb ?? (partsTotalDb ?? partsTotal) + (laborTotalDb ?? laborTotal));
+  double get displayTotal =>
+      (totalDb ?? (partsTotalDb ?? partsTotal) + (laborTotalDb ?? laborTotal));
 
   factory ServiceRecordModel.fromMap(String id, Map<String, dynamic> m) {
     final ts = m['date'];
-    final dt = ts is Timestamp ? ts.toDate() : DateTime.tryParse('$ts') ?? DateTime.now();
+    final dt = ts is Timestamp
+        ? ts.toDate()
+        : DateTime.tryParse('$ts') ?? DateTime.now();
 
     final partsList = (m['parts'] as List?) ?? const [];
     final laborList = (m['labor'] as List?) ?? const [];
+
+    // Parse timestamps safely
+    DateTime? parseTimestamp(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.tryParse(value);
+      return null;
+    }
 
     return ServiceRecordModel(
       id: id,
@@ -104,11 +127,21 @@ class ServiceRecordModel {
       description: (m['description'] ?? '').toString(),
       mechanic: (m['mechanic'] ?? '').toString(),
       status: (m['status'] ?? statusAssign).toString(),
-      parts: partsList.map((e) => PartLine.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
-      labor: laborList.map((e) => LaborLine.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
+      parts: partsList
+          .map((e) => PartLine.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      labor: laborList
+          .map((e) => LaborLine.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
       notes: (m['notes'] as String?),
-      partsTotalDb: (m['partsTotal'] is num) ? (m['partsTotal'] as num).toDouble() : null,
-      laborTotalDb: (m['laborTotal'] is num) ? (m['laborTotal'] as num).toDouble() : null,
+      createdAt: parseTimestamp(m['createdAt']),
+      updatedAt: parseTimestamp(m['updatedAt']),
+      partsTotalDb: (m['partsTotal'] is num)
+          ? (m['partsTotal'] as num).toDouble()
+          : null,
+      laborTotalDb: (m['laborTotal'] is num)
+          ? (m['laborTotal'] as num).toDouble()
+          : null,
       totalDb: (m['total'] is num) ? (m['total'] as num).toDouble() : null,
     );
   }

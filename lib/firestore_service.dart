@@ -7,6 +7,7 @@ class FirestoreService {
   final _db = FirebaseFirestore.instance;
 
   CollectionReference get _vc => _db.collection('vehicles');
+
   CollectionReference get _counters => _db.collection('counters');
 
   // -------------------- INVENTORY (NEW) --------------------
@@ -29,8 +30,12 @@ class FirestoreService {
           'partId': entry.key,
           'id': value['id'] ?? entry.key,
           'name': value['name'] ?? '',
-          'price': (value['price'] is num) ? (value['price'] as num).toDouble() : 0.0,
-          'quantity': (value['quantity'] is num) ? (value['quantity'] as num).toInt() : 0,
+          'price': (value['price'] is num)
+              ? (value['price'] as num).toDouble()
+              : 0.0,
+          'quantity': (value['quantity'] is num)
+              ? (value['quantity'] as num).toInt()
+              : 0,
           'unit': value['unit'],
           'category': value['category'] ?? category,
           'lowStockThreshold': (value['lowStockThreshold'] is num)
@@ -90,7 +95,9 @@ class FirestoreService {
       if (!data.containsKey(partId)) return;
 
       final part = Map<String, dynamic>.from(data[partId] as Map);
-      final current = (part['quantity'] is num) ? (part['quantity'] as num).toInt() : 0;
+      final current = (part['quantity'] is num)
+          ? (part['quantity'] as num).toInt()
+          : 0;
       final threshold = (part['lowStockThreshold'] is num)
           ? (part['lowStockThreshold'] as num).toInt()
           : 0;
@@ -114,7 +121,9 @@ class FirestoreService {
       if (!data.containsKey(partId)) return;
 
       final part = Map<String, dynamic>.from(data[partId] as Map);
-      final current = (part['quantity'] is num) ? (part['quantity'] as num).toInt() : 0;
+      final current = (part['quantity'] is num)
+          ? (part['quantity'] as num).toInt()
+          : 0;
       final threshold = (part['lowStockThreshold'] is num)
           ? (part['lowStockThreshold'] as num).toInt()
           : 0;
@@ -138,14 +147,15 @@ class FirestoreService {
       await reduceStock(category, partId, -delta);
     }
   }
+
   // ------------------ END INVENTORY ------------------
 
   // ===== ID GENERATOR =====
   Future<String> _nextFormattedId(
-      String counterName,
-      String prefix,
-      int paddingLength,
-      ) async {
+    String counterName,
+    String prefix,
+    int paddingLength,
+  ) async {
     final ref = _counters.doc(counterName);
     return _db.runTransaction<String>((tx) async {
       final snap = await tx.get(ref);
@@ -164,7 +174,9 @@ class FirestoreService {
   Stream<List<VehicleModel>> vehiclesStream({String q = '', String? status}) {
     return _vc.orderBy('customerName').snapshots().map((s) {
       var list = s.docs
-          .map((d) => VehicleModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+          .map(
+            (d) => VehicleModel.fromMap(d.id, d.data() as Map<String, dynamic>),
+          )
           .toList();
 
       if (status != null) {
@@ -175,7 +187,9 @@ class FirestoreService {
       if (q.isNotEmpty) {
         final needle = q.toLowerCase();
         list = list.where((v) {
-          final hay = '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.carPlate}'.toLowerCase();
+          final hay =
+              '${v.customerName} ${v.make} ${v.model} ${v.year} ${v.carPlate}'
+                  .toLowerCase();
           return hay.contains(needle);
         }).toList();
       }
@@ -236,9 +250,16 @@ class FirestoreService {
     return _svc(vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((s) => s.docs
-        .map((d) => ServiceRecordModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+        .map(
+          (s) => s.docs
+              .map(
+                (d) => ServiceRecordModel.fromMap(
+                  d.id,
+                  d.data() as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
+        );
   }
 
   Future<String> addService(String vehicleId, ServiceRecordModel r) async {
@@ -253,21 +274,19 @@ class FirestoreService {
     return serviceId;
   }
 
-  Future<void> updateService(String vehicleId, ServiceRecordModel r) =>
-      _svc(vehicleId).doc(r.id).update({
-        ...r.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  Future<void> updateService(String vehicleId, ServiceRecordModel r) => _svc(
+    vehicleId,
+  ).doc(r.id).update({...r.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
 
   Future<void> deleteService(String vehicleId, String id) =>
       _svc(vehicleId).doc(id).delete();
 
   // ===== Photos for service =====
   Future<void> updateServicePhotos(
-      String vehicleId,
-      String serviceId,
-      List<String> urls,
-      ) async {
+    String vehicleId,
+    String serviceId,
+    List<String> urls,
+  ) async {
     if (urls.isEmpty) return;
     await _svc(vehicleId).doc(serviceId).set({
       'photos': FieldValue.arrayUnion(urls),
@@ -276,10 +295,10 @@ class FirestoreService {
   }
 
   Future<void> setServicePhotos(
-      String vehicleId,
-      String serviceId,
-      List<String> urls,
-      ) async {
+    String vehicleId,
+    String serviceId,
+    List<String> urls,
+  ) async {
     await _svc(vehicleId).doc(serviceId).update({
       'photos': urls,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -289,14 +308,31 @@ class FirestoreService {
   // ===== Invoices =====
   CollectionReference get _invoices => _db.collection('invoices');
 
+  // Helper function to generate random payment method based on ratio
+  // Cash:Credit Card:BankTransfer:Cheque = 5:3:1:1
+  String _getRandomPaymentMethod() {
+    final methods = [
+      'Cash', 'Cash', 'Cash', 'Cash', 'Cash', // 5 parts
+      'Credit Card', 'Credit Card', 'Credit Card', // 3 parts
+      'Bank Transfer', // 1 part
+      'Cheque', // 1 part
+    ];
+    methods.shuffle();
+    return methods.first;
+  }
+
   Future<String> addInvoice(
-      String vehicleId,
-      ServiceRecordModel serviceRecord,
-      String customerName,
-      String vehiclePlate,
-      String assignedMechanicId,
-      String createdBy,
-      ) async {
+    String vehicleId,
+    ServiceRecordModel serviceRecord,
+    String customerName,
+    String vehiclePlate,
+    String assignedMechanicId,
+    String createdBy, {
+    String? customStatus,
+    String? customPaymentStatus,
+    String? customPaymentMethod,
+    DateTime? customCreatedAt,
+  }) async {
     final invoiceId = await _nextFormattedId('invoices', 'IV', 4);
 
     final partsTotal = serviceRecord.partsTotal;
@@ -306,7 +342,16 @@ class FirestoreService {
     final tax = subtotal * taxRate;
     final grandTotal = subtotal + tax;
 
-    final now = DateTime.now();
+    // Use service's last update date or custom date
+    final invoiceDate =
+        customCreatedAt ?? serviceRecord.updatedAt ?? DateTime.now();
+
+    // Default to approved and paid for migration, or use custom values
+    final status = customStatus ?? 'Pending';
+    final paymentStatus = customPaymentStatus ?? 'Unpaid';
+    final paymentMethod =
+        customPaymentMethod ??
+        (paymentStatus == 'Paid' ? _getRandomPaymentMethod() : null);
 
     final invoice = Invoice(
       invoiceId: invoiceId,
@@ -314,12 +359,13 @@ class FirestoreService {
       vehiclePlate: vehiclePlate,
       jobId: serviceRecord.id,
       assignedMechanicId: assignedMechanicId,
-      status: 'Pending',
-      paymentStatus: 'Unpaid',
-      paymentDate: null,
-      issueDate: now,
-      createdAt: now,
-      updatedAt: now,
+      status: status,
+      paymentStatus: paymentStatus,
+      paymentMethod: paymentMethod,
+      paymentDate: paymentStatus == 'Paid' ? invoiceDate : null,
+      issueDate: invoiceDate,
+      createdAt: invoiceDate,
+      updatedAt: invoiceDate,
       parts: serviceRecord.parts,
       labor: serviceRecord.labor,
       subtotal: subtotal,
@@ -342,12 +388,16 @@ class FirestoreService {
     return _invoices
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-        .map((doc) => Invoice.fromJson({
-      'invoiceId': doc.id,
-      ...doc.data() as Map<String, dynamic>,
-    }))
-        .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => Invoice.fromJson({
+                  'invoiceId': doc.id,
+                  ...doc.data() as Map<String, dynamic>,
+                }),
+              )
+              .toList(),
+        );
   }
 
   Future<Invoice?> getInvoice(String invoiceId) async {
@@ -367,19 +417,26 @@ class FirestoreService {
   }
 
   Future<void> updatePaymentStatus(
-      String invoiceId,
-      String paymentStatus, {
-        DateTime? paymentDate,
-      }) async {
+    String invoiceId,
+    String paymentStatus, {
+    String? paymentMethod,
+    DateTime? paymentDate,
+  }) async {
     final updateData = <String, Object>{
       'paymentStatus': paymentStatus,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    if (paymentStatus == 'Paid' && paymentDate != null) {
-      updateData['paymentDate'] = paymentDate.toIso8601String();
+    if (paymentStatus == 'Paid') {
+      if (paymentMethod != null) {
+        updateData['paymentMethod'] = paymentMethod;
+      }
+      if (paymentDate != null) {
+        updateData['paymentDate'] = paymentDate.toIso8601String();
+      }
     } else if (paymentStatus == 'Unpaid') {
       updateData['paymentDate'] = FieldValue.delete();
+      updateData['paymentMethod'] = FieldValue.delete();
     }
 
     await _invoices.doc(invoiceId).update(updateData);

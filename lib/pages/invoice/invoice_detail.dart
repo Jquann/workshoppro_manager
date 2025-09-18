@@ -32,7 +32,6 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     'Credit Card',
     'Bank Transfer',
     'Cheque',
-    'Online Banking',
   ];
 
   @override
@@ -386,6 +385,15 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
                           'Created By',
                           _currentInvoice.createdBy,
                         ),
+                        // Show payment method if invoice is paid
+                        if (_currentInvoice.paymentStatus.toLowerCase() ==
+                                'paid' &&
+                            _currentInvoice.paymentMethod != null)
+                          _buildDetailRow(
+                            'Payment Method',
+                            _currentInvoice.paymentMethod!,
+                            valueColor: Colors.green[700],
+                          ),
                       ],
                     ),
                   ),
