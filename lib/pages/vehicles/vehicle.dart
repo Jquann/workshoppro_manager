@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 import '../../models/vehicle_model.dart';
@@ -131,21 +130,22 @@ class _VehiclesPageState extends State<VehiclesPage> {
     if (mounted) setState(() => _listening = true);
 
     await _stt.listen(
-      onResult: (result) {
-        final text = result.recognizedWords.trim();
-        debugPrint('STT result: "$text" (final=${result.finalResult})');
-        _searchCtrl.text = text;
-        _searchCtrl.selection = TextSelection.fromPosition(
-          TextPosition(offset: _searchCtrl.text.length),
-        );
-        if (mounted) setState(() => q = text);
-      },
-      listenMode: ListenMode.dictation,   // longer window than confirmation
-      partialResults: true,
-      cancelOnError: true,
-      localeId: locale,                   // try ms_MY or en_US if needed
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 3),
+        onResult: (result) {
+          final text = result.recognizedWords.trim();
+          _searchCtrl.text = text;
+          _searchCtrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: _searchCtrl.text.length),
+          );
+          if (mounted) setState(() => q = text);
+        },
+        localeId: locale,
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+        listenOptions: SpeechListenOptions(
+          listenMode: ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: true,
+        ),
     );
   }
 
@@ -154,8 +154,8 @@ class _VehiclesPageState extends State<VehiclesPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black),
-          onPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+          onPressed: () => Navigator.maybePop(context), // or Navigator.pop(context)
         ),
         title: const Text(
           'Vehicle',
@@ -174,6 +174,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
               );
             },
           ),
+          const SizedBox(width: 12),
         ],
       ),
       backgroundColor: Colors.white,
