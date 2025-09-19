@@ -292,9 +292,124 @@ class _ServiceToInvoiceMigrationState extends State<ServiceToInvoiceMigration> {
           for (final serviceDoc in serviceRecordsSnapshot.docs) {
             try {
               final serviceData = serviceDoc.data();
+
+              // Handle the parsing issue for parts and labor that might be stored as Maps
+              final processedServiceData = Map<String, dynamic>.from(
+                serviceData,
+              );
+
+              // Convert parts from Map to List if needed with better error handling
+              if (processedServiceData['parts'] != null) {
+                final partsData = processedServiceData['parts'];
+                if (partsData is Map) {
+                  // Convert Map values to List, but check each value is also a Map
+                  final partsList = <Map<String, dynamic>>[];
+                  for (final entry in partsData.entries) {
+                    if (entry.value is Map) {
+                      partsList.add(
+                        Map<String, dynamic>.from(entry.value as Map),
+                      );
+                    } else {
+                      // Skip invalid part entries
+                      _addErrorLog(
+                        'Skipping invalid part entry in service ${serviceDoc.id}: ${entry.key} = ${entry.value}',
+                      );
+                    }
+                  }
+                  processedServiceData['parts'] = partsList;
+                } else if (partsData is List) {
+                  // Ensure all list items are Maps
+                  final partsList = <Map<String, dynamic>>[];
+                  for (final item in partsData) {
+                    if (item is Map) {
+                      partsList.add(Map<String, dynamic>.from(item as Map));
+                    } else {
+                      // Skip invalid part entries
+                      _addErrorLog(
+                        'Skipping invalid part item in service ${serviceDoc.id}: $item',
+                      );
+                    }
+                  }
+                  processedServiceData['parts'] = partsList;
+                } else {
+                  processedServiceData['parts'] = [];
+                }
+              }
+
+              // Convert labor from Map to List if needed with better error handling
+              if (processedServiceData['labor'] != null) {
+                final laborData = processedServiceData['labor'];
+                if (laborData is Map) {
+                  // Check if this is a flat map with labor fields or a map of labor objects
+                  if (laborData.containsKey('name') ||
+                      laborData.containsKey('hours') ||
+                      laborData.containsKey('rate')) {
+                    // This is a single labor entry stored as flat fields
+                    final laborMap = <String, dynamic>{
+                      'name': laborData['name']?.toString() ?? 'Labor',
+                      'hours': (laborData['hours'] is num)
+                          ? (laborData['hours'] as num).toDouble()
+                          : (laborData['hourse'] is num)
+                          ? (laborData['hourse'] as num).toDouble()
+                          : 0.0, // Handle typo 'hourse'
+                      'rate': (laborData['rate'] is num)
+                          ? (laborData['rate'] as num).toDouble()
+                          : 0.0,
+                    };
+                    processedServiceData['labor'] = [laborMap];
+                  } else {
+                    // This is a map of labor objects
+                    final laborList = <Map<String, dynamic>>[];
+                    for (final entry in laborData.entries) {
+                      if (entry.value is Map) {
+                        final laborMap = Map<String, dynamic>.from(
+                          entry.value as Map,
+                        );
+                        // Handle the 'hourse' typo if present
+                        if (laborMap.containsKey('hourse') &&
+                            !laborMap.containsKey('hours')) {
+                          laborMap['hours'] = laborMap['hourse'];
+                          laborMap.remove('hourse');
+                        }
+                        laborList.add(laborMap);
+                      } else {
+                        // Skip invalid labor entries
+                        _addErrorLog(
+                          'Skipping invalid labor entry in service ${serviceDoc.id}: ${entry.key} = ${entry.value}',
+                        );
+                      }
+                    }
+                    processedServiceData['labor'] = laborList;
+                  }
+                } else if (laborData is List) {
+                  // Ensure all list items are Maps
+                  final laborList = <Map<String, dynamic>>[];
+                  for (final item in laborData) {
+                    if (item is Map) {
+                      final laborMap = Map<String, dynamic>.from(item as Map);
+                      // Handle the 'hourse' typo if present
+                      if (laborMap.containsKey('hourse') &&
+                          !laborMap.containsKey('hours')) {
+                        laborMap['hours'] = laborMap['hourse'];
+                        laborMap.remove('hourse');
+                      }
+                      laborList.add(laborMap);
+                    } else {
+                      // Skip invalid labor entries
+                      _addErrorLog(
+                        'Skipping invalid labor item in service ${serviceDoc.id}: $item',
+                      );
+                    }
+                  }
+                  processedServiceData['labor'] = laborList;
+                } else {
+                  processedServiceData['labor'] = [];
+                }
+              }
+
               final serviceRecord = ServiceRecordModel.fromMap(
                 serviceDoc.id,
-                serviceData,
+                processedServiceData,
               );
 
               // Skip if no parts or labor (empty service)
@@ -437,9 +552,124 @@ class InvoiceMigrationService {
           for (final serviceDoc in serviceRecordsSnapshot.docs) {
             try {
               final serviceData = serviceDoc.data();
+
+              // Handle the parsing issue for parts and labor that might be stored as Maps
+              final processedServiceData = Map<String, dynamic>.from(
+                serviceData,
+              );
+
+              // Convert parts from Map to List if needed with better error handling
+              if (processedServiceData['parts'] != null) {
+                final partsData = processedServiceData['parts'];
+                if (partsData is Map) {
+                  // Convert Map values to List, but check each value is also a Map
+                  final partsList = <Map<String, dynamic>>[];
+                  for (final entry in partsData.entries) {
+                    if (entry.value is Map) {
+                      partsList.add(
+                        Map<String, dynamic>.from(entry.value as Map),
+                      );
+                    } else {
+                      // Skip invalid part entries
+                      print(
+                        'Skipping invalid part entry in service ${serviceDoc.id}: ${entry.key} = ${entry.value}',
+                      );
+                    }
+                  }
+                  processedServiceData['parts'] = partsList;
+                } else if (partsData is List) {
+                  // Ensure all list items are Maps
+                  final partsList = <Map<String, dynamic>>[];
+                  for (final item in partsData) {
+                    if (item is Map) {
+                      partsList.add(Map<String, dynamic>.from(item as Map));
+                    } else {
+                      // Skip invalid part entries
+                      print(
+                        'Skipping invalid part item in service ${serviceDoc.id}: $item',
+                      );
+                    }
+                  }
+                  processedServiceData['parts'] = partsList;
+                } else {
+                  processedServiceData['parts'] = [];
+                }
+              }
+
+              // Convert labor from Map to List if needed with better error handling
+              if (processedServiceData['labor'] != null) {
+                final laborData = processedServiceData['labor'];
+                if (laborData is Map) {
+                  // Check if this is a flat map with labor fields or a map of labor objects
+                  if (laborData.containsKey('name') ||
+                      laborData.containsKey('hours') ||
+                      laborData.containsKey('rate')) {
+                    // This is a single labor entry stored as flat fields
+                    final laborMap = <String, dynamic>{
+                      'name': laborData['name']?.toString() ?? 'Labor',
+                      'hours': (laborData['hours'] is num)
+                          ? (laborData['hours'] as num).toDouble()
+                          : (laborData['hourse'] is num)
+                          ? (laborData['hourse'] as num).toDouble()
+                          : 0.0, // Handle typo 'hourse'
+                      'rate': (laborData['rate'] is num)
+                          ? (laborData['rate'] as num).toDouble()
+                          : 0.0,
+                    };
+                    processedServiceData['labor'] = [laborMap];
+                  } else {
+                    // This is a map of labor objects
+                    final laborList = <Map<String, dynamic>>[];
+                    for (final entry in laborData.entries) {
+                      if (entry.value is Map) {
+                        final laborMap = Map<String, dynamic>.from(
+                          entry.value as Map,
+                        );
+                        // Handle the 'hourse' typo if present
+                        if (laborMap.containsKey('hourse') &&
+                            !laborMap.containsKey('hours')) {
+                          laborMap['hours'] = laborMap['hourse'];
+                          laborMap.remove('hourse');
+                        }
+                        laborList.add(laborMap);
+                      } else {
+                        // Skip invalid labor entries
+                        print(
+                          'Skipping invalid labor entry in service ${serviceDoc.id}: ${entry.key} = ${entry.value}',
+                        );
+                      }
+                    }
+                    processedServiceData['labor'] = laborList;
+                  }
+                } else if (laborData is List) {
+                  // Ensure all list items are Maps
+                  final laborList = <Map<String, dynamic>>[];
+                  for (final item in laborData) {
+                    if (item is Map) {
+                      final laborMap = Map<String, dynamic>.from(item as Map);
+                      // Handle the 'hourse' typo if present
+                      if (laborMap.containsKey('hourse') &&
+                          !laborMap.containsKey('hours')) {
+                        laborMap['hours'] = laborMap['hourse'];
+                        laborMap.remove('hourse');
+                      }
+                      laborList.add(laborMap);
+                    } else {
+                      // Skip invalid labor entries
+                      print(
+                        'Skipping invalid labor item in service ${serviceDoc.id}: $item',
+                      );
+                    }
+                  }
+                  processedServiceData['labor'] = laborList;
+                } else {
+                  processedServiceData['labor'] = [];
+                }
+              }
+
               final serviceRecord = ServiceRecordModel.fromMap(
                 serviceDoc.id,
-                serviceData,
+                processedServiceData,
               );
 
               // Skip if no parts or labor (empty service)
