@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'schedule_model.dart';
 import 'add_schedule.dart';
 import 'schedule_detail.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class SchedulePage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -23,6 +25,8 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = '';
+  bool _listening = false;
+  late final SpeechToText _stt;
   
   // Date range selection
   DateTime _startDate = DateTime.now();
@@ -45,6 +49,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    _stt = SpeechToText();
   }
 
   @override
@@ -158,27 +163,35 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                             color: _kGrey,
                             fontSize: (14 * s).clamp(13, 16),
                           ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: _kGrey,
-                            size: 20,
-                          ),
-                          suffixIcon: searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: _kGrey,
-                                    size: 20,
-                                  ),
+                          prefixIcon: Icon(Icons.search, color: _kGrey, size: 20),
+
+                          // 👉 mic + clear in the same suffix
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (searchQuery.isNotEmpty)
+                                IconButton(
+                                  icon: Icon(Icons.clear, color: _kGrey, size: 20),
                                   onPressed: () {
                                     _searchController.clear();
-                                    setState(() {
-                                      searchQuery = '';
-                                    });
-                                    FocusScope.of(context).unfocus(); // Dismiss keyboard
+                                    setState(() => searchQuery = '');
+                                    FocusScope.of(context).unfocus();
                                   },
-                                )
-                              : null,
+                                ),
+                              IconButton(
+                                tooltip: _listening ? 'Stop' : 'Voice Search',
+                                icon: Icon(
+                                  _listening ? Icons.mic : Icons.mic_none,
+                                  color: _listening ? Colors.red : _kGrey,
+                                  size: 20,
+                                ),
+                                onPressed: _toggleVoice,
+                              ),
+                            ],
+                          ),
+                          // Avoid extra padding when we use a Row
+                          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 16 * s,
@@ -804,6 +817,92 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
       context,
       MaterialPageRoute(
         builder: (context) => const AddSchedulePage(),
+      ),
+    );
+  }
+
+  Future<bool> _ensureMicPermission() async {
+    final status = await Permission.microphone.status;
+    if (status.isGranted) return true;
+    final req = await Permission.microphone.request();
+    if (req.isGranted) return true;
+
+    if (req.isPermanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enable Microphone in App Settings')),
+      );
+      await openAppSettings();
+    }
+    return false;
+  }
+
+  Future<String?> _pickLocaleId() async {
+    try {
+      final sys = await _stt.systemLocale();
+      final id = sys?.localeId;
+      if (id != null && id.isNotEmpty) return id;
+    } catch (_) {}
+    return 'ms_MY';
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_listening) {
+      await _stt.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+
+    if (!await _ensureMicPermission()) return;
+
+    final available = await _stt.initialize(
+      onError: (e) {
+        debugPrint('STT error: $e');
+        if (mounted) {
+          setState(() => _listening = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Speech error: ${e.errorMsg ?? e.toString()}')),
+          );
+        }
+      },
+      onStatus: (status) {
+        debugPrint('STT status: $status');
+        final s = status.toLowerCase();
+        if (s.contains('notlistening') || s.contains('done')) {
+          if (mounted) setState(() => _listening = false);
+        }
+      },
+    );
+
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speech service unavailable. Install/enable Google app & Speech Services.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final locale = await _pickLocaleId();
+    if (mounted) setState(() => _listening = true);
+
+    await _stt.listen(
+      onResult: (result) {
+        final text = result.recognizedWords.trim();
+        _searchController.text = text;
+        _searchController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _searchController.text.length),
+        );
+        if (mounted) setState(() => searchQuery = text);
+      },
+      localeId: locale,
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: true,
       ),
     );
   }

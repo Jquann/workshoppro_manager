@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_customer.dart';
 import 'customer_profile.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 class CRMPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -15,10 +18,26 @@ class CRMPage extends StatefulWidget {
 class _CRMPageState extends State<CRMPage> {
   static const _kGrey = Color(0xFF8E8E93);
   static const _kSurface = Color(0xFFF2F2F7);
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _listening = false;
+  late final SpeechToText _stt;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String q = '';
   bool isAscending = true; // Default to ascending
+
+  @override
+  void initState() {
+    super.initState();
+    _stt = SpeechToText();
+  }
+
+  @override
+  void dispose() {
+    _stt.stop();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   // Format phone number for display
   String _formatPhoneNumber(String phoneNumber) {
@@ -46,15 +65,40 @@ class _CRMPageState extends State<CRMPage> {
     hintText: 'Search',
     hintStyle: TextStyle(color: _kGrey, fontSize: (14 * s).clamp(13, 16)),
     prefixIcon: const Icon(Icons.search, color: _kGrey),
+    suffixIcon: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (q.trim().isNotEmpty)
+          IconButton(
+            tooltip: 'Clear',
+            icon: const Icon(Icons.clear, color: _kGrey, size: 20),
+            onPressed: () {
+              _searchCtrl.clear();
+              setState(() => q = '');
+              FocusScope.of(context).unfocus();
+            },
+          ),
+        IconButton(
+          tooltip: _listening ? 'Stop' : 'Voice Search',
+          icon: Icon(
+            _listening ? Icons.mic : Icons.mic_none,
+            color: _listening ? Colors.red : _kGrey,
+            size: 20,
+          ),
+          onPressed: _toggleVoice,
+        ),
+      ],
+    ),
+    suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
     filled: true,
     fillColor: _kSurface,
-    contentPadding:
-    EdgeInsets.symmetric(horizontal: 14 * s, vertical: 12 * s),
+    contentPadding: EdgeInsets.symmetric(horizontal: 14 * s, vertical: 12 * s),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide.none,
     ),
   );
+
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +154,7 @@ class _CRMPageState extends State<CRMPage> {
                     Padding(
                       padding: EdgeInsets.fromLTRB(16 * s, 10 * s, 16 * s, 10 * s),
                       child: TextField(
+                        controller: _searchCtrl,
                         decoration: _searchInput(s),
                         onChanged: (v) => setState(() => q = v),
                       ),
@@ -469,5 +514,90 @@ class _CRMPageState extends State<CRMPage> {
         ),
       );
     }
+  }
+
+  Future<bool> _ensureMicPermission() async {
+    final status = await Permission.microphone.status;
+    if (status.isGranted) return true;
+    final req = await Permission.microphone.request();
+    if (req.isGranted) return true;
+
+    if (req.isPermanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enable Microphone in App Settings')),
+      );
+      await openAppSettings();
+    }
+    return false;
+  }
+
+  Future<String?> _pickLocaleId() async {
+    try {
+      final sys = await _stt.systemLocale();
+      final id = sys?.localeId;
+      if (id != null && id.isNotEmpty) return id;
+    } catch (_) {}
+    return 'ms_MY';
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_listening) {
+      await _stt.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+
+    if (!await _ensureMicPermission()) return;
+
+    final available = await _stt.initialize(
+      onError: (e) {
+        debugPrint('STT error: $e');
+        if (mounted) {
+          setState(() => _listening = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Speech error: ${e.errorMsg ?? e.toString()}')),
+          );
+        }
+      },
+      onStatus: (status) {
+        final s = status.toLowerCase();
+        if (s.contains('notlistening') || s.contains('done')) {
+          if (mounted) setState(() => _listening = false);
+        }
+      },
+    );
+
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speech service unavailable. Install/enable Google app & Speech Services.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final locale = await _pickLocaleId();
+    if (mounted) setState(() => _listening = true);
+
+    await _stt.listen(
+      onResult: (result) {
+        final text = result.recognizedWords.trim();
+        _searchCtrl.text = text;
+        _searchCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: _searchCtrl.text.length),
+        );
+        if (mounted) setState(() => q = text);
+      },
+      localeId: locale,
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: true,
+      ),
+    );
   }
 }
