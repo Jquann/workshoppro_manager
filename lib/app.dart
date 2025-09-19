@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pages/splash_page.dart';
 import 'pages/auth/login.dart';
 import 'pages/profile/profile_edit.dart';
 import 'pages/profile/profile.dart';
@@ -14,8 +15,9 @@ class MyApp extends StatelessWidget {
         // Disable visual debugging
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: Login(), // Always start with login page
+      home: SplashPage(), // Start with splash page for auto-login check
       routes: {
+        '/login': (context) => Login(),
         '/edit_profile': (context) => ProfileEdit(),
         '/view_profile': (context) => Profile(),
       },

@@ -515,7 +515,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
               isShowingToday 
-                  ? 'New schedules can only be booked from tomorrow onwards'
+                  ? 'Add a new schedule for urgent repairs or walk-in customers'
                   : 'Start by adding a new schedule',
               style: TextStyle(
                 fontSize: 14,
@@ -525,19 +525,18 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
             ),
           ),
           const SizedBox(height: 24),
-          if (!isShowingToday)
-            ElevatedButton.icon(
-              onPressed: _navigateToAddSchedule,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Schedule'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kPrimary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+          ElevatedButton.icon(
+            onPressed: _navigateToAddSchedule,
+            icon: const Icon(Icons.add),
+            label: Text(isShowingToday ? 'Add Urgent Schedule' : 'Add Schedule'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'customer_model.dart';
+
+class MalaysianPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String newText = newValue.text;
+    
+    // Remove all non-digit characters
+    String digits = newText.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present and has digits
+    if (digits.isNotEmpty && !digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Limit to 11 digits maximum
+    if (digits.length > 11) {
+      digits = digits.substring(0, 11);
+    }
+    
+    String formatted = '';
+    
+    // Format based on length
+    if (digits.length >= 3) {
+      formatted = digits.substring(0, 3);
+      
+      if (digits.length > 3) {
+        if (digits.length <= 6) {
+          formatted += '-${digits.substring(3)}';
+        } else if (digits.length <= 10) {
+          formatted += '-${digits.substring(3, 6)} ${digits.substring(6)}';
+        } else {
+          // 11 digits: 012-3456 7890
+          formatted += '-${digits.substring(3, 7)} ${digits.substring(7)}';
+        }
+      }
+    } else {
+      formatted = digits;
+    }
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 class Customer extends CustomerModel {
   Customer({
@@ -76,7 +125,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
     super.initState();
     if (widget.customer != null) {
       _customerNameController.text = widget.customer!.customerName;
-      _phoneNumberController.text = widget.customer!.phoneNumber;
+      // Format phone number when loading existing customer
+      _phoneNumberController.text = _formatPhoneNumber(widget.customer!.phoneNumber);
       _emailController.text = widget.customer!.emailAddress;
     }
 
@@ -174,10 +224,10 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
   // Check if phone number already exists in Firestore (only among non-deleted records)
   Future<bool> _checkPhoneExists(String phoneNumber) async {
     try {
-      String formattedPhone = _formatPhoneNumber(phoneNumber);
+      String cleanPhone = phoneNumber.trim().replaceAll(RegExp(r'[^\d]'), ''); // Store only digits
       final query = await _firestore
           .collection('customers')
-          .where('phoneNumber', isEqualTo: formattedPhone)
+          .where('phoneNumber', isEqualTo: cleanPhone)
           .where('isDeleted', isEqualTo: false)
           .get();
       
@@ -328,6 +378,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
               ),
               validator: _phoneValidator,
               keyboardType: TextInputType.phone,
+              inputFormatters: [MalaysianPhoneFormatter()],
             ),
           ),
           const SizedBox(height: 20),
@@ -555,7 +606,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
       
       Map<String, dynamic> customerData = {
         'customerName': _customerNameController.text.trim(),
-        'phoneNumber': _formatPhoneNumber(_phoneNumberController.text),
+        'phoneNumber': _phoneNumberController.text.trim().replaceAll(RegExp(r'[^\d]'), ''), // Store only digits
         'emailAddress': _emailController.text.trim(),
         'vehicleIds': [],
         'isDeleted': false,

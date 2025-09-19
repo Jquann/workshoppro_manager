@@ -1,5 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
+
+class MalaysianPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String newText = newValue.text;
+    
+    // Remove all non-digit characters
+    String digits = newText.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present and has digits
+    if (digits.isNotEmpty && !digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Limit to 11 digits maximum
+    if (digits.length > 11) {
+      digits = digits.substring(0, 11);
+    }
+    
+    String formatted = '';
+    
+    // Format based on length
+    if (digits.length >= 3) {
+      formatted = digits.substring(0, 3);
+      
+      if (digits.length > 3) {
+        if (digits.length <= 6) {
+          formatted += '-${digits.substring(3)}';
+        } else if (digits.length <= 10) {
+          formatted += '-${digits.substring(3, 6)} ${digits.substring(6)}';
+        } else {
+          // 11 digits: 012-3456 7890
+          formatted += '-${digits.substring(3, 7)} ${digits.substring(7)}';
+        }
+      }
+    } else {
+      formatted = digits;
+    }
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 class ProfileEdit extends StatefulWidget {
   final Map<String, dynamic>? currentUserData;
@@ -18,6 +67,7 @@ class _ProfileEditState extends State<ProfileEdit> {
   
   bool _isLoading = false;
   bool _hasChanges = false;
+  String _selectedGender = 'Male'; // Default gender
 
   @override
   void initState() {
@@ -28,12 +78,38 @@ class _ProfileEditState extends State<ProfileEdit> {
   void _initializeFields() {
     if (widget.currentUserData != null) {
       _nameController.text = widget.currentUserData!['name'] ?? '';
-      _phoneController.text = widget.currentUserData!['phone'] ?? '';
+      // Format phone number when loading
+      String phoneNumber = widget.currentUserData!['phone'] ?? '';
+      _phoneController.text = _formatPhoneNumber(phoneNumber);
+      // Load gender
+      _selectedGender = widget.currentUserData!['gender'] ?? 'Male';
     }
     
     // Add listeners to detect changes
     _nameController.addListener(_onFieldChanged);
     _phoneController.addListener(_onFieldChanged);
+  }
+
+  // Format phone number for display
+  String _formatPhoneNumber(String phoneNumber) {
+    // Remove all non-digit characters
+    String digits = phoneNumber.trim().replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present
+    if (digits.isNotEmpty && !digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Format based on length
+    if (digits.length == 10) {
+      // Format: 012-345 6789
+      return '${digits.substring(0, 3)}-${digits.substring(3, 6)} ${digits.substring(6)}';
+    } else if (digits.length == 11) {
+      // Format: 012-3456 7890
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)} ${digits.substring(7)}';
+    }
+    
+    return digits; // Return digits if format doesn't match
   }
 
   void _onFieldChanged() {
@@ -69,20 +145,6 @@ class _ProfileEditState extends State<ProfileEdit> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          if (_hasChanges)
-            TextButton(
-              onPressed: _isLoading ? null : _saveProfile,
-              child: Text(
-                'Save',
-                style: TextStyle(
-                  color: _isLoading ? Colors.grey : const Color(0xFF007AFF),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-        ],
       ),
       body: SafeArea(
         child: Center(
@@ -123,6 +185,7 @@ class _ProfileEditState extends State<ProfileEdit> {
                       label: 'Phone Number',
                       icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [MalaysianPhoneFormatter()],
                       validator: (value) {
                         if (value != null && value.isNotEmpty) {
                           String phoneNumber = value.trim().replaceAll(RegExp(r'[^\d]'), '');
@@ -145,6 +208,10 @@ class _ProfileEditState extends State<ProfileEdit> {
                         return null;
                       },
                     ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildGenderDropdown(),
                     
                     const SizedBox(height: 32),
                     
@@ -246,6 +313,7 @@ class _ProfileEditState extends State<ProfileEdit> {
     required IconData icon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,6 +331,7 @@ class _ProfileEditState extends State<ProfileEdit> {
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: 'Enter your $label',
             hintStyle: const TextStyle(
@@ -296,6 +365,56 @@ class _ProfileEditState extends State<ProfileEdit> {
             filled: true,
             fillColor: const Color(0xFFF2F2F7),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gender',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2F2F7),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E5EA)),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedGender,
+            decoration: InputDecoration(
+              prefixIcon: Icon(
+                Icons.person_outline,
+                color: const Color(0xFF8E8E93),
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            items: ['Male', 'Female', 'Other'].map((String gender) {
+              return DropdownMenuItem<String>(
+                value: gender,
+                child: Text(gender),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                setState(() {
+                  _selectedGender = newValue;
+                  _hasChanges = true;
+                });
+              }
+            },
           ),
         ),
       ],
@@ -426,7 +545,8 @@ class _ProfileEditState extends State<ProfileEdit> {
       Map<String, dynamic> updatedData = {
         'name': _nameController.text.trim(),
         'role': widget.currentUserData?['role'] ?? 'admin', // Keep existing role
-        'phone': _phoneController.text.trim(),
+        'phone': _phoneController.text.trim().replaceAll(RegExp(r'[^\d]'), ''), // Store only digits
+        'gender': _selectedGender, // Add gender
         'email': widget.currentUserData?['email'] ?? _authService.currentUser?.email,
         'updatedAt': DateTime.now().toIso8601String(),
       };
@@ -458,7 +578,11 @@ class _ProfileEditState extends State<ProfileEdit> {
 
   void _resetFields() {
     _nameController.text = widget.currentUserData?['name'] ?? '';
-    _phoneController.text = widget.currentUserData?['phone'] ?? '';
+    // Format phone number when resetting
+    String phoneNumber = widget.currentUserData?['phone'] ?? '';
+    _phoneController.text = _formatPhoneNumber(phoneNumber);
+    // Reset gender
+    _selectedGender = widget.currentUserData?['gender'] ?? 'Male';
     
     setState(() {
       _hasChanges = false;

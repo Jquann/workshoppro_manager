@@ -30,7 +30,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   final _customerController = TextEditingController();
   final _mechanicController = TextEditingController();
   
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1)); // Default to tomorrow
+  DateTime _selectedDate = DateTime.now(); // Allow today's date
   TimeOfDay _startTime = TimeOfDay.now();
   TimeOfDay _endTime = TimeOfDay(
     hour: (TimeOfDay.now().hour + 1) % 24,
@@ -427,16 +427,16 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
               ),
             ),
           ),
-          // Date booking restriction hint (only show for new schedules)
+          // Date booking info (updated to allow today)
           if (widget.schedule == null) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'Schedules can only be booked from tomorrow onwards',
+                'Emergency appointments can be scheduled for today',
                 style: TextStyle(
                   fontSize: 13,
-                  color: _kGrey,
+                  color: _kSuccess,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -849,11 +849,11 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
 
   Future<void> _selectDate() async {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final today = DateTime.now();
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate.isBefore(tomorrow) ? tomorrow : _selectedDate,
-      firstDate: tomorrow, // Only allow booking from tomorrow onwards
+      initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
+      firstDate: today, // Allow booking from today onwards
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && picked != _selectedDate) {
@@ -933,14 +933,14 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       return;
     }
     
-    // Validate date - only allow booking from tomorrow onwards (except for editing existing schedules)
+    // Validate date - allow booking from today onwards
     if (widget.schedule == null) { // Only check for new schedules, not when editing
       final today = DateTime.now();
       final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
       final todayOnly = DateTime(today.year, today.month, today.day);
       
-      if (selectedDateOnly.isAtSameMomentAs(todayOnly) || selectedDateOnly.isBefore(todayOnly)) {
-        _showSnackBar('Schedules can only be booked from tomorrow onwards', Colors.red);
+      if (selectedDateOnly.isBefore(todayOnly)) {
+        _showSnackBar('Cannot schedule appointments for past dates', Colors.red);
         return;
       }
     }
