@@ -30,6 +30,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
   final _desc = TextEditingController();
   final _customerController = TextEditingController();
   final _db = FirestoreService();
+  String? _originalCustomerId;
 
   String? selectedCustomerId;
   String? selectedCustomerName;
@@ -94,6 +95,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
     if (querySnapshot.docs.isNotEmpty) {
       setState(() {
         selectedCustomerId = querySnapshot.docs.first.id;
+        _originalCustomerId = selectedCustomerId;
       });
     }
   }
@@ -266,8 +268,14 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
                         _buildCustomerCard(),
                         const SizedBox(height: 24),
                         _buildVehicleDetailsCard(),
-                        const SizedBox(height: 32),
-                        _buildSaveButton(),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(child: _buildResetButton()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSaveButton()),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -533,6 +541,49 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
       ),
     );
   }
+
+  Widget _buildResetButton() {
+    return OutlinedButton.icon(
+      onPressed: _resetToOriginal,
+      icon: const Icon(Icons.restart_alt_rounded),
+      label: const Text('Reset'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _kDarkText,
+        minimumSize: const Size.fromHeight(56),
+        side: BorderSide(color: _kDivider),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+      ),
+    );
+  }
+
+
+  void _resetToOriginal() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      // text fields back to original
+      _model.text     = widget.vehicle.model;
+      _make.text      = widget.vehicle.make;
+      _year.text      = widget.vehicle.year.toString();
+      _carPlate.text  = widget.vehicle.carPlate;
+      _desc.text      = widget.vehicle.description ?? '';
+
+      // customer back to original display
+      selectedCustomerName     = widget.vehicle.customerName;
+      _customerController.text = widget.vehicle.customerName;
+
+      // if we had resolved the original id, put it back too
+      if (_originalCustomerId != null) {
+        selectedCustomerId = _originalCustomerId;
+      }
+
+      _showCustomerSuggestions = false;
+      _filteredCustomers = _allCustomers;
+    });
+
+    _showSnackBar('Restored original info', _kSuccess);
+  }
+
 
   // —— Validators (match AddVehicle) ——
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
