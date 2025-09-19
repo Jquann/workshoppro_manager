@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'schedule_model.dart';
 import 'add_schedule.dart';
 import '../vehicles/add_service.dart';
+import '../vehicles/view_service.dart';
+import '../../models/service_model.dart';
 
 class ScheduleDetailPage extends StatefulWidget {
   final String scheduleId;
@@ -72,14 +75,18 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   ),
                 ),
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: _kDarkText),
-                    onPressed: () => _navigateToEditSchedule(schedule),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: _kError),
-                    onPressed: () => _showDeleteConfirmation(schedule),
-                  ),
+                  // Only show edit and delete icons if status is not completed or cancelled
+                  if (schedule.status.toLowerCase() != 'completed' && 
+                      schedule.status.toLowerCase() != 'cancelled') ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: _kDarkText),
+                      onPressed: () => _navigateToEditSchedule(schedule),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: _kError),
+                      onPressed: () => _showDeleteConfirmation(schedule),
+                    ),
+                  ],
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: true,
@@ -335,7 +342,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   final vehicleData = snapshot.data!.data() as Map<String, dynamic>;
                   final make = vehicleData['make'] ?? '';
                   final model = vehicleData['model'] ?? '';
-                  final plateNumber = vehicleData['plateNumber'] ?? '';
+                  final plateNumber = vehicleData['carPlate'] ?? vehicleData['plateNumber'] ?? '';
                   final year = vehicleData['year'] ?? '';
                   final vehicleInfo = '$year $make $model ($plateNumber)';
                   return Column(
@@ -364,10 +371,27 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
             const SizedBox(height: 16),
             _buildDetailItem('Updated', _formatDateTime(schedule.updatedAt)),
           ],
-          // Add Access to Service button for non-cancelled schedules
-          if (schedule.status.toLowerCase() != 'cancelled') ...[
+          // Add Service button based on status and service record existence
+          if (schedule.status.toLowerCase() == 'scheduled') ...[
             const SizedBox(height: 24),
-            _buildAccessToServiceButton(schedule),
+            FutureBuilder<bool>(
+              future: _hasServiceRecords(schedule),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: _kPrimary));
+                }
+                
+                final hasRecords = snapshot.data ?? false;
+                if (hasRecords) {
+                  return _buildViewServiceDetailsButton(schedule);
+                } else {
+                  return _buildAccessToServiceButton(schedule);
+                }
+              },
+            ),
+          ] else if (schedule.status.toLowerCase() == 'in_progress') ...[
+            const SizedBox(height: 24),
+            _buildViewServiceDetailsButton(schedule),
           ],
         ],
       ),
@@ -433,6 +457,45 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
         icon: const Icon(Icons.build_rounded, color: Colors.white, size: 24),
         label: const Text(
           'Access to Service',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewServiceDetailsButton(ScheduleModel schedule) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kSuccess, const Color(0xFF32A852)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _kSuccess.withOpacity(0.3),
+            offset: const Offset(0, 4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: () => _navigateToViewService(schedule),
+        icon: const Icon(Icons.visibility_rounded, color: Colors.white, size: 24),
+        label: const Text(
+          'View Service Details',
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 16,
@@ -551,7 +614,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       return;
     }
 
-    // Import AddService and navigate with schedule data pre-filled
+    // Navigate to AddService without updating schedule status first
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -566,9 +629,85 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       ),
     );
 
-    // If service was successfully added, update schedule status to completed
+    // Only update schedule status to in_progress if service was successfully saved
     if (result == true) {
-      await _updateScheduleStatus(schedule.id, 'completed');
+      await _updateScheduleStatusSilently(schedule.id, 'in_progress');
+    }
+  }
+
+  void _navigateToViewService(ScheduleModel schedule) async {
+    // Check if vehicleId exists
+    if (schedule.vehicleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No vehicle associated with this schedule'),
+          backgroundColor: _kError,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Look for service records for this vehicle that match the schedule criteria
+      // Use a simpler query to avoid index requirements
+      final serviceSnapshot = await _firestore
+          .collection('vehicles')
+          .doc(schedule.vehicleId!)
+          .collection('service_records')
+          .where('description', isEqualTo: schedule.serviceType)
+          .get();
+
+      if (serviceSnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No service record found for this schedule'),
+            backgroundColor: _kError,
+          ),
+        );
+        return;
+      }
+
+      // Filter results locally if there are multiple records
+      final scheduleDate = schedule.startTime;
+      final startOfDay = DateTime(scheduleDate.year, scheduleDate.month, scheduleDate.day);
+      final endOfDay = startOfDay.add(const Duration(days: 7));
+      
+      ServiceRecordModel? matchingRecord;
+      for (final doc in serviceSnapshot.docs) {
+        final serviceData = doc.data();
+        final serviceRecord = ServiceRecordModel.fromMap(doc.id, serviceData);
+        
+        // Check if the service date falls within our time window
+        if (serviceRecord.date.isAfter(startOfDay.subtract(const Duration(days: 1))) &&
+            serviceRecord.date.isBefore(endOfDay)) {
+          matchingRecord = serviceRecord;
+          break;
+        }
+      }
+      
+      // If no record found in time window, use the first one
+      if (matchingRecord == null) {
+        final firstDoc = serviceSnapshot.docs.first;
+        matchingRecord = ServiceRecordModel.fromMap(firstDoc.id, firstDoc.data());
+      }
+
+      // Navigate to ViewService with the found service record
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ViewService(
+            vehicleId: schedule.vehicleId!,
+            record: matchingRecord!,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load service details: $e'),
+          backgroundColor: _kError,
+        ),
+      );
     }
   }
 
@@ -618,6 +757,38 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     }
   }
 
+  Future<bool> _showStatusConfirmation(String status) async {
+    final bool isCompleted = status == 'completed';
+    final String title = isCompleted ? 'Complete Schedule?' : 'Cancel Schedule?';
+    final String message = isCompleted 
+        ? 'This will mark the schedule as completed. This action cannot be undone.'
+        : 'This will mark the schedule as cancelled. This action cannot be undone.';
+    
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCompleted ? _kSuccess : _kError,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(isCompleted ? 'Complete' : 'Cancel Schedule'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   void _showStatusEditDialog(ScheduleModel schedule) {
     final List<String> allowedStatuses = ['scheduled', 'in_progress', 'cancelled'];
     String selectedStatus = schedule.status;
@@ -654,7 +825,16 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                 ElevatedButton(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _updateScheduleStatus(schedule.id, selectedStatus);
+                    
+                    // Show confirmation for final statuses
+                    if (selectedStatus == 'completed' || selectedStatus == 'cancelled') {
+                      final confirmed = await _showStatusConfirmation(selectedStatus);
+                      if (confirmed) {
+                        await _updateScheduleStatus(schedule.id, selectedStatus);
+                      }
+                    } else {
+                      await _updateScheduleStatus(schedule.id, selectedStatus);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kPrimary,
@@ -704,9 +884,102 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
+      // Get the schedule to sync with service records
+      final scheduleDoc = await _firestore.collection('schedules').doc(scheduleId).get();
+      if (scheduleDoc.exists) {
+        final schedule = ScheduleModel.fromFirestore(
+          scheduleDoc.data() as Map<String, dynamic>,
+          scheduleDoc.id,
+        );
+        await _syncServiceRecordStatus(schedule, newStatus);
+      }
+      
       _showSnackBar('Status updated to ${_getStatusText(newStatus)}', _kSuccess);
     } catch (e) {
       _showSnackBar('Failed to update status: $e', _kError);
+    }
+  }
+
+  Future<void> _updateScheduleStatusSilently(String scheduleId, String newStatus) async {
+    try {
+      await _firestore.collection('schedules').doc(scheduleId).update({
+        'status': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Get the schedule to sync with service records
+      final scheduleDoc = await _firestore.collection('schedules').doc(scheduleId).get();
+      if (scheduleDoc.exists) {
+        final schedule = ScheduleModel.fromFirestore(
+          scheduleDoc.data() as Map<String, dynamic>,
+          scheduleDoc.id,
+        );
+        await _syncServiceRecordStatus(schedule, newStatus);
+      }
+    } catch (e) {
+      _showSnackBar('Failed to update status: $e', _kError);
+    }
+  }
+
+  Future<bool> _hasServiceRecords(ScheduleModel schedule) async {
+    if (schedule.vehicleId == null) return false;
+    
+    try {
+      final serviceSnapshot = await _firestore
+          .collection('vehicles')
+          .doc(schedule.vehicleId!)
+          .collection('service_records')
+          .where('description', isEqualTo: schedule.serviceType)
+          .limit(1)
+          .get();
+      
+      return serviceSnapshot.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _syncServiceRecordStatus(ScheduleModel schedule, String newStatus) async {
+    if (schedule.vehicleId == null) return;
+    
+    try {
+      // Convert schedule status to service status
+      String serviceStatus;
+      switch (newStatus.toLowerCase()) {
+        case 'scheduled':
+          serviceStatus = 'scheduled';
+          break;
+        case 'in_progress':
+          serviceStatus = 'in progress';
+          break;
+        case 'completed':
+          serviceStatus = 'completed';
+          break;
+        case 'cancelled':
+          serviceStatus = 'cancelled';
+          break;
+        default:
+          serviceStatus = newStatus;
+      }
+
+      // Find and update matching service records
+      final serviceSnapshot = await _firestore
+          .collection('vehicles')
+          .doc(schedule.vehicleId!)
+          .collection('service_records')
+          .where('description', isEqualTo: schedule.serviceType)
+          .get();
+
+      // Update all matching service records
+      for (final doc in serviceSnapshot.docs) {
+        await doc.reference.update({
+          'status': serviceStatus,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't disrupt the main operation
+      debugPrint('Failed to sync service record status: $e');
     }
   }
 }

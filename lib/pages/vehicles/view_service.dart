@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import 'edit_service.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
@@ -1146,6 +1147,7 @@ class _ViewServiceState extends State<ViewService>
         parts: List.of(_record.parts),
         labor: List.of(_record.labor),
         notes: _record.notes,
+        partsCategory: _record.partsCategory,
       );
 
       await FirestoreService().updateService(widget.vehicleId, updated);
@@ -1170,6 +1172,12 @@ class _ViewServiceState extends State<ViewService>
 
       await _refreshRecord(); // re-read so UI reflects status change
 
+      // Sync schedule status if service is completed or cancelled
+      if (nextStatus == ServiceRecordModel.statusCompleted || 
+          nextStatus == ServiceRecordModel.statusCancel) {
+        await _syncScheduleStatus(nextStatus);
+      }
+
       if (!mounted) return;
       Navigator.pop(context); // close loading
       _showSnackBar(
@@ -1180,6 +1188,42 @@ class _ViewServiceState extends State<ViewService>
       if (!mounted) return;
       Navigator.pop(context);
       _showSnackBar('Failed to update status: $e', _kDanger);
+    }
+  }
+
+  Future<void> _syncScheduleStatus(String serviceStatus) async {
+    try {
+      // Convert service status to schedule status
+      String scheduleStatus;
+      switch (serviceStatus.toLowerCase()) {
+        case 'completed':
+          scheduleStatus = 'completed';
+          break;
+        case 'cancelled':
+          scheduleStatus = 'cancelled';
+          break;
+        default:
+          return; // Don't sync other statuses
+      }
+
+      // Find schedules that match this service
+      final scheduleSnapshot = await FirebaseFirestore.instance
+          .collection('schedules')
+          .where('vehicleId', isEqualTo: widget.vehicleId)
+          .where('serviceType', isEqualTo: _record.description)
+          .where('mechanicName', isEqualTo: _record.mechanic)
+          .get();
+
+      // Update matching schedules
+      for (final doc in scheduleSnapshot.docs) {
+        await doc.reference.update({
+          'status': scheduleStatus,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't disrupt the main operation
+      print('Failed to sync schedule status: $e');
     }
   }
 

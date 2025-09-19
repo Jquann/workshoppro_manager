@@ -28,7 +28,6 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _customerController = TextEditingController();
-  final _mechanicController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now(); // Allow today's date
   TimeOfDay _startTime = TimeOfDay.now();
@@ -41,19 +40,22 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   String? _selectedCustomerId;
   String? _selectedCustomerName;
   String? _selectedVehicleId;
+  String? _selectedMechanicId;
+  String? _selectedMechanicName;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = false;
   List<Map<String, dynamic>> _allCustomers = [];
   List<Map<String, dynamic>> _filteredCustomers = [];
   bool _showCustomerSuggestions = false;
+  List<Map<String, dynamic>> _mechanics = [];
+  bool _mechanicsLoading = true;
 
   // Service types matching the template
   final List<String> _serviceTypes = [
     'Oil Change',
     'Tire Rotation',
     'Brake Inspection',
-    'Lunch Break',
     'Engine Tune-Up',
     'Transmission Service',
   ];
@@ -77,6 +79,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
     // Load customers data
     _loadCustomers();
+    _loadMechanics();
     _loadPartsCategories();
 
     // Initialize animations
@@ -115,12 +118,13 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     _selectedCustomerName = schedule.customerName;
     _selectedVehicleId = schedule.vehicleId;
 
-    // Populate customer name and mechanic name in text fields
+    // Populate customer name and mechanic selection
     if (schedule.customerName != null) {
       _customerController.text = schedule.customerName!;
     }
     if (schedule.mechanicName != null) {
-      _mechanicController.text = schedule.mechanicName!;
+      _selectedMechanicName = schedule.mechanicName!;
+      _selectedMechanicId = schedule.mechanicId; // This might be null for old records
     }
   }
 
@@ -131,7 +135,6 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     _titleController.dispose();
     _descriptionController.dispose();
     _customerController.dispose();
-    _mechanicController.dispose();
     super.dispose();
   }
 
@@ -153,6 +156,55 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     } catch (e) {
       print('Error loading customers: $e');
     }
+  }
+
+  Future<void> _loadMechanics() async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'mechanic')
+          .get();
+
+      final mechanicsList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+      
+      // Sort locally by name
+      mechanicsList.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+      
+      setState(() {
+        _mechanics = mechanicsList;
+        _mechanicsLoading = false;
+      });
+    } catch (e) {
+      print('Error loading mechanics: $e');
+      setState(() {
+        _mechanicsLoading = false;
+      });
+    }
+  }
+
+  // Check if mechanic is available for the currently selected time
+  Future<bool> _isMechanicAvailableForSelectedTime(String mechanicId) async {
+    final startDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+
+    final endDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+
+    return await _checkMechanicAvailability(startDateTime, endDateTime, mechanicId);
   }
 
   void _filterCustomers(String query) {
@@ -216,9 +268,105 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     ),
   );
 
+  // Helper method to check if schedule is editable
+  bool get _isEditable {
+    if (widget.schedule == null) return true; // New schedule is always editable
+    final status = widget.schedule!.status.toLowerCase();
+    return status != 'completed' && status != 'cancelled';
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
+    
+    // Show read-only view for completed/cancelled schedules
+    if (!_isEditable) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
+        body: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 120,
+                floating: false,
+                pinned: true,
+                elevation: 0,
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                leading: Container(
+                  margin: const EdgeInsets.all(8),
+                  child: Material(
+                    color: _kLightGrey,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: _kDarkText,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                flexibleSpace: FlexibleSpaceBar(
+                  centerTitle: true,
+                  title: Text(
+                    'Schedule (Read-Only)',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: _kDarkText,
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock, color: Colors.orange.shade600, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Schedule Cannot Be Edited',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'This schedule is ${widget.schedule!.status} and cannot be modified.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       body: SafeArea(
@@ -380,12 +528,93 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           const SizedBox(height: 20),
           _buildFormField(
             label: 'Mechanic Name',
-            child: TextFormField(
-              controller: _mechanicController,
-              decoration: _input('Enter mechanic name', icon: Icons.engineering),
-              validator: _req,
-              textCapitalization: TextCapitalization.words,
-            ),
+            child: _mechanicsLoading
+                ? TextFormField(
+                    enabled: false,
+                    decoration: _input('Loading mechanics...', icon: Icons.engineering),
+                  )
+                : _mechanics.isEmpty
+                ? Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _kDivider),
+                      color: _kLightGrey.withValues(alpha: 0.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No mechanics found. Please add mechanics in User Management.',
+                            style: TextStyle(color: _kGrey, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : DropdownButtonFormField<String>(
+                    decoration: _input('Select mechanic', icon: Icons.engineering),
+                    value: _selectedMechanicId,
+                    hint: const Text('Select mechanic'),
+                    isExpanded: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select a mechanic';
+                      }
+                      return null;
+                    },
+                    items: _mechanics.map((mechanic) {
+                      return DropdownMenuItem<String>(
+                        value: mechanic['id'],
+                        child: FutureBuilder<bool>(
+                          future: _isMechanicAvailableForSelectedTime(mechanic['id']),
+                          builder: (context, snapshot) {
+                            final isAvailable = snapshot.data ?? true;
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    mechanic['name'] ?? 'Unknown',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isAvailable ? _kDarkText : _kGrey,
+                                    ),
+                                  ),
+                                ),
+                                if (snapshot.connectionState == ConnectionState.waiting)
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1,
+                                      valueColor: AlwaysStoppedAnimation<Color>(_kGrey),
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    isAvailable ? Icons.check_circle : Icons.cancel,
+                                    size: 16,
+                                    color: isAvailable ? _kSuccess : _kError,
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedMechanicId = value;
+                        final selectedMechanic = _mechanics.firstWhere(
+                          (m) => m['id'] == value,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        _selectedMechanicName = selectedMechanic['name'];
+                      });
+                    },
+                  ),
           ),
           const SizedBox(height: 20),
           _buildFormField(
@@ -855,6 +1084,78 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
 
+  // Check if mechanic is available at the selected time
+  Future<bool> _checkMechanicAvailability(DateTime startTime, DateTime endTime, String mechanicId) async {
+    try {
+      final query = await _firestore
+          .collection('schedules')
+          .where('mechanicId', isEqualTo: mechanicId)
+          .where('status', whereIn: ['scheduled', 'in_progress']) // Only check active schedules
+          .get();
+
+      for (final doc in query.docs) {
+        // Skip the current schedule if editing
+        if (widget.schedule != null && doc.id == widget.schedule!.id) {
+          continue;
+        }
+
+        final data = doc.data();
+        final existingStart = (data['startTime'] as Timestamp).toDate();
+        final existingEnd = (data['endTime'] as Timestamp).toDate();
+
+        // Check for time overlap
+        if (_timesOverlap(startTime, endTime, existingStart, existingEnd)) {
+          return false; // Conflict found
+        }
+      }
+      return true; // No conflicts
+    } catch (e) {
+      print('Error checking mechanic availability: $e');
+      return true; // Allow booking if check fails (fallback)
+    }
+  }
+
+  // Helper function to check if two time ranges overlap
+  bool _timesOverlap(DateTime start1, DateTime end1, DateTime start2, DateTime end2) {
+    return start1.isBefore(end2) && end1.isAfter(start2);
+  }
+
+  // Get details of conflicting schedule for error message
+  Future<Map<String, dynamic>?> _getConflictingSchedule(DateTime startTime, DateTime endTime, String mechanicId) async {
+    try {
+      final query = await _firestore
+          .collection('schedules')
+          .where('mechanicId', isEqualTo: mechanicId)
+          .where('status', whereIn: ['scheduled', 'in_progress'])
+          .get();
+
+      for (final doc in query.docs) {
+        // Skip the current schedule if editing
+        if (widget.schedule != null && doc.id == widget.schedule!.id) {
+          continue;
+        }
+
+        final data = doc.data();
+        final existingStart = (data['startTime'] as Timestamp).toDate();
+        final existingEnd = (data['endTime'] as Timestamp).toDate();
+
+        // Check for time overlap
+        if (_timesOverlap(startTime, endTime, existingStart, existingEnd)) {
+          return {
+            'title': data['title'] ?? 'Unknown',
+            'customerName': data['customerName'] ?? 'Unknown Customer',
+            'startTime': existingStart,
+            'endTime': existingEnd,
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting conflicting schedule: $e');
+      return null;
+    }
+  }
+
   Future<void> _selectDate() async {
     final today = DateTime.now();
     final DateTime? picked = await showDatePicker(
@@ -952,6 +1253,41 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       }
     }
 
+    // Check mechanic availability
+    final startDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+
+    final endDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+
+    if (_selectedMechanicId != null) {
+      final isAvailable = await _checkMechanicAvailability(startDateTime, endDateTime, _selectedMechanicId!);
+      if (!isAvailable) {
+        final conflictingSchedule = await _getConflictingSchedule(startDateTime, endDateTime, _selectedMechanicId!);
+        if (conflictingSchedule != null) {
+          final conflictStart = TimeOfDay.fromDateTime(conflictingSchedule['startTime']);
+          final conflictEnd = TimeOfDay.fromDateTime(conflictingSchedule['endTime']);
+          _showSnackBar(
+            'Mechanic is already booked for "${conflictingSchedule['title']}" with ${conflictingSchedule['customerName']} from ${conflictStart.format(context)} to ${conflictEnd.format(context)}',
+            _kError
+          );
+        } else {
+          _showSnackBar('Selected mechanic is not available at this time', _kError);
+        }
+        return;
+      }
+    }
+
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -959,21 +1295,6 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     });
 
     try {
-      final startDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _startTime.hour,
-        _startTime.minute,
-      );
-
-      final endDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _endTime.hour,
-        _endTime.minute,
-      );
 
       final scheduleData = {
         'title': _titleController.text.trim(),
@@ -984,8 +1305,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
         'customerId': _selectedCustomerId,
         'customerName': _selectedCustomerName,
         'vehicleId': _selectedVehicleId,
-        'mechanicId': null, // Can be added later
-        'mechanicName': _mechanicController.text.trim().isEmpty ? null : _mechanicController.text.trim(),
+        'mechanicId': _selectedMechanicId,
+        'mechanicName': _selectedMechanicName,
         'partsCategory': _selectedPartsCategory,
         'status': 'scheduled', // Always default to scheduled as per requirement
         'updatedAt': FieldValue.serverTimestamp(),
@@ -994,6 +1315,10 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       if (widget.schedule != null) {
         // Update existing schedule
         await _firestore.collection('schedules').doc(widget.schedule!.id).update(scheduleData);
+        
+        // Sync service records if schedule is being updated
+        await _syncServiceRecords(widget.schedule!.id, scheduleData);
+        
         _showSnackBar('Schedule updated successfully!', _kSuccess);
       } else {
         // Create new schedule
@@ -1027,6 +1352,66 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       if (!mounted) return;
       setState(() => _partsCatsLoading = false);
       _showSnackBar('Failed to load parts categories: $e', _kError);
+    }
+  }
+
+  Future<void> _syncServiceRecords(String scheduleId, Map<String, dynamic> scheduleData) async {
+    try {
+      if (scheduleData['vehicleId'] == null) return;
+      
+      // Find service records that match the old schedule data
+      final serviceSnapshot = await _firestore
+          .collection('vehicles')
+          .doc(scheduleData['vehicleId'])
+          .collection('service_records')
+          .where('description', isEqualTo: widget.schedule!.serviceType)
+          .get();
+
+      // Update matching service records
+      for (final doc in serviceSnapshot.docs) {
+        final updates = <String, dynamic>{};
+        
+        // Update fields that should sync
+        if (scheduleData['serviceType'] != null) {
+          updates['description'] = scheduleData['serviceType'];
+        }
+        if (scheduleData['mechanicName'] != null) {
+          updates['mechanic'] = scheduleData['mechanicName'];
+        }
+        if (scheduleData['partsCategory'] != null) {
+          updates['partsCategory'] = scheduleData['partsCategory'];
+        }
+        
+        // Convert schedule status to service status
+        if (scheduleData['status'] != null) {
+          String serviceStatus;
+          switch (scheduleData['status'].toString().toLowerCase()) {
+            case 'scheduled':
+              serviceStatus = 'scheduled';
+              break;
+            case 'in_progress':
+              serviceStatus = 'in progress';
+              break;
+            case 'completed':
+              serviceStatus = 'completed';
+              break;
+            case 'cancelled':
+              serviceStatus = 'cancelled';
+              break;
+            default:
+              serviceStatus = scheduleData['status'];
+          }
+          updates['status'] = serviceStatus;
+        }
+        
+        if (updates.isNotEmpty) {
+          updates['updatedAt'] = FieldValue.serverTimestamp();
+          await doc.reference.update(updates);
+        }
+      }
+    } catch (e) {
+      // Silently fail - don't disrupt the main operation
+      print('Failed to sync service records: $e');
     }
   }
 
