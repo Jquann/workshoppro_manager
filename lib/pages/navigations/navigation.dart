@@ -4,6 +4,7 @@ import 'package:workshoppro_manager/pages/inventory_control/inventory_dashboard.
 import 'package:workshoppro_manager/pages/invoice/invoice_dashboard.dart';
 import 'package:workshoppro_manager/pages/vehicles/vehicle.dart';
 import 'package:workshoppro_manager/pages/schedule/schedule.dart';
+import 'package:workshoppro_manager/pages/vehicles/vehicle_dashboard.dart';
 
 class MainNavigationPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -19,7 +20,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   List<Widget> get _pages => [
     // Vehicles Page
-    VehiclesPage(scaffoldKey: widget.scaffoldKey),
+    // VehiclesPage(scaffoldKey: widget.scaffoldKey),
+    VehicleDashboard(scaffoldKey: widget.scaffoldKey),
     // Schedule Page
     SchedulePage(scaffoldKey: widget.scaffoldKey),
     // CRM Page
