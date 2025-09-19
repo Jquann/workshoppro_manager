@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'invoice_pdf_service.dart';
+import 'invoice_gmail_service.dart';
 import '../../models/invoice.dart';
 import '../../models/service_model.dart';
 import '../../firestore_service.dart';
@@ -241,6 +242,93 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     }
   }
 
+  Future<void> _sendInvoivePdfToEmail() async {
+    try {
+      // Get customer emails by name
+      final customerEmails = await _firestoreService.getCustomerEmailsByName(
+        _currentInvoice.customerName,
+      );
+
+      if (customerEmails.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No email found for this customer'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show dialog with email selection
+      final selectedEmail = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (BuildContext context) {
+          return _EmailSelectionDialog(
+            customerEmails: customerEmails,
+            invoice: _currentInvoice,
+          );
+        },
+      );
+
+      if (selectedEmail != null) {
+        await _sendEmailWithPdf(selectedEmail);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error retrieving customer emails: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendEmailWithPdf(Map<String, String> selectedCustomer) async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Generate PDF bytes
+      final pdfBytes = await InvoicePdfService.generateInvoicePdf(
+        _currentInvoice,
+      );
+
+      // Send email with PDF attachment
+      await InvoiceGmailService.sendInvoicePdf(
+        recipientEmail: selectedCustomer['email']!,
+        recipientName: selectedCustomer['name']!,
+        invoice: _currentInvoice,
+        pdfBytes: pdfBytes,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Invoice sent successfully to ${selectedCustomer['email']}',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send invoice email: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -249,6 +337,12 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white,
         actions: [
+          // Send Invoice PDF to Email Button
+          IconButton(
+            icon: const Icon(Icons.email),
+            onPressed: _sendInvoivePdfToEmail,
+            tooltip: 'Send Invoice via Email',
+          ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: _exportInvoiceToPdf,
@@ -329,7 +423,7 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
                               decoration: BoxDecoration(
                                 color: _getStatusColor(
                                   _currentInvoice.status,
-                                ).withOpacity(0.2),
+                                ).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: _getStatusColor(
@@ -358,7 +452,7 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
                               decoration: BoxDecoration(
                                 color: _getPaymentStatusColor(
                                   _currentInvoice.paymentStatus,
-                                ).withOpacity(0.2),
+                                ).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: _getPaymentStatusColor(
@@ -690,7 +784,7 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
           // Loading overlay
           if (_isLoading)
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: const Center(child: CircularProgressIndicator()),
             ),
         ],
@@ -936,6 +1030,221 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmailSelectionDialog extends StatefulWidget {
+  final List<Map<String, String>> customerEmails;
+  final Invoice invoice;
+
+  const _EmailSelectionDialog({
+    required this.customerEmails,
+    required this.invoice,
+  });
+
+  @override
+  State<_EmailSelectionDialog> createState() => _EmailSelectionDialogState();
+}
+
+class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
+  Map<String, String>? _selectedCustomer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to first option
+    if (widget.customerEmails.isNotEmpty) {
+      _selectedCustomer = widget.customerEmails.first;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.blue[600],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.email, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text(
+                    'Send Invoice via Email',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Invoice: ${widget.invoice.invoiceId}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Select Customer Email:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Map<String, String>>(
+                      value: _selectedCustomer,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      menuMaxHeight: 200,
+                      items: widget.customerEmails.map((customer) {
+                        return DropdownMenuItem<Map<String, String>>(
+                          value: customer,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                customer['name']!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                customer['email']!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCustomer = value;
+                        });
+                      },
+                    ),
+                    if (_selectedCustomer != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Email Preview:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'To: ${_selectedCustomer!['email']}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'Subject: Invoice ${widget.invoice.invoiceId} - Workshop Pro Manager',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'Attachment: Invoice_${widget.invoice.invoiceId}.pdf',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            // Actions
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey[600],
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _selectedCustomer != null
+                        ? () => Navigator.of(context).pop(_selectedCustomer)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('Send'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

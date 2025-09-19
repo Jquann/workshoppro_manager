@@ -72,7 +72,10 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
       .fold(0, (sum, invoice) => sum + invoice.grandTotal);
 
   double get pendingRevenue => invoices
-      .where((invoice) => invoice.paymentStatus == 'Unpaid')
+      .where(
+        (invoice) =>
+            invoice.paymentStatus == 'Unpaid' && invoice.status != 'Rejected',
+      )
       .fold(0, (sum, invoice) => sum + invoice.grandTotal);
 
   @override
@@ -309,7 +312,7 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 8,
                             offset: const Offset(0, -2),
                           ),
