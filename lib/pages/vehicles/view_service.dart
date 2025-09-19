@@ -230,6 +230,10 @@ class _ViewServiceState extends State<ViewService>
                         SizedBox(height: 24 * s),
                         _buildNotesSection(s),
                       ],
+                      if (_canEdit) ...[
+                        SizedBox(height: 24 * s),
+                        _buildQuickActions(s),
+                      ],
                       SizedBox(height: 32 * s),
                     ],
                   ),
@@ -241,6 +245,52 @@ class _ViewServiceState extends State<ViewService>
       ),
     );
   }
+
+  Widget _buildQuickActions(double s) {
+    return Row(
+      children: [
+        // Cancel
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _confirmStatusChange(
+              title: 'Cancel service?',
+              message: 'This will mark the service as cancelled.',
+              nextStatus: ServiceRecordModel.statusCancel,
+            ),
+            icon: const Icon(Icons.cancel_rounded),
+            label: const Text('Cancel Service'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _kDanger,
+              side: const BorderSide(color: _kDanger),
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              backgroundColor: Colors.white,
+            ),
+          ),
+        ),
+        SizedBox(width: 12 * s),
+        // Complete
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () => _confirmStatusChange(
+              title: 'Complete service?',
+              message: 'This will mark the service as completed and create an invoice.',
+              nextStatus: ServiceRecordModel.statusCompleted,
+            ),
+            icon: const Icon(Icons.verified_rounded, color: Colors.white),
+            label: const Text('Complete Service', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kSuccess,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shadowColor: Colors.transparent,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
 
   Widget _buildServiceOverviewCard(double s) {
     return Container(
@@ -1040,6 +1090,121 @@ class _ViewServiceState extends State<ViewService>
           ),
           SizedBox(height: 8 * s),
         ],
+      ),
+    );
+  }
+
+  Future<void> _confirmStatusChange({
+    required String title,
+    required String message,
+    required String nextStatus,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await _updateStatus(nextStatus);
+    }
+  }
+
+  Future<void> _updateStatus(String nextStatus) async {
+    // loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: const Padding(
+          padding: EdgeInsets.all(20),
+          child: Row(
+            children: [
+              CircularProgressIndicator(color: _kPrimary, strokeWidth: 3),
+              SizedBox(width: 20),
+              Text('Updating status...'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // keep everything same, only change status
+      final updated = ServiceRecordModel(
+        id: _record.id,
+        date: _record.date,
+        description: _record.description,
+        mechanic: _record.mechanic,
+        status: nextStatus,
+        parts: List.of(_record.parts),
+        labor: List.of(_record.labor),
+        notes: _record.notes,
+      );
+
+      await FirestoreService().updateService(widget.vehicleId, updated);
+
+      // auto-create invoice on completed (same behavior as your Edit page)
+      if (nextStatus == ServiceRecordModel.statusCompleted) {
+        final vehicle = await FirestoreService().getVehicle(widget.vehicleId);
+        if (vehicle != null) {
+          try {
+            await FirestoreService().addInvoice(
+              widget.vehicleId,
+              updated,
+              vehicle.customerName,
+              vehicle.carPlate,
+              updated.mechanic,
+              updated.mechanic,
+            );
+          } catch (_) {/* ignore invoice failure */}
+        }
+      }
+
+
+      await _refreshRecord(); // re-read so UI reflects status change
+
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      _showSnackBar(
+        'Status updated to ${nextStatus[0].toUpperCase()}${nextStatus.substring(1)}',
+        _kSuccess,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      _showSnackBar('Failed to update status: $e', _kDanger);
+    }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == _kSuccess
+                  ? Icons.check_circle_rounded
+                  : color == _kDanger
+                  ? Icons.error_rounded
+                  : Icons.info_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }

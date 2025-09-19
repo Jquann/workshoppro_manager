@@ -29,8 +29,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   final _descriptionController = TextEditingController();
   final _customerController = TextEditingController();
   final _mechanicController = TextEditingController();
-  
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1)); // Default to tomorrow
+
+  DateTime _selectedDate = DateTime.now(); // Allow today's date
   TimeOfDay _startTime = TimeOfDay.now();
   TimeOfDay _endTime = TimeOfDay(
     hour: (TimeOfDay.now().hour + 1) % 24,
@@ -61,7 +61,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   // Parts categories from add_service.dart
   final List<String> _partsCategories = [
     'Body',
-    'Brakes', 
+    'Brakes',
     'Consumables',
     'Electrical',
     'Engine',
@@ -80,7 +80,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    
+
     if (widget.schedule != null) {
       _populateFields();
     }
@@ -123,7 +123,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     _selectedCustomerId = schedule.customerId;
     _selectedCustomerName = schedule.customerName;
     _selectedVehicleId = schedule.vehicleId;
-    
+
     // Populate customer name and mechanic name in text fields
     if (schedule.customerName != null) {
       _customerController.text = schedule.customerName!;
@@ -150,7 +150,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           .collection('customers')
           .where('isDeleted', isEqualTo: false)
           .get();
-      
+
       setState(() {
         _allCustomers = snapshot.docs.map((doc) {
           final data = doc.data();
@@ -195,9 +195,9 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
     prefixIcon: icon != null
         ? Container(
-            padding: const EdgeInsets.all(12),
-            child: Icon(icon, size: 20, color: _kGrey),
-          )
+      padding: const EdgeInsets.all(12),
+      child: Icon(icon, size: 20, color: _kGrey),
+    )
         : null,
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -249,67 +249,67 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: _kDarkText,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                centerTitle: true,
+                title: Text(
+                  widget.schedule != null ? 'Edit Schedule' : 'Add Schedule',
+                  style: const TextStyle(
                     color: _kDarkText,
-                    size: 20,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
                   ),
                 ),
-              ),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              title: Text(
-                widget.schedule != null ? 'Edit Schedule' : 'Add Schedule',
-                style: const TextStyle(
-                  color: _kDarkText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                ),
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white,
-                      _kLightGrey.withValues(alpha: 0.3),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: Form(
-                  key: _formKey,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildBasicInfoCard(),
-                        const SizedBox(height: 24),
-                        _buildDateTimeCard(),
-                        const SizedBox(height: 24),
-                        _buildCustomerCard(),
-                        const SizedBox(height: 32),
-                        _buildSaveButton(),
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        _kLightGrey.withValues(alpha: 0.3),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            // Content
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: Form(
+                    key: _formKey,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildBasicInfoCard(),
+                          const SizedBox(height: 24),
+                          _buildDateTimeCard(),
+                          const SizedBox(height: 24),
+                          _buildCustomerCard(),
+                          const SizedBox(height: 32),
+                          _buildSaveButton(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -427,16 +427,16 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
               ),
             ),
           ),
-          // Date booking restriction hint (only show for new schedules)
+          // Date booking info (updated to allow today)
           if (widget.schedule == null) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'Schedules can only be booked from tomorrow onwards',
+                'Emergency appointments can be scheduled for today',
                 style: TextStyle(
                   fontSize: 13,
-                  color: _kGrey,
+                  color: _kSuccess,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -576,12 +576,12 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
                           ),
                           subtitle: customer['phoneNumber'] != null
                               ? Text(
-                                  customer['phoneNumber'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _kGrey,
-                                  ),
-                                )
+                            customer['phoneNumber'],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _kGrey,
+                            ),
+                          )
                               : null,
                           onTap: () => _selectCustomer(customer),
                         );
@@ -595,131 +595,131 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           const SizedBox(height: 20),
           _buildFormField(
             label: 'Vehicle *',
-            child: _selectedCustomerId == null 
+            child: _selectedCustomerId == null
                 ? Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kDivider),
+                color: _kLightGrey.withValues(alpha: 0.5),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.directions_car, color: _kGrey),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Please select a customer first',
+                    style: TextStyle(color: _kGrey, fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+                : StreamBuilder<QuerySnapshot>(
+              stream: _firestore
+                  .collection('vehicles')
+                  .where('customerName', isEqualTo: _selectedCustomerName)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    child: const CircularProgressIndicator(color: _kPrimary),
+                  );
+                }
+
+                final vehicles = snapshot.data?.docs ?? [];
+
+                if (vehicles.isEmpty) {
+                  return Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: _kDivider),
                       color: _kLightGrey.withValues(alpha: 0.5),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Icon(Icons.directions_car, color: _kGrey),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Please select a customer first',
-                          style: TextStyle(color: _kGrey, fontSize: 13),
+                        Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.orange),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No vehicles found for this customer',
+                                style: TextStyle(color: _kGrey, fontSize: 16),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AddVehicle(
+                                    customerId: _selectedCustomerId,
+                                    customerName: _selectedCustomerName,
+                                  ),
+                                ),
+                              );
+                              // If a vehicle was added, it will automatically refresh via StreamBuilder
+                            },
+                            icon: Icon(Icons.add, size: 18),
+                            label: const Text('Add Vehicle for Customer'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _kPrimary,
+                              side: BorderSide(color: _kPrimary),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  )
-                : StreamBuilder<QuerySnapshot>(
-                    stream: _firestore
-                        .collection('vehicles')
-                        .where('customerName', isEqualTo: _selectedCustomerName)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          child: const CircularProgressIndicator(color: _kPrimary),
-                        );
-                      }
+                  );
+                }
 
-                      final vehicles = snapshot.data?.docs ?? [];
-                      
-                      if (vehicles.isEmpty) {
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _kDivider),
-                            color: _kLightGrey.withValues(alpha: 0.5),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.warning, color: Colors.orange),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'No vehicles found for this customer',
-                                      style: TextStyle(color: _kGrey, fontSize: 16),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AddVehicle(
-                                          customerId: _selectedCustomerId,
-                                          customerName: _selectedCustomerName,
-                                        ),
-                                      ),
-                                    );
-                                    // If a vehicle was added, it will automatically refresh via StreamBuilder
-                                  },
-                                  icon: Icon(Icons.add, size: 18),
-                                  label: const Text('Add Vehicle for Customer'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: _kPrimary,
-                                    side: BorderSide(color: _kPrimary),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      
-                      return DropdownButtonFormField<String>(
-                        decoration: _input('Select vehicle', icon: Icons.directions_car),
-                        value: _selectedVehicleId,
-                        hint: const Text('Select vehicle'),
-                        isExpanded: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please select a vehicle';
-                          }
-                          return null;
-                        },
-                        items: vehicles.map((vehicle) {
-                          final data = vehicle.data() as Map<String, dynamic>;
-                          final make = data['make'] ?? '';
-                          final model = data['model'] ?? '';
-                          final carPlate = data['carPlate'] ?? '';
-                          return DropdownMenuItem<String>(
-                            value: vehicle.id,
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: Text(
-                                '$make $model ($carPlate)',
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedVehicleId = value;
-                          });
-                        },
-                      );
-                    },
-                  ),
+                return DropdownButtonFormField<String>(
+                  decoration: _input('Select vehicle', icon: Icons.directions_car),
+                  value: _selectedVehicleId,
+                  hint: const Text('Select vehicle'),
+                  isExpanded: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a vehicle';
+                    }
+                    return null;
+                  },
+                  items: vehicles.map((vehicle) {
+                    final data = vehicle.data() as Map<String, dynamic>;
+                    final make = data['make'] ?? '';
+                    final model = data['model'] ?? '';
+                    final carPlate = data['carPlate'] ?? '';
+                    return DropdownMenuItem<String>(
+                      value: vehicle.id,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          '$make $model ($carPlate)',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedVehicleId = value;
+                    });
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -824,15 +824,15 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         onPressed: _isLoading ? null : _saveSchedule,
-        icon: _isLoading 
+        icon: _isLoading
             ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        )
             : const Icon(Icons.save_rounded, color: Colors.white),
         label: Text(
           widget.schedule != null ? 'Update Schedule' : 'Save Schedule',
@@ -849,11 +849,11 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
 
   Future<void> _selectDate() async {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final today = DateTime.now();
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate.isBefore(tomorrow) ? tomorrow : _selectedDate,
-      firstDate: tomorrow, // Only allow booking from tomorrow onwards
+      initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
+      firstDate: today, // Allow booking from today onwards
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && picked != _selectedDate) {
@@ -874,12 +874,12 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
         _showSnackBar('Working hours are from 8:00 AM to 5:00 PM only', Colors.red);
         return;
       }
-      
+
       setState(() {
         if (isStartTime) {
           _startTime = picked;
           // Auto-adjust end time if it's before start time or outside business hours
-          if (_endTime.hour < _startTime.hour || 
+          if (_endTime.hour < _startTime.hour ||
               (_endTime.hour == _startTime.hour && _endTime.minute <= _startTime.minute) ||
               _endTime.hour >= 17) {
             int nextHour = _startTime.hour + 1;
@@ -907,8 +907,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
               color == _kSuccess
                   ? Icons.check_circle_rounded
                   : color == _kError
-                      ? Icons.error_rounded
-                      : Icons.info_rounded,
+                  ? Icons.error_rounded
+                  : Icons.info_rounded,
               color: Colors.white,
               size: 20,
             ),
@@ -926,25 +926,25 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     // Validate business hours (8 AM - 5 PM)
     if (_startTime.hour < 8 || _startTime.hour >= 17 || _endTime.hour < 8 || _endTime.hour >= 17) {
       _showSnackBar('Working hours are from 8:00 AM to 5:00 PM only', Colors.red);
       return;
     }
-    
-    // Validate date - only allow booking from tomorrow onwards (except for editing existing schedules)
+
+    // Validate date - allow booking from today onwards
     if (widget.schedule == null) { // Only check for new schedules, not when editing
       final today = DateTime.now();
       final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
       final todayOnly = DateTime(today.year, today.month, today.day);
-      
-      if (selectedDateOnly.isAtSameMomentAs(todayOnly) || selectedDateOnly.isBefore(todayOnly)) {
-        _showSnackBar('Schedules can only be booked from tomorrow onwards', Colors.red);
+
+      if (selectedDateOnly.isBefore(todayOnly)) {
+        _showSnackBar('Cannot schedule appointments for past dates', Colors.red);
         return;
       }
     }
-    
+
     FocusScope.of(context).unfocus();
 
     setState(() {
