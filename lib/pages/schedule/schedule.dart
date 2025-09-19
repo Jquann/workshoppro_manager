@@ -158,7 +158,7 @@ class _SchedulePageState extends State<SchedulePage> with TickerProviderStateMix
                           });
                         },
                         decoration: InputDecoration(
-                          hintText: 'Search schedules, customers, services...',
+                          hintText: 'Search',
                           hintStyle: TextStyle(
                             color: _kGrey,
                             fontSize: (14 * s).clamp(13, 16),
