@@ -58,18 +58,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     'Transmission Service',
   ];
 
-  // Parts categories from add_service.dart
-  final List<String> _partsCategories = [
-    'Body',
-    'Brakes',
-    'Consumables',
-    'Electrical',
-    'Engine',
-    'Exhaust',
-    'Maintenance',
-    'Suspension',
-    'Transmission',
-  ];
+  List<String> _partsCategories = [];
+  bool _partsCatsLoading = true;
 
   // Animation controllers
   late AnimationController _fadeAnimationController;
@@ -87,6 +77,7 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
 
     // Load customers data
     _loadCustomers();
+    _loadPartsCategories();
 
     // Initialize animations
     _fadeAnimationController = AnimationController(
@@ -353,16 +344,32 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
           const SizedBox(height: 20),
           _buildFormField(
             label: 'Parts Category (Optional)',
-            child: DropdownButtonFormField<String>(
+            child: _partsCatsLoading
+                ? TextFormField(
+              enabled: false,
+              decoration: _input('Loading categories...', icon: Icons.category),
+            )
+                : DropdownButtonFormField<String>(
               decoration: _input('Select parts category', icon: Icons.category),
-              value: _selectedPartsCategory,
+              value: (_selectedPartsCategory != null &&
+                  _partsCategories.contains(_selectedPartsCategory))
+                  ? _selectedPartsCategory
+                  : null, // avoid assertion if preselected value isn't in list
               hint: const Text('Select category'),
-              items: _partsCategories.map((category) {
-                return DropdownMenuItem(
-                  value: category,
-                  child: Text(category),
-                );
-              }).toList(),
+              isExpanded: true,
+              items: (() {
+                // If editing and the record has a category that no longer exists,
+                // we still show it at the top to avoid breaking the value binding.
+                final items = List<String>.from(_partsCategories);
+                if (_selectedPartsCategory != null &&
+                    !items.contains(_selectedPartsCategory)) {
+                  items.insert(0, _selectedPartsCategory!);
+                }
+                return items
+                    .map((category) =>
+                    DropdownMenuItem(value: category, child: Text(category)))
+                    .toList();
+              })(),
               onChanged: (value) {
                 setState(() {
                   _selectedPartsCategory = value;
@@ -1004,4 +1011,23 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       });
     }
   }
+
+  Future<void> _loadPartsCategories() async {
+    try {
+      final snap = await _firestore.collection('inventory_parts').get();
+      final cats = snap.docs.map((d) => d.id).toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      if (!mounted) return;
+      setState(() {
+        _partsCategories = cats;
+        _partsCatsLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _partsCatsLoading = false);
+      _showSnackBar('Failed to load parts categories: $e', _kError);
+    }
+  }
+
 }
