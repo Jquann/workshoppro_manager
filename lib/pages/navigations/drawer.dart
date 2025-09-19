@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'navigation.dart';
+import '../../services/auth_service.dart';
+import '../auth/login.dart';
 
 class MainAppWithDrawer extends StatelessWidget {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -22,7 +24,40 @@ class MainAppWithDrawer extends StatelessWidget {
   }
 }
 
-class CustomDrawer extends StatelessWidget {
+class CustomDrawer extends StatefulWidget {
+  @override
+  _CustomDrawerState createState() => _CustomDrawerState();
+}
+
+class _CustomDrawerState extends State<CustomDrawer> {
+  final AuthService _authService = AuthService();
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await _authService.getUserData();
+      if (mounted) {
+        setState(() {
+          _userData = userData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -40,15 +75,24 @@ class CustomDrawer extends StatelessWidget {
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Color(0xFF007AFF),
-                      child: Icon(
-                        Icons.person,
-                        size: 40,
-                        color: Colors.white,
-                      ),
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Icon(
+                              Icons.person,
+                              size: 40,
+                              color: Colors.white,
+                            ),
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'John Doe',
+                      _userData?['name'] ?? 'Loading...',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
@@ -57,12 +101,30 @@ class CustomDrawer extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'john.doe@company.com',
+                      _userData?['email'] ?? (_authService.currentUser?.email ?? 'Loading...'),
                       style: TextStyle(
                         fontSize: 14,
                         color: Color(0xFF8E8E93),
                       ),
                     ),
+                    if (_userData?['role'] != null) ...[
+                      SizedBox(height: 4),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF007AFF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _userData!['role'].toString().toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF007AFF),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -82,7 +144,7 @@ class CustomDrawer extends StatelessWidget {
                       title: 'Profile',
                       onTap: () {
                         Navigator.pop(context);
-                        _showProfileDialog(context);
+                        Navigator.pushNamed(context, '/view_profile');
                       },
                     ),
                     _buildDrawerItem(
@@ -90,9 +152,7 @@ class CustomDrawer extends StatelessWidget {
                       title: 'Settings',
                       onTap: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Settings clicked')),
-                        );
+                        _showSnackBar(context, 'Settings feature coming soon!');
                       },
                     ),
                     _buildDrawerItem(
@@ -100,9 +160,7 @@ class CustomDrawer extends StatelessWidget {
                       title: 'Help & Support',
                       onTap: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Help & Support clicked')),
-                        );
+                        _showHelpDialog(context);
                       },
                     ),
                     _buildDrawerItem(
@@ -166,7 +224,7 @@ class CustomDrawer extends StatelessWidget {
     );
   }
 
-  void _showProfileDialog(BuildContext context) {
+  void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -175,7 +233,7 @@ class CustomDrawer extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            'Profile',
+            'Help & Support',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
@@ -185,13 +243,27 @@ class CustomDrawer extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Name: John Doe'),
-              SizedBox(height: 8),
-              Text('Email: john.doe@company.com'),
-              SizedBox(height: 8),
-              Text('Department: Sales'),
-              SizedBox(height: 8),
-              Text('Role: Sales Manager'),
+              Text(
+                'Need help with WorkshopPro Manager?',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 16),
+              _buildHelpItem(Icons.email, 'Email Support', 'support@workshoppro.com'),
+              SizedBox(height: 12),
+              _buildHelpItem(Icons.phone, 'Phone Support', '+1 (555) 123-4567'),
+              SizedBox(height: 12),
+              _buildHelpItem(Icons.schedule, 'Business Hours', 'Mon-Fri, 9AM-5PM'),
+              SizedBox(height: 16),
+              Text(
+                'Or visit our documentation for common questions and tutorials.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF8E8E93),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -213,6 +285,40 @@ class CustomDrawer extends StatelessWidget {
     );
   }
 
+  Widget _buildHelpItem(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: Color(0xFF007AFF),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF8E8E93),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showAboutDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -222,7 +328,7 @@ class CustomDrawer extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            'About',
+            'About WorkshopPro Manager',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
@@ -232,11 +338,64 @@ class CustomDrawer extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('CRM App'),
+              Row(
+                children: [
+                  Icon(
+                    Icons.settings,
+                    size: 32,
+                    color: Color(0xFF007AFF),
+                  ),
+                  SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WorkshopPro Manager',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Version 1.0.0',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF8E8E93),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text(
+                'A comprehensive workshop management solution for automotive service centers.',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Features:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('Version: 1.0.0'),
-              SizedBox(height: 8),
-              Text('© 2024 Company Inc.'),
+              Text(
+                '• Customer Management\n• Vehicle Tracking\n• Service Scheduling\n• Inventory Management\n• Reporting & Analytics',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF8E8E93),
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                '© 2024 WorkshopPro Inc. All rights reserved.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF8E8E93),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -266,15 +425,25 @@ class CustomDrawer extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text(
-            'Logout',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.logout,
+                color: Color(0xFFFF3B30),
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
+              ),
+            ],
           ),
           content: Text(
-            'Are you sure you want to logout?',
+            'Are you sure you want to logout? You will need to sign in again to access the app.',
             style: TextStyle(fontSize: 16),
           ),
           actions: [
@@ -291,15 +460,9 @@ class CustomDrawer extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                // Here you would implement actual logout logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Logged out successfully'),
-                    backgroundColor: Color(0xFF34C759),
-                  ),
-                );
+                await _performLogout(context);
               },
               child: Text(
                 'Logout',
@@ -312,6 +475,74 @@ class CustomDrawer extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Future<void> _performLogout(BuildContext context) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    color: Color(0xFF007AFF),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Signing out...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Sign out
+      await _authService.signOut();
+
+      // Navigate to login page
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => Login()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Hide loading indicator
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        _showSnackBar(context, 'Error signing out: ${e.toString()}', isError: true);
+      }
+    }
+  }
+
+  void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Color(0xFFFF3B30) : Color(0xFF34C759),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: EdgeInsets.all(16),
+      ),
     );
   }
 }
