@@ -132,6 +132,11 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                         // Login Button
                         _buildLoginButton(),
                         
+                        const SizedBox(height: 16),
+                        
+                        // Google Sign-In Button
+                        _buildGoogleSignInButton(),
+                        
                         const SizedBox(height: 24),
                         
                         // Divider
@@ -431,6 +436,47 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildGoogleSignInButton() {
+    return SizedBox(
+      height: 52,
+      child: OutlinedButton(
+        onPressed: _isLoading ? null : _signInWithGoogle,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black,
+          side: const BorderSide(color: Color(0xFFE5E5EA)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.white,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: NetworkImage('https://developers.google.com/identity/images/g-logo.png'),
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Continue with Google',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDivider() {
     return Row(
       children: [
@@ -443,7 +489,7 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Demo Credentials',
+            'OR',
             style: TextStyle(
               fontSize: 12,
               color: Color(0xFF8E8E93),
@@ -587,6 +633,34 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
       );
 
       if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => MainAppWithDrawer(),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar(e.toString(), isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userCredential = await _authService.signInWithGoogle();
+      
+      if (userCredential != null && mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => MainAppWithDrawer(),
