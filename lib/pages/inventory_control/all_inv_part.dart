@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'inv_part_detail.dart' show PartDetailsScreen;
 import 'add_inv_part.dart';
 import '../../models/part.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 class AllInventoryPartsScreen extends StatefulWidget {
   @override
@@ -19,12 +22,23 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
   String selectedStockStatus = 'All';
   List<String> categories = [];
   bool showLowStockOnly = false; // Add low stock filter toggle
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _listening = false;
+  late final SpeechToText _stt;
 
   @override
   void initState() {
     super.initState();
+    _stt = SpeechToText();
     _fetchPartsAndFiltersFromFirestore();
     _checkAndUpdateAllLowStock(); // Automatically check low stock on app load
+  }
+
+  @override
+  void dispose() {
+    _stt.stop();
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   // Fetch all parts and build filters from Firestore
@@ -235,17 +249,40 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
                       border: Border.all(color: Colors.grey[300]!),
                     ),
                     child: TextField(
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
+                      controller: _searchCtrl,
+                      onChanged: (value) => setState(() => _searchQuery = value),
                       decoration: InputDecoration(
                         hintText: 'Search by part name, ID, or category...',
                         hintStyle: TextStyle(color: Colors.grey[500]),
                         prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 20),
+
+                        // 👇 add clear + mic
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_searchQuery.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _searchQuery = '');
+                                  FocusScope.of(context).unfocus();
+                                },
+                              ),
+                            IconButton(
+                              tooltip: _listening ? 'Stop' : 'Voice Search',
+                              icon: Icon(
+                                _listening ? Icons.mic : Icons.mic_none,
+                                color: _listening ? Colors.red : Colors.grey[600],
+                                size: 20,
+                              ),
+                              onPressed: _toggleVoice,
+                            ),
+                          ],
+                        ),
+                        // keep original styling
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       ),
                     ),
                   ),
@@ -687,4 +724,90 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
         return Icons.build;
     }
   }
+
+  Future<bool> _ensureMicPermission() async {
+    final status = await Permission.microphone.status;
+    if (status.isGranted) return true;
+    final req = await Permission.microphone.request();
+    if (req.isGranted) return true;
+
+    if (req.isPermanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enable Microphone in App Settings')),
+      );
+      await openAppSettings();
+    }
+    return false;
+  }
+
+  Future<String?> _pickLocaleId() async {
+    try {
+      final sys = await _stt.systemLocale();
+      final id = sys?.localeId;
+      if (id != null && id.isNotEmpty) return id;
+    } catch (_) {}
+    return 'ms_MY';
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_listening) {
+      await _stt.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+
+    if (!await _ensureMicPermission()) return;
+
+    final available = await _stt.initialize(
+      onError: (e) {
+        debugPrint('STT error: $e');
+        if (mounted) {
+          setState(() => _listening = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Speech error: ${e.errorMsg ?? e.toString()}')),
+          );
+        }
+      },
+      onStatus: (status) {
+        final s = status.toLowerCase();
+        if (s.contains('notlistening') || s.contains('done')) {
+          if (mounted) setState(() => _listening = false);
+        }
+      },
+    );
+
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speech service unavailable. Install/enable Google app & Speech Services.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final locale = await _pickLocaleId();
+    if (mounted) setState(() => _listening = true);
+
+    await _stt.listen(
+      onResult: (result) {
+        final text = result.recognizedWords.trim();
+        _searchCtrl.text = text;
+        _searchCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: _searchCtrl.text.length),
+        );
+        if (mounted) setState(() => _searchQuery = text);
+      },
+      localeId: locale,
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: true,
+      ),
+    );
+  }
+
 }

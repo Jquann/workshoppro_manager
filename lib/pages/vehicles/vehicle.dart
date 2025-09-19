@@ -43,12 +43,33 @@ class _VehiclesPageState extends State<VehiclesPage> {
     hintText: 'Search',
     hintStyle: TextStyle(color: _kGrey, fontSize: (14 * s).clamp(13, 16)),
     prefixIcon: const Icon(Icons.search, color: _kGrey),
-    suffixIcon: IconButton(
-      tooltip: _listening ? 'Stop' : 'Voice Search',
-      icon: Icon(_listening ? Icons.mic : Icons.mic_none,
-          color: _listening ? Colors.red : _kGrey),
-      onPressed: _toggleVoice,
+    // Clear + Mic together
+    suffixIcon: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (q.isNotEmpty)
+          IconButton(
+            tooltip: 'Clear',
+            icon: const Icon(Icons.clear, color: _kGrey, size: 20),
+            onPressed: () {
+              _searchCtrl.clear();
+              setState(() => q = '');
+              FocusScope.of(context).unfocus();
+            },
+          ),
+        IconButton(
+          tooltip: _listening ? 'Stop' : 'Voice Search',
+          icon: Icon(
+            _listening ? Icons.mic : Icons.mic_none,
+            color: _listening ? Colors.red : _kGrey,
+            size: 20,
+          ),
+          onPressed: _toggleVoice,
+        ),
+      ],
     ),
+    // Helps layout since suffix is a Row
+    suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
     filled: true,
     fillColor: _kSurface,
     contentPadding: EdgeInsets.symmetric(horizontal: 14 * s, vertical: 12 * s),
@@ -57,6 +78,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
       borderSide: BorderSide.none,
     ),
   );
+
 
   // ---- Permission & locale helpers ----
   Future<bool> _ensureMicPermission() async {
