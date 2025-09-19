@@ -111,7 +111,7 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                         // Logo and Welcome Text
                         _buildHeader(),
                         
-                        const SizedBox(height: 60),
+                        const SizedBox(height: 20),
                         
                         // Email Field
                         _buildEmailField(),
@@ -535,17 +535,252 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
   }
 
   Future<void> _forgotPassword() async {
-    if (_emailController.text.trim().isEmpty) {
-      _showSnackBar('Please enter your email address first');
+    // Show dialog to get email if field is empty
+    String email = _emailController.text.trim();
+    
+    if (email.isEmpty) {
+      email = await _showForgotPasswordDialog() ?? '';
+      if (email.isEmpty) return;
+    }
+    
+    // Validate email format
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      _showSnackBar('Please enter a valid email address', isError: true);
       return;
     }
 
+    // Show confirmation dialog
+    final confirmed = await _showResetConfirmationDialog(email);
+    if (!confirmed) return;
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+      ),
+    );
+
     try {
-      await _authService.resetPassword(email: _emailController.text.trim());
-      _showSnackBar('Password reset email sent. Please check your inbox.');
+      await _authService.resetPassword(email: email);
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      // Show success dialog
+      _showSuccessDialog(email);
     } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
       _showSnackBar(e.toString(), isError: true);
     }
+  }
+
+  Future<String?> _showForgotPasswordDialog() async {
+    final emailController = TextEditingController();
+    
+    return await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Reset Password',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your email address to receive a password reset link.',
+              style: TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'Enter your email address',
+                hintStyle: const TextStyle(
+                  color: Color(0xFF8E8E93),
+                  fontWeight: FontWeight.w400,
+                ),
+                prefixIcon: const Icon(
+                  Icons.email_outlined,
+                  color: Color(0xFF8E8E93),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF2F2F7),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF8E8E93)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(emailController.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007AFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _showResetConfirmationDialog(String email) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Send Reset Link?',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
+        ),
+        content: Text(
+          'We will send a password reset link to:\n\n$email\n\nPlease check your email inbox and spam folder.',
+          style: const TextStyle(
+            color: Color(0xFF8E8E93),
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF8E8E93)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007AFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Send Link'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  void _showSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF34C759).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.check_circle,
+                color: Color(0xFF34C759),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Email Sent!',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A password reset link has been sent to:\n\n$email',
+              style: const TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF007AFF).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Color(0xFF007AFF),
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Please check your spam folder if you don\'t see the email.',
+                      style: TextStyle(
+                        color: Color(0xFF007AFF),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007AFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
