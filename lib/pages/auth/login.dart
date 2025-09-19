@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../navigations/drawer.dart';
@@ -136,16 +135,6 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                         
                         // Google Sign-In Button
                         _buildGoogleSignInButton(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Divider
-                        _buildDivider(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Quick Login Info
-                        _buildQuickLoginInfo(),
                         
                         const SizedBox(height: 60),
                       ],
@@ -473,141 +462,6 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 1,
-            color: const Color(0xFFE5E5EA),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'OR',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF8E8E93),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: const Color(0xFFE5E5EA),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickLoginInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.info_outline,
-            color: Color(0xFF007AFF),
-            size: 20,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Demo Login Credentials',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text(
-                'Email: ',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF8E8E93),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    _emailController.text = 'admin@gmail.com';
-                    Clipboard.setData(const ClipboardData(text: 'admin@gmail.com'));
-                    _showSnackBar('Email copied to clipboard');
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFE5E5EA)),
-                    ),
-                    child: const Text(
-                      'admin@gmail.com',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF007AFF),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text(
-                'Password: ',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF8E8E93),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    _passwordController.text = 'admin123';
-                    Clipboard.setData(const ClipboardData(text: 'admin123'));
-                    _showSnackBar('Password copied to clipboard');
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFE5E5EA)),
-                    ),
-                    child: const Text(
-                      'admin123',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF007AFF),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
