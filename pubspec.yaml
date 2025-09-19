@@ -56,6 +56,9 @@ dependencies:
   path_provider: ^2.1.1
   speech_to_text: ^7.3.0
 
+  # Local storage for remember me functionality
+  shared_preferences: ^2.2.2
+
 
 
 dev_dependencies:
@@ -86,6 +89,7 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/images/
+    - lib/pages/inventory_control/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

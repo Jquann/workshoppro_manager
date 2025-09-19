@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'navigation.dart';
 import '../../services/auth_service.dart';
 import '../auth/login.dart';
+import '../admin/manage_users.dart';
 
 class MainAppWithDrawer extends StatelessWidget {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -147,14 +148,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         Navigator.pushNamed(context, '/view_profile');
                       },
                     ),
-                    _buildDrawerItem(
-                      icon: Icons.settings_outlined,
-                      title: 'Settings',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _showSnackBar(context, 'Settings feature coming soon!');
-                      },
-                    ),
+                    // Admin-only features
+                    if (_userData?['role'] == 'admin') ...[
+                      _buildDrawerItem(
+                        icon: Icons.people,
+                        title: 'Manage Users',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ManageUsersPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     _buildDrawerItem(
                       icon: Icons.help_outline,
                       title: 'Help & Support',

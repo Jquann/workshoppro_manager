@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'storage_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -33,6 +34,8 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
+      // Clear saved credentials when signing out
+      await StorageService.clearCredentials();
     } catch (e) {
       throw 'Error signing out. Please try again.';
     }
