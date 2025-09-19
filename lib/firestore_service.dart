@@ -149,6 +149,14 @@ class FirestoreService {
     }
   }
 
+  Future<List<String>> getPartCategories() async {
+    final snap =
+    await FirebaseFirestore.instance.collection('inventory_parts').get();
+    final names = snap.docs.map((d) => d.id).toList();
+    names.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return names;
+  }
+
   // ------------------ END INVENTORY ------------------
 
   // ===== ID GENERATOR =====
@@ -279,32 +287,6 @@ class FirestoreService {
     vehicleId,
   ).doc(r.id).update({...r.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
 
-  Future<void> deleteService(String vehicleId, String id) =>
-      _svc(vehicleId).doc(id).delete();
-
-  // ===== Photos for service =====
-  Future<void> updateServicePhotos(
-    String vehicleId,
-    String serviceId,
-    List<String> urls,
-  ) async {
-    if (urls.isEmpty) return;
-    await _svc(vehicleId).doc(serviceId).set({
-      'photos': FieldValue.arrayUnion(urls),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  Future<void> setServicePhotos(
-    String vehicleId,
-    String serviceId,
-    List<String> urls,
-  ) async {
-    await _svc(vehicleId).doc(serviceId).update({
-      'photos': urls,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
 
   // ===== Invoices =====
   CollectionReference get _invoices => _db.collection('invoices');
