@@ -316,7 +316,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               SizedBox(height: 16),
               Text(
-                'A comprehensive workshop management solution for automotive service centers.',
+                'A workshop management solution for automotive service centers.',
                 style: TextStyle(fontSize: 14),
               ),
               SizedBox(height: 12),
@@ -337,7 +337,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               SizedBox(height: 12),
               Text(
-                '© 2024 WorkshopPro Inc. All rights reserved.',
+                '© 2025 WorkshopPro. All rights reserved.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Color(0xFF8E8E93),
