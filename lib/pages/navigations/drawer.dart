@@ -3,6 +3,7 @@ import 'navigation.dart';
 import '../../services/auth_service.dart';
 import '../auth/login.dart';
 import '../admin/manage_users.dart';
+import '../settings/settings.dart';
 
 class MainAppWithDrawer extends StatelessWidget {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -165,11 +166,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                     ],
                     _buildDrawerItem(
-                      icon: Icons.help_outline,
-                      title: 'Help & Support',
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
                       onTap: () {
                         Navigator.pop(context);
-                        _showHelpDialog(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SettingsPage(),
+                          ),
+                        );
                       },
                     ),
                     _buildDrawerItem(
@@ -230,101 +236,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
       onTap: onTap,
       splashColor: Colors.grey.withOpacity(0.1),
       hoverColor: Colors.grey.withOpacity(0.05),
-    );
-  }
-
-  void _showHelpDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Help & Support',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Need help with WorkshopPro Manager?',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-              SizedBox(height: 16),
-              _buildHelpItem(Icons.email, 'Email Support', 'support@workshoppro.com'),
-              SizedBox(height: 12),
-              _buildHelpItem(Icons.phone, 'Phone Support', '+1 (555) 123-4567'),
-              SizedBox(height: 12),
-              _buildHelpItem(Icons.schedule, 'Business Hours', 'Mon-Fri, 9AM-5PM'),
-              SizedBox(height: 16),
-              Text(
-                'Or visit our documentation for common questions and tutorials.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF8E8E93),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text(
-                'Close',
-                style: TextStyle(
-                  color: Color(0xFF007AFF),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildHelpItem(IconData icon, String title, String subtitle) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: Color(0xFF007AFF),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF8E8E93),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
