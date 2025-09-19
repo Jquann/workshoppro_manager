@@ -15,7 +15,7 @@ class _AddAccountPageState extends State<AddAccountPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
-  String _selectedRole = 'manager';
+  String _selectedRole = 'admin';
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -275,12 +275,16 @@ class _AddAccountPageState extends State<AddAccountPage> {
                       ),
                       items: [
                         DropdownMenuItem(
+                          value: 'admin',
+                          child: Text('Admin'),
+                        ),
+                        DropdownMenuItem(
                           value: 'manager',
                           child: Text('Manager'),
                         ),
                         DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Admin'),
+                          value: 'mechanic',
+                          child: Text('Mechanic'),
                         ),
                       ],
                       onChanged: (value) {
