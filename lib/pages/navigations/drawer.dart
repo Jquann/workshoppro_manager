@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'navigation.dart';
 import '../../services/auth_service.dart';
+import '../../services/image_service.dart';
 import '../auth/login.dart';
 import '../admin/manage_users.dart';
 import '../settings/settings.dart';
@@ -34,6 +36,7 @@ class CustomDrawer extends StatefulWidget {
 class _CustomDrawerState extends State<CustomDrawer> {
   final AuthService _authService = AuthService();
   Map<String, dynamic>? _userData;
+  String? _profileImagePath;
   bool _isLoading = true;
 
   @override
@@ -45,9 +48,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
   Future<void> _loadUserData() async {
     try {
       final userData = await _authService.getUserData();
+      final profileImagePath = await ImageService.getLocalProfileImagePath();
+      
       if (mounted) {
         setState(() {
           _userData = userData;
+          _profileImagePath = profileImagePath;
           _isLoading = false;
         });
       }
@@ -57,6 +63,20 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Refresh profile image - can be called when returning from profile page
+  Future<void> _refreshProfileImage() async {
+    try {
+      final profileImagePath = await ImageService.getLocalProfileImagePath();
+      if (mounted) {
+        setState(() {
+          _profileImagePath = profileImagePath;
+        });
+      }
+    } catch (e) {
+      print('Error refreshing profile image: $e');
     }
   }
 
@@ -86,11 +106,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : Icon(
-                              Icons.person,
-                              size: 40,
-                              color: Colors.white,
-                            ),
+                          : (_profileImagePath != null && _profileImagePath!.isNotEmpty)
+                              ? null // When we have a profile image, don't show the child icon
+                              : Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.white,
+                                ),
+                      backgroundImage: (_profileImagePath != null && _profileImagePath!.isNotEmpty)
+                          ? FileImage(File(_profileImagePath!))
+                          : null,
                     ),
                     SizedBox(height: 12),
                     Text(
@@ -144,9 +169,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     _buildDrawerItem(
                       icon: Icons.person_outline,
                       title: 'Profile',
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/view_profile');
+                        // Navigate to profile and refresh image when returning
+                        await Navigator.pushNamed(context, '/view_profile');
+                        _refreshProfileImage();
                       },
                     ),
                     // Admin-only features

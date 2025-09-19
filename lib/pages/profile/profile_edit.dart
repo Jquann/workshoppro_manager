@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
 import '../../services/auth_service.dart';
+import '../../services/image_service.dart';
+import '../../utils/image_picker_utils.dart';
 
 class MalaysianPhoneFormatter extends TextInputFormatter {
   @override
@@ -67,7 +70,11 @@ class _ProfileEditState extends State<ProfileEdit> {
   
   bool _isLoading = false;
   bool _hasChanges = false;
+  bool _isUploadingImage = false;
   String _selectedGender = 'Male'; // Default gender
+  File? _selectedImageFile;
+  String? _currentProfileImageUrl;
+  double _uploadProgress = 0.0;
 
   @override
   void initState() {
@@ -83,6 +90,8 @@ class _ProfileEditState extends State<ProfileEdit> {
       _phoneController.text = _formatPhoneNumber(phoneNumber);
       // Load gender
       _selectedGender = widget.currentUserData!['gender'] ?? 'Male';
+      // Load current profile image path (changed from URL to path)
+      _currentProfileImageUrl = widget.currentUserData!['profileImagePath'];
     }
     
     // Add listeners to detect changes
@@ -259,17 +268,111 @@ class _ProfileEditState extends State<ProfileEdit> {
   Widget _buildProfileHeader() {
     return Column(
       children: [
-        CircleAvatar(
-          radius: 50,
-          backgroundColor: const Color(0xFF007AFF),
-          child: Text(
-            _getInitials(),
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+        Stack(
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFE5E5EA),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: _selectedImageFile != null
+                    ? Image.file(
+                        _selectedImageFile!,
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      )
+                    : (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty)
+                        ? Image.file(
+                            File(_currentProfileImageUrl!),
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF007AFF),
+                                      Color(0xFF5856D6),
+                                    ],
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white,
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF007AFF),
+                                  Color(0xFF5856D6),
+                                ],
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.white,
+                            ),
+                          ),
+              ),
             ),
-          ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: GestureDetector(
+                onTap: _isUploadingImage ? null : _selectProfileImage,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF007AFF),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 2,
+                    ),
+                  ),
+                  child: _isUploadingImage
+                      ? Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            value: _uploadProgress > 0 ? _uploadProgress : null,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Text(
@@ -280,20 +383,27 @@ class _ProfileEditState extends State<ProfileEdit> {
             fontWeight: FontWeight.w500,
           ),
         ),
+        if (_selectedImageFile != null || (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: _isUploadingImage ? null : _removeProfileImage,
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 16,
+                color: Color(0xFFFF3B30),
+              ),
+              label: const Text(
+                'Remove Photo',
+                style: TextStyle(
+                  color: Color(0xFFFF3B30),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
       ],
     );
-  }
-
-  String _getInitials() {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return 'U';
-    
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else {
-      return name[0].toUpperCase();
-    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -541,6 +651,27 @@ class _ProfileEditState extends State<ProfileEdit> {
     });
 
     try {
+      String? profileImagePath = _currentProfileImageUrl;
+
+      // Save new image locally if selected
+      if (_selectedImageFile != null) {
+        setState(() {
+          _isUploadingImage = true;
+        });
+        
+        // Delete old image if exists
+        if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
+          await ImageService.deleteLocalProfileImage(_currentProfileImageUrl!);
+        }
+        
+        // Save new image locally
+        profileImagePath = await ImageService.saveProfileImageLocally(_selectedImageFile!);
+        
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
+
       // Create updated user data
       Map<String, dynamic> updatedData = {
         'name': _nameController.text.trim(),
@@ -551,6 +682,16 @@ class _ProfileEditState extends State<ProfileEdit> {
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
+      // Add profile image path if exists
+      if (profileImagePath != null && profileImagePath.isNotEmpty) {
+        updatedData['profileImagePath'] = profileImagePath;
+      } else {
+        // If image was removed, remove the field from Firestore
+        if (_currentProfileImageUrl != null && _selectedImageFile == null) {
+          updatedData['profileImagePath'] = null;
+        }
+      }
+
       // Save to Firestore
       await _authService.updateUserData(updatedData);
 
@@ -558,6 +699,8 @@ class _ProfileEditState extends State<ProfileEdit> {
         _showSnackBar('Profile updated successfully!', isError: false);
         setState(() {
           _hasChanges = false;
+          _selectedImageFile = null;
+          _currentProfileImageUrl = profileImagePath;
         });
         
         // Return success indicator to previous screen
@@ -571,8 +714,56 @@ class _ProfileEditState extends State<ProfileEdit> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _isUploadingImage = false;
+          _uploadProgress = 0.0;
         });
       }
+    }
+  }
+
+  Future<void> _selectProfileImage() async {
+    try {
+      print('Opening image picker dialog...');
+      
+      // Use the simpler utility for testing
+      final File? imageFile = await ImagePickerUtils.pickImage(context);
+      
+      print('Image file result: $imageFile');
+      
+      if (imageFile != null) {
+        print('Image file path: ${imageFile.path}');
+        
+        // Validate the selected image
+        if (!ImagePickerUtils.isValidImage(imageFile)) {
+          _showSnackBar('Please select a valid image file (JPG, PNG) under 10MB', isError: true);
+          return;
+        }
+
+        print('Setting selected image file in state...');
+        setState(() {
+          _selectedImageFile = imageFile;
+          _hasChanges = true;
+        });
+        print('State updated successfully');
+        _showSnackBar('Image selected successfully!');
+      } else {
+        print('No image file selected');
+      }
+    } catch (e) {
+      print('Error in _selectProfileImage: $e');
+      _showSnackBar('Error selecting image: ${e.toString()}', isError: true);
+    }
+  }
+
+  Future<void> _removeProfileImage() async {
+    setState(() {
+      _selectedImageFile = null;
+      _hasChanges = true;
+    });
+
+    // If there's a current profile image URL, mark it for deletion when saving
+    if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
+      _currentProfileImageUrl = null;
     }
   }
 
