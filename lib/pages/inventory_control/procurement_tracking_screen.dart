@@ -11,7 +11,7 @@ class ProcurementTrackingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -26,17 +26,17 @@ class ProcurementTrackingScreen extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.grey[700],
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                      child: Icon(Icons.arrow_back, color: Colors.black, size: 20),
                     ),
                   ),
                   SizedBox(width: 16),
                   Text(
                     'Procurement Requests',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.black,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                     ),
