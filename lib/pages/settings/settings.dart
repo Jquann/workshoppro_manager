@@ -240,22 +240,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           
           const SizedBox(height: 12),
-          
-          // Debug button to test Google link status
-          if (!_isGoogleLinked)
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => _resetGoogleLinkStatus(),
-                child: Text(
-                  'Debug: Set as Linked (Test)',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.blue,
-                  ),
-                ),
-              ),
-            ),
+
           
           // Benefits (only show if not linked)
           if (!_isGoogleLinked)

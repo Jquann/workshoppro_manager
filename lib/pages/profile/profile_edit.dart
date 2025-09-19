@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'package:image_cropper/image_cropper.dart';
 import '../../services/auth_service.dart';
 import '../../services/image_service.dart';
 import '../../utils/image_picker_utils.dart';
@@ -235,18 +236,7 @@ class _ProfileEditState extends State<ProfileEdit> {
                     ),
                     
                     const SizedBox(height: 32),
-                    
-                    // Account Information Section
-                    _buildSectionHeader('Account Information'),
-                    const SizedBox(height: 16),
-                    
-                    _buildReadOnlyField(
-                      label: 'Email Address',
-                      value: widget.currentUserData?['email'] ?? _authService.currentUser?.email ?? 'Not available',
-                      icon: Icons.email_outlined,
-                    ),
-                    
-                    const SizedBox(height: 40),
+
                     
                     // Save Button
                     _buildSaveButton(),
@@ -343,7 +333,7 @@ class _ProfileEditState extends State<ProfileEdit> {
               bottom: 0,
               right: 0,
               child: GestureDetector(
-                onTap: _isUploadingImage ? null : _selectProfileImage,
+                onTap: _isUploadingImage ? null : () => _showImageSourceDialog(),
                 child: Container(
                   width: 36,
                   height: 36,
@@ -386,20 +376,41 @@ class _ProfileEditState extends State<ProfileEdit> {
         if (_selectedImageFile != null || (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty))
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: TextButton.icon(
-              onPressed: _isUploadingImage ? null : _removeProfileImage,
-              icon: const Icon(
-                Icons.delete_outline,
-                size: 16,
-                color: Color(0xFFFF3B30),
-              ),
-              label: const Text(
-                'Remove Photo',
-                style: TextStyle(
-                  color: Color(0xFFFF3B30),
-                  fontSize: 14,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: _isUploadingImage ? null : _editCurrentImage,
+                  icon: const Icon(
+                    Icons.crop_outlined,
+                    size: 16,
+                    color: Color(0xFF007AFF),
+                  ),
+                  label: const Text(
+                    'Crop Photo',
+                    style: TextStyle(
+                      color: Color(0xFF007AFF),
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                TextButton.icon(
+                  onPressed: _isUploadingImage ? null : _removeProfileImage,
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 16,
+                    color: Color(0xFFFF3B30),
+                  ),
+                  label: const Text(
+                    'Remove Photo',
+                    style: TextStyle(
+                      color: Color(0xFFFF3B30),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -721,6 +732,103 @@ class _ProfileEditState extends State<ProfileEdit> {
     }
   }
 
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Profile Picture',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+            ),
+          ),
+          content: const Text(
+            'How would you like to add your profile picture?',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Color(0xFF8E8E93),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _selectProfileImageWithoutCrop();
+              },
+              child: const Text(
+                'No Crop',
+                style: TextStyle(
+                  color: Color(0xFF007AFF),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _selectProfileImage();
+              },
+              child: const Text(
+                'Crop to Square',
+                style: TextStyle(
+                  color: Color(0xFF007AFF),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _selectProfileImageWithoutCrop() async {
+    try {
+      print('Opening image picker dialog (no crop)...');
+      
+      final File? imageFile = await ImagePickerUtils.pickImage(context);
+      
+      print('Image file result: $imageFile');
+      
+      if (imageFile != null) {
+        print('Image file path: ${imageFile.path}');
+        
+        // Validate the selected image
+        if (!ImagePickerUtils.isValidImage(imageFile)) {
+          _showSnackBar('Please select a valid image file (JPG, PNG) under 10MB', isError: true);
+          return;
+        }
+
+        print('Setting selected image file in state (no crop)...');
+        setState(() {
+          _selectedImageFile = imageFile;
+          _hasChanges = true;
+        });
+        print('State updated successfully');
+        _showSnackBar('Image selected successfully!');
+      } else {
+        print('No image file selected');
+      }
+    } catch (e) {
+      print('Error in _selectProfileImageWithoutCrop: $e');
+      _showSnackBar('Error selecting image: ${e.toString()}', isError: true);
+    }
+  }
+
   Future<void> _selectProfileImage() async {
     try {
       print('Opening image picker dialog...');
@@ -739,19 +847,131 @@ class _ProfileEditState extends State<ProfileEdit> {
           return;
         }
 
-        print('Setting selected image file in state...');
-        setState(() {
-          _selectedImageFile = imageFile;
-          _hasChanges = true;
-        });
-        print('State updated successfully');
-        _showSnackBar('Image selected successfully!');
+        // Crop the image to 1:1 aspect ratio
+        print('Opening image cropper...');
+        
+        try {
+          final croppedFile = await ImageCropper().cropImage(
+            sourcePath: imageFile.path,
+            aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+            maxWidth: 512,
+            maxHeight: 512,
+            compressFormat: ImageCompressFormat.jpg,
+            compressQuality: 90,
+            uiSettings: [
+              AndroidUiSettings(
+                toolbarTitle: 'Crop Profile Picture',
+                toolbarColor: const Color(0xFF007AFF),
+                toolbarWidgetColor: Colors.white,
+                initAspectRatio: CropAspectRatioPreset.square,
+                lockAspectRatio: true,
+                hideBottomControls: false,
+                showCropGrid: true,
+              ),
+              IOSUiSettings(
+                title: 'Crop Profile Picture',
+                aspectRatioLockEnabled: true,
+                resetAspectRatioEnabled: false,
+              ),
+            ],
+          );
+
+          if (croppedFile != null) {
+            print('Setting cropped image file in state...');
+            setState(() {
+              _selectedImageFile = File(croppedFile.path);
+              _hasChanges = true;
+            });
+            print('State updated successfully');
+            _showSnackBar('Image cropped and selected successfully!');
+          } else {
+            print('Image cropping was cancelled');
+            _showSnackBar('Image cropping cancelled');
+          }
+        } catch (cropError) {
+          print('Error during cropping: $cropError');
+          _showSnackBar('Error cropping image. Using original image.', isError: true);
+          
+          // Fallback: use original image if cropping fails
+          setState(() {
+            _selectedImageFile = imageFile;
+            _hasChanges = true;
+          });
+          _showSnackBar('Image selected successfully (cropping skipped)');
+        }
       } else {
         print('No image file selected');
       }
     } catch (e) {
       print('Error in _selectProfileImage: $e');
-      _showSnackBar('Error selecting image: ${e.toString()}', isError: true);
+      _showSnackBar('Error selecting or cropping image: ${e.toString()}', isError: true);
+    }
+  }
+
+  Future<void> _editCurrentImage() async {
+    try {
+      File? imageToEdit;
+      
+      // Determine which image to edit
+      if (_selectedImageFile != null) {
+        imageToEdit = _selectedImageFile!;
+      } else if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
+        imageToEdit = File(_currentProfileImageUrl!);
+      }
+      
+      if (imageToEdit == null || !await imageToEdit.exists()) {
+        _showSnackBar('No image found to edit', isError: true);
+        return;
+      }
+
+      print('Opening image cropper for existing image...');
+      
+      // Crop the existing image to 1:1 aspect ratio
+      try {
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: imageToEdit.path,
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+          maxWidth: 512,
+          maxHeight: 512,
+          compressFormat: ImageCompressFormat.jpg,
+          compressQuality: 90,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Profile Picture',
+              toolbarColor: const Color(0xFF007AFF),
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              hideBottomControls: false,
+              showCropGrid: true,
+            ),
+            IOSUiSettings(
+              title: 'Crop Profile Picture',
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+            ),
+          ],
+        );
+
+        if (croppedFile != null) {
+          print('Setting cropped image file in state...');
+          setState(() {
+            _selectedImageFile = File(croppedFile.path);
+            _hasChanges = true;
+          });
+          print('State updated successfully');
+          _showSnackBar('Image cropped successfully!');
+        } else {
+          print('Image cropping was cancelled');
+          _showSnackBar('Image cropping cancelled');
+        }
+      } catch (cropError) {
+        print('Error during cropping: $cropError');
+        _showSnackBar('Error cropping image: ${cropError.toString()}', isError: true);
+      }
+    } catch (e) {
+      print('Error in _editCurrentImage: $e');
+      _showSnackBar('Error cropping image: ${e.toString()}', isError: true);
     }
   }
 

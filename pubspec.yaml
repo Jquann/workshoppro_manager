@@ -44,6 +44,7 @@ dependencies:
 
   # Image handling
   image_picker: ^1.0.5
+  image_cropper: ^8.0.2
 
   # Permission handling for barcode scanner
   permission_handler: ^11.3.1
