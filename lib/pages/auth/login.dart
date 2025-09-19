@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
+import '../../services/storage_service.dart';
 import '../navigations/drawer.dart';
 
 class Login extends StatefulWidget {
@@ -54,9 +55,27 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
       curve: Curves.easeIn,
     ));
     
+    // Load saved credentials if remember me was enabled
+    _loadSavedCredentials();
+    
     // Start animations
     _fadeController.forward();
     _slideController.forward();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final savedCredentials = await StorageService.getSavedCredentials();
+      if (savedCredentials != null && mounted) {
+        setState(() {
+          _emailController.text = savedCredentials['email'] ?? '';
+          _passwordController.text = savedCredentials['password'] ?? '';
+          _rememberMe = savedCredentials['rememberMe'] ?? false;
+        });
+      }
+    } catch (e) {
+      print('Error loading saved credentials: $e');
+    }
   }
 
   @override
@@ -558,6 +577,13 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
       await _authService.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+      );
+
+      // Save credentials if remember me is checked
+      await StorageService.saveCredentials(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        rememberMe: _rememberMe,
       );
 
       if (mounted) {

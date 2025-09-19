@@ -60,6 +60,28 @@ class _ProfileState extends State<Profile> {
     }
   }
 
+  // Format phone number for display
+  String _formatPhoneNumber(String phoneNumber) {
+    // Remove all non-digit characters
+    String digits = phoneNumber.trim().replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present
+    if (digits.isNotEmpty && !digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Format based on length
+    if (digits.length == 10) {
+      // Format: 012-345 6789
+      return '${digits.substring(0, 3)}-${digits.substring(3, 6)} ${digits.substring(6)}';
+    } else if (digits.length == 11) {
+      // Format: 012-3456 7890
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)} ${digits.substring(7)}';
+    }
+    
+    return digits.isNotEmpty ? digits : 'Not provided'; // Return digits if format doesn't match
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,19 +102,6 @@ class _ProfileState extends State<Profile> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: _navigateToEditProfile,
-            child: Text(
-              'Edit',
-              style: TextStyle(
-                color: const Color(0xFF007AFF),
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Center(
@@ -171,7 +180,7 @@ class _ProfileState extends State<Profile> {
                         
                         _buildReadOnlyField(
                           label: 'Phone Number',
-                          value: _userData?['phone'] ?? 'Not provided',
+                          value: _formatPhoneNumber(_userData?['phone'] ?? ''),
                           icon: Icons.phone_outlined,
                         ),
                         

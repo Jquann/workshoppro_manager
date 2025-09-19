@@ -55,6 +55,9 @@ dependencies:
   printing: ^5.11.0
   path_provider: ^2.1.1
   speech_to_text: ^7.3.0
+  
+  # Local storage for remember me functionality
+  shared_preferences: ^2.2.2
 
 
 
