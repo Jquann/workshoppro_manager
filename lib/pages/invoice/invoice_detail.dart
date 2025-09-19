@@ -208,10 +208,21 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     setState(() => _isLoading = true);
 
     try {
+      // Generate PDF bytes using the static method
+      final pdfBytes = await InvoicePdfService.generateInvoicePdf(
+        _currentInvoice,
+      );
+
+      // Save PDF to device storage with invoiceId_timestamp format
+      final filePath = await InvoicePdfService.saveInvoicePdf(
+        _currentInvoice,
+        pdfBytes,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invoice PDF saved successfully!'),
+            content: Text('Invoice PDF saved successfully!\nPath: $filePath'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
@@ -326,12 +337,13 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white,
         actions: [
-          // Send Invoice PDF to Email Button
-          IconButton(
-            icon: const Icon(Icons.email),
-            onPressed: _sendInvoivePdfToEmail,
-            tooltip: 'Send Invoice via Email',
-          ),
+          // Send Invoice PDF to Email Button - only show when status is Approved
+          if (_currentInvoice.status.toLowerCase() == 'approved')
+            IconButton(
+              icon: const Icon(Icons.email),
+              onPressed: _sendInvoivePdfToEmail,
+              tooltip: 'Send Invoice via Email',
+            ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: _exportInvoiceToPdf,
