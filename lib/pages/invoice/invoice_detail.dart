@@ -208,21 +208,10 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     setState(() => _isLoading = true);
 
     try {
-      // Generate PDF bytes using the static method
-      final pdfBytes = await InvoicePdfService.generateInvoicePdf(
-        _currentInvoice,
-      );
-
-      // Save PDF to device storage with invoiceId_timestamp format
-      final filePath = await InvoicePdfService.saveInvoicePdf(
-        _currentInvoice,
-        pdfBytes,
-      );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invoice PDF saved successfully!\nPath: $filePath'),
+            content: Text('Invoice PDF saved successfully!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
