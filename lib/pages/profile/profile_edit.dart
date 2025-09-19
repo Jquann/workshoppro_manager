@@ -236,17 +236,6 @@ class _ProfileEditState extends State<ProfileEdit> {
                     
                     const SizedBox(height: 32),
                     
-                    // Account Information Section
-                    _buildSectionHeader('Account Information'),
-                    const SizedBox(height: 16),
-                    
-                    _buildReadOnlyField(
-                      label: 'Email Address',
-                      value: widget.currentUserData?['email'] ?? _authService.currentUser?.email ?? 'Not available',
-                      icon: Icons.email_outlined,
-                    ),
-                    
-                    const SizedBox(height: 40),
                     
                     // Save Button
                     _buildSaveButton(),

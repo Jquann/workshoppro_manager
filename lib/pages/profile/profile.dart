@@ -250,17 +250,6 @@ class _ProfileState extends State<Profile> {
                         
                         const SizedBox(height: 32),
                         
-                        // Account Information Section
-                        _buildSectionHeader('Account Information'),
-                        const SizedBox(height: 16),
-                        
-                        _buildReadOnlyField(
-                          label: 'Email Address',
-                          value: _userData?['email'] ?? _authService.currentUser?.email ?? 'Not available',
-                          icon: Icons.email_outlined,
-                        ),
-                        
-                        const SizedBox(height: 40),
                         
                         // Edit Profile Button
                         _buildEditProfileButton(),
