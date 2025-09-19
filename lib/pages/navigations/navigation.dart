@@ -16,7 +16,7 @@ class MainNavigationPage extends StatefulWidget {
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
-  int _selectedIndex = 2; // default view
+  int _selectedIndex = 0; // default view
 
   List<Widget> get _pages => [
     // Vehicles Page
