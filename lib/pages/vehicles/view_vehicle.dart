@@ -15,7 +15,6 @@ const String kRestorePassword = 'admin123'; // TODO: change this
 String _statusFilter = 'all';
 final List<String> _statusTabs = const [
   'all',
-  ServiceRecordModel.statusAssign,      // 'scheduled'
   ServiceRecordModel.statusInProgress,  // 'in progress'
   ServiceRecordModel.statusCompleted,   // 'completed'
   ServiceRecordModel.statusCancel,      // 'cancelled'
@@ -462,8 +461,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     final s = (raw.isEmpty ? '' : raw).trim().toLowerCase();
     if (s.contains('cancel')) return ServiceRecordModel.statusCancel;
     if (s.contains('complete')) return ServiceRecordModel.statusCompleted;
-    if (s.contains('progress')) return ServiceRecordModel.statusInProgress;
-    return ServiceRecordModel.statusAssign; // default bucket: scheduled
+    return ServiceRecordModel.statusInProgress; // default bucket: scheduled
   }
 
   List<ServiceRecordModel> _filterByStatus(List<ServiceRecordModel> list) {
@@ -474,7 +472,6 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
   String _statusLabel(String key) {
     switch (key) {
       case 'all': return 'All';
-      case ServiceRecordModel.statusAssign: return 'Scheduled';
       case ServiceRecordModel.statusInProgress: return 'In progress';
       case ServiceRecordModel.statusCompleted: return 'Completed';
       case ServiceRecordModel.statusCancel: return 'Cancelled';
@@ -696,16 +693,13 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     final s = (raw.isEmpty ? '' : raw).trim().toLowerCase();
 
     if (s == ServiceRecordModel.statusCancel || s.contains('cancel')) {
-      return (icon: Icons.cancel_rounded, color: _kDanger, bg: _kDanger.withValues(alpha: 0.10), label: 'Cancelled');
+      return (icon: Icons.cancel_rounded, color: _kDanger,  bg: _kDanger.withValues(alpha: 0.10), label: 'Cancelled');
     }
-    if (s == ServiceRecordModel.statusCompleted || s.contains('completed')) {
+    if (s == ServiceRecordModel.statusCompleted || s.contains('complete')) {
       return (icon: Icons.verified_rounded, color: _kSuccess, bg: _kSuccess.withValues(alpha: 0.10), label: 'Completed');
     }
-    if (s == ServiceRecordModel.statusInProgress || s.contains('in progress')) {
-      return (icon: Icons.build_circle_rounded, color: _kWarning, bg: _kWarning.withValues(alpha: 0.10), label: 'In progress');
-    }
-    // default -> scheduled
-    return (icon: Icons.event_available_rounded, color: _kPrimary, bg: _kPrimary.withValues(alpha: 0.10), label: 'Scheduled');
+    // default -> in progress
+    return (icon: Icons.build_circle_rounded, color: _kWarning, bg: _kWarning.withValues(alpha: 0.10), label: 'In progress');
   }
 
   Widget _statusPill(String text, Color color, double s) {

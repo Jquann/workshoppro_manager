@@ -813,7 +813,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
       mechanic: _mech.text.trim(),
-      status: ServiceRecordModel.statusAssign, // <-- ALWAYS auto 'assign'
+      status: ServiceRecordModel.statusInProgress,
       parts: List.of(_parts),
       labor: laborLines,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
