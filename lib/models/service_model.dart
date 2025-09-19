@@ -4,11 +4,13 @@ class PartLine {
   final String name;
   final int quantity;
   final double unitPrice;
+  final String? category; // optional
 
   const PartLine({
     required this.name,
     required this.quantity,
     required this.unitPrice,
+    this.category,
   });
 
   factory PartLine.fromMap(Map<String, dynamic> m) => PartLine(
@@ -19,12 +21,14 @@ class PartLine {
     unitPrice: (m['unitPrice'] is num)
         ? (m['unitPrice'] as num).toDouble()
         : double.tryParse('${m['unitPrice']}') ?? 0.0,
+    category: (m['category'] ?? m['partsCategory'])?.toString(),
   );
 
   Map<String, dynamic> toMap() => {
     'name': name,
     'quantity': quantity,
     'unitPrice': unitPrice,
+    if (category != null && category!.isNotEmpty) 'category': category,
   };
 }
 
@@ -61,7 +65,7 @@ class ServiceRecordModel {
   List<PartLine> parts;
   List<LaborLine> labor;
   String? notes;
-  String? partsCategory; // Added parts category field for service records
+  String? partsCategory; // optional: record-level category
 
   // Firestore timestamps
   DateTime? createdAt;
@@ -82,7 +86,7 @@ class ServiceRecordModel {
     required this.date,
     required this.description,
     required this.mechanic,
-    this.status = statusAssign, // Default to "assign"
+    this.status = statusInProgress, // default so it shows under your tabs
     this.parts = const [],
     this.labor = const [],
     this.notes,
@@ -107,18 +111,35 @@ class ServiceRecordModel {
       (totalDb ?? (partsTotalDb ?? partsTotal) + (laborTotalDb ?? laborTotal));
 
   factory ServiceRecordModel.fromMap(String id, Map<String, dynamic> m) {
+    // date
     final ts = m['date'];
     final dt = ts is Timestamp
         ? ts.toDate()
         : DateTime.tryParse('$ts') ?? DateTime.now();
 
-    final partsList = (m['parts'] as List?) ?? const [];
-    final laborList = (m['labor'] as List?) ?? const [];
+    // make a list of maps, ignoring any non-map entries (e.g. stray doubles)
+    List<Map<String, dynamic>> _asListOfMaps(dynamic x) {
+      if (x is List) {
+        return x
+            .where((e) => e is Map)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      if (x is Map) {
+        return x.values
+            .where((e) => e is Map)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      return const [];
+    }
 
-    // Parse timestamps safely
-    DateTime? parseTimestamp(dynamic value) {
-      if (value is Timestamp) return value.toDate();
-      if (value is String) return DateTime.tryParse(value);
+    final partsList = _asListOfMaps(m['parts']);
+    final laborList = _asListOfMaps(m['labor']);
+
+    DateTime? _parseTs(dynamic v) {
+      if (v is Timestamp) return v.toDate();
+      if (v is String) return DateTime.tryParse(v);
       return null;
     }
 
@@ -127,23 +148,17 @@ class ServiceRecordModel {
       date: dt,
       description: (m['description'] ?? '').toString(),
       mechanic: (m['mechanic'] ?? '').toString(),
-      status: (m['status'] ?? statusAssign).toString(),
-      parts: partsList
-          .map((e) => PartLine.fromMap(Map<String, dynamic>.from(e as Map)))
-          .toList(),
-      labor: laborList
-          .map((e) => LaborLine.fromMap(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      status: (m['status'] ?? statusInProgress).toString(),
+      parts: partsList.map((e) => PartLine.fromMap(e)).toList(),
+      labor: laborList.map((e) => LaborLine.fromMap(e)).toList(),
       notes: (m['notes'] as String?),
       partsCategory: (m['partsCategory'] as String?),
-      createdAt: parseTimestamp(m['createdAt']),
-      updatedAt: parseTimestamp(m['updatedAt']),
-      partsTotalDb: (m['partsTotal'] is num)
-          ? (m['partsTotal'] as num).toDouble()
-          : null,
-      laborTotalDb: (m['laborTotal'] is num)
-          ? (m['laborTotal'] as num).toDouble()
-          : null,
+      createdAt: _parseTs(m['createdAt']),
+      updatedAt: _parseTs(m['updatedAt']),
+      partsTotalDb:
+      (m['partsTotal'] is num) ? (m['partsTotal'] as num).toDouble() : null,
+      laborTotalDb:
+      (m['laborTotal'] is num) ? (m['laborTotal'] as num).toDouble() : null,
       totalDb: (m['total'] is num) ? (m['total'] as num).toDouble() : null,
     );
   }
@@ -160,7 +175,8 @@ class ServiceRecordModel {
       'parts': parts.map((e) => e.toMap()).toList(),
       'labor': labor.map((e) => e.toMap()).toList(),
       if (notes != null && notes!.isNotEmpty) 'notes': notes,
-      if (partsCategory != null && partsCategory!.isNotEmpty) 'partsCategory': partsCategory,
+      if (partsCategory != null && partsCategory!.isNotEmpty)
+        'partsCategory': partsCategory,
       // denormalized
       'partsTotal': p,
       'laborTotal': l,

@@ -621,7 +621,26 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
           StreamBuilder<List<ServiceRecordModel>>(
             stream: db.serviceStream(v.id),
             builder: (context, sSnap) {
-              if (!sSnap.hasData) {
+              // 1) show query/mapping errors instead of spinning forever
+              if (sSnap.hasError) {
+                return Padding(
+                  padding: EdgeInsets.all(24 * s),
+                  child: Column(
+                    children: [
+                      Icon(Icons.error_outline, color: _kDanger, size: 28 * s),
+                      SizedBox(height: 8 * s),
+                      Text(
+                        'Failed to load services.\n${sSnap.error}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _kGrey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // 2) show initial/progress state
+              if (sSnap.connectionState == ConnectionState.waiting && !sSnap.hasData) {
                 return Padding(
                   padding: EdgeInsets.all(24 * s),
                   child: Center(
@@ -632,7 +651,8 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                   ),
                 );
               }
-              final items = sSnap.data!;
+
+              final items = sSnap.data ?? const <ServiceRecordModel>[];
               final filtered = _filterByStatus(items);
 
               if (filtered.isEmpty) {
@@ -641,28 +661,15 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                   child: Center(
                     child: Column(
                       children: [
-                        Icon(
-                          Icons.inbox_rounded,
-                          size: 48 * s,
-                          color: _kGrey.withValues(alpha: 0.5),
-                        ),
+                        Icon(Icons.inbox_rounded, size: 48 * s, color: _kGrey.withValues(alpha: 0.5)),
                         SizedBox(height: 12 * s),
                         Text(
                           'No ${_statusLabel(_statusFilter).toLowerCase()} records',
-                          style: TextStyle(
-                            color: _kGrey,
-                            fontSize: 16 * s,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: TextStyle(color: _kGrey, fontSize: 16 * s, fontWeight: FontWeight.w500),
                         ),
                         SizedBox(height: 4 * s),
-                        Text(
-                          'Try a different status',
-                          style: TextStyle(
-                            color: _kGrey.withValues(alpha: 0.7),
-                            fontSize: 14 * s,
-                          ),
-                        ),
+                        Text('Try a different status',
+                            style: TextStyle(color: _kGrey.withValues(alpha: 0.7), fontSize: 14 * s)),
                       ],
                     ),
                   ),
@@ -676,7 +683,6 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                     final index = entry.key;
                     final r = entry.value;
                     final isLastItem = index == filtered.length - 1;
-
                     return _buildServiceRecordCard(r, v.id, s, isLastItem);
                   }).toList(),
                 ),
