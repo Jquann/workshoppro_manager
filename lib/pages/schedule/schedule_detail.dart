@@ -244,21 +244,24 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => _showStatusEditDialog(schedule),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _kGrey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.edit,
-                      size: 16,
-                      color: _kGrey,
+                // Only show status edit icon if status is not completed or cancelled
+                if (schedule.status.toLowerCase() != 'completed' && 
+                    schedule.status.toLowerCase() != 'cancelled')
+                  GestureDetector(
+                    onTap: () => _showStatusEditDialog(schedule),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _kGrey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: _kGrey,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -790,6 +793,16 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
   }
 
   void _showStatusEditDialog(ScheduleModel schedule) {
+    // Prevent editing if status is completed or cancelled
+    if (schedule.status.toLowerCase() == 'completed' || 
+        schedule.status.toLowerCase() == 'cancelled') {
+      _showSnackBar(
+        'Cannot edit status. Schedule is already ${_getStatusText(schedule.status).toLowerCase()}.', 
+        _kError
+      );
+      return;
+    }
+
     final List<String> allowedStatuses = ['scheduled', 'in_progress', 'cancelled'];
     String selectedStatus = schedule.status;
 
