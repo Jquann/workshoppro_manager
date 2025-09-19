@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'add_account.dart';
+import 'user_details.dart';
 
 class ManageUsersPage extends StatefulWidget {
   @override
@@ -12,8 +13,15 @@ class ManageUsersPage extends StatefulWidget {
 class _ManageUsersPageState extends State<ManageUsersPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  bool _isLoading = false;
   String _selectedFilter = 'All'; // Filter state
+
+  // Helper method to truncate text with ellipsis
+  String _truncateText(String text, {int maxLength = 15}) {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return '${text.substring(0, maxLength)}...';
+  }
 
   // Helper method to get role priority for sorting
   int _getRolePriority(String role) {
@@ -49,164 +57,6 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
     });
 
     return filteredUsers;
-  }
-
-  Future<void> _updateUserRole(String userId, String newRole) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'role': newRole,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Role updated successfully!'),
-            backgroundColor: Color(0xFF34C759),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: EdgeInsets.all(16),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating role: ${e.toString()}'),
-            backgroundColor: Color(0xFFFF3B30),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: EdgeInsets.all(16),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  void _showRoleDialog(String userId, String currentRole, String userName) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        String selectedRole = currentRole;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Icon(
-                    Icons.security,
-                    color: Color(0xFF007AFF),
-                    size: 24,
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Change Role',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Change role for $userName:',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  SizedBox(height: 16),
-                  RadioListTile<String>(
-                    title: Text('Admin'),
-                    subtitle: Text('Full administrative access'),
-                    value: 'admin',
-                    groupValue: selectedRole,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedRole = value!;
-                      });
-                    },
-                    activeColor: Color(0xFFFF3B30),
-                  ),
-                  RadioListTile<String>(
-                    title: Text('Manager'),
-                    subtitle: Text('Standard user access'),
-                    value: 'manager',
-                    groupValue: selectedRole,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedRole = value!;
-                      });
-                    },
-                    activeColor: Color(0xFF007AFF),
-                  ),
-                  RadioListTile<String>(
-                    title: Text('Mechanic'),
-                    subtitle: Text('Workshop mechanic access'),
-                    value: 'mechanic',
-                    groupValue: selectedRole,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedRole = value!;
-                      });
-                    },
-                    activeColor: Color(0xFF34C759),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Color(0xFF8E8E93),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: selectedRole == currentRole ? null : () {
-                    Navigator.of(context).pop();
-                    _updateUserRole(userId, selectedRole);
-                  },
-                  child: Text(
-                    'Update',
-                    style: TextStyle(
-                      color: selectedRole == currentRole ? Color(0xFF8E8E93) : Color(0xFF007AFF),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -482,7 +332,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                     ),
                   ),
                   title: Text(
-                    name,
+                    _truncateText(name, maxLength: 20),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -494,7 +344,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                     children: [
                       SizedBox(height: 4),
                       Text(
-                        email,
+                        _truncateText(email, maxLength: 20),
                         style: TextStyle(
                           fontSize: 14,
                           color: Color(0xFF8E8E93),
@@ -542,15 +392,23 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                             ),
                           ),
                         )
-                      : IconButton(
-                          icon: Icon(
-                            Icons.edit,
-                            color: Color(0xFF007AFF),
-                          ),
-                          onPressed: _isLoading ? null : () {
-                            _showRoleDialog(userId, role, name);
-                          },
+                      : Icon(
+                          Icons.arrow_forward_ios,
+                          color: Color(0xFF8E8E93),
+                          size: 16,
                         ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserDetailsPage(
+                          userId: userId,
+                          userData: userData,
+                          isCurrentUser: isCurrentUser,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               );
             },
