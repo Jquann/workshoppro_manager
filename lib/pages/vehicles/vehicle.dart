@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 import '../../models/vehicle_model.dart';
@@ -80,8 +81,6 @@ class _VehiclesPageState extends State<VehiclesPage> {
       final id = sys?.localeId;
       if (id != null && id.isNotEmpty) return id;
     } catch (_) {}
-    // Fallbacks (uncomment one if needed)
-    // return 'en_US';
     return 'ms_MY';
   }
 
@@ -325,6 +324,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
       child: Icon(Icons.directions_car, color: _kGrey, size: (26 * s).clamp(22, 28)),
     );
   }
+
 }
 
 /// ===================== INACTIVE VEHICLES PAGE =====================
