@@ -190,13 +190,13 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(),
-                _buildChartsTab(),
-                _buildTopPartsTab(),
-              ],
-            ),
+        controller: _tabController,
+        children: [
+          _buildOverviewTab(),
+          _buildChartsTab(),
+          _buildTopPartsTab(),
+        ],
+      ),
     );
   }
 
@@ -514,30 +514,30 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
           Expanded(
             child: topUsedParts.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info_outline, size: 64, color: Colors.grey[400]),
-                        SizedBox(height: 16),
-                        Text(
-                          'No usage data available',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, size: 64, color: Colors.grey[400]),
+                  SizedBox(height: 16),
+                  Text(
+                    'No usage data available',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
                     ),
-                  )
-                : ListView.builder(
-                    padding: EdgeInsets.all(16),
-                    itemCount: topUsedParts.length,
-                    itemBuilder: (context, index) {
-                      final part = topUsedParts[index];
-                      return _buildTopPartCard(part, index + 1);
-                    },
                   ),
+                ],
+              ),
+            )
+                : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: topUsedParts.length,
+              itemBuilder: (context, index) {
+                final part = topUsedParts[index];
+                return _buildTopPartCard(part, index + 1);
+              },
+            ),
           ),
         ],
       ),

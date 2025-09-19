@@ -474,7 +474,7 @@ class PartDetailsScreen extends StatelessWidget {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: Offset(0, 2),
                   ),
@@ -557,7 +557,7 @@ class PartDetailsScreen extends StatelessWidget {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.08),
+                            color: Colors.blue.withValues(alpha: 0.08),
                             blurRadius: 20,
                             offset: Offset(0, 8),
                           ),
@@ -573,7 +573,7 @@ class PartDetailsScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _getCategoryColor(displayPart.category).withOpacity(0.3),
+                                  color: _getCategoryColor(displayPart.category).withValues(alpha: 0.3),
                                   blurRadius: 8,
                                   offset: Offset(0, 4),
                                 ),
@@ -637,7 +637,7 @@ class PartDetailsScreen extends StatelessWidget {
                         children: [
                           _buildInfoTag(
                             'Category: ${displayPart.category}',
-                            _getCategoryColor(displayPart.category).withOpacity(0.15),
+                            _getCategoryColor(displayPart.category).withValues(alpha: 0.15),
                             textColor: _getCategoryColor(displayPart.category),
                           ),
                           SizedBox(width: 8),
@@ -736,29 +736,57 @@ class PartDetailsScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 24),
 
-                    // Recent Activity Section
+                    // Vehicle Usage Section
                     _buildSectionCard(
-                      title: 'Recent Activity',
-                      icon: Icons.history,
-                      color: Colors.blue,
-                      child: Column(
-                        children: [
-                          _buildUsageHistoryItem(
-                            'Used in Service',
-                            '03/03/2025',
-                            '-2',
-                            Colors.red,
-                            Icons.remove_circle_outline,
-                          ),
-                          SizedBox(height: 12),
-                          _buildUsageHistoryItem(
-                            'Restocked',
-                            '01/03/2025',
-                            '+20',
-                            Colors.green,
-                            Icons.add_circle_outline,
-                          ),
-                        ],
+                      title: 'Vehicle Usage',
+                      icon: Icons.directions_car,
+                      color: Colors.teal,
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: fetchPartUsageFromVehicles(displayPart.name),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return Text('No vehicle usage found.', style: TextStyle(color: Colors.grey[600]));
+                          }
+                          final usageList = snapshot.data!;
+                          if (usageList.length > 3) {
+                            return SizedBox(
+                              height: 300,
+                              child: ListView.builder(
+                                itemCount: usageList.length,
+                                itemBuilder: (context, idx) {
+                                  final usage = usageList[idx];
+                                  return Card(
+                                    margin: EdgeInsets.symmetric(vertical: 4),
+                                    child: ListTile(
+                                      title: Text(usage['description'] ?? ''),
+                                      subtitle: Text('Vehicle: ${usage['vehicleId']} | Service Record: ${usage['serviceRecordId']}'),
+                                      trailing: Text('Qty: ${usage['quantity']}', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          } else {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final usage in usageList) ...[
+                                  Card(
+                                    margin: EdgeInsets.symmetric(vertical: 4),
+                                    child: ListTile(
+                                      title: Text(usage['description'] ?? ''),
+                                      subtitle: Text('Vehicle: ${usage['vehicleId']} | Service Record: ${usage['serviceRecordId']}'),
+                                      trailing: Text('Qty: ${usage['quantity']}', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ]
+                              ],
+                            );
+                          }
+                        },
                       ),
                     ),
                     SizedBox(height: 24),
@@ -871,7 +899,7 @@ class PartDetailsScreen extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: Offset(0, 8),
           ),
@@ -885,7 +913,7 @@ class PartDetailsScreen extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -974,92 +1002,6 @@ class PartDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUsageHistoryItem(
-      String title,
-      String date,
-      String quantity,
-      Color quantityColor,
-      IconData icon,
-      ) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey[300]!,
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.08),
-            blurRadius: 15,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: quantityColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: quantityColor,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  date,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: quantityColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: quantityColor.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              quantity,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: quantityColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStockLevelBar(int quantity, int reorderLevel) {
     double percent = reorderLevel > 0 ? (quantity / reorderLevel) : 1.0;
     percent = percent.clamp(0.0, 2.0);
@@ -1101,14 +1043,6 @@ class PartDetailsScreen extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              // Text(
-              //   '$quantity / $reorderLevel',
-              //   style: TextStyle(
-              //     fontSize: 14,
-              //     fontWeight: FontWeight.bold,
-              //     color: barColor,
-              //   ),
-              // ),
             ],
           ),
           SizedBox(height: 12),
@@ -1178,5 +1112,96 @@ class PartDetailsScreen extends StatelessWidget {
         return Icons.build;
     }
   }
-}
 
+  // Add the missing fetchPartUsageFromVehicles method to the class
+  Future<List<Map<String, dynamic>>> fetchPartUsageFromVehicles(String partName) async {
+    final firestore = FirebaseFirestore.instance;
+    final vehiclesSnapshot = await firestore.collection('vehicles').get();
+    final usageList = <Map<String, dynamic>>[];
+    for (final vehicleDoc in vehiclesSnapshot.docs) {
+      final serviceRecordsSnapshot = await firestore
+          .collection('vehicles')
+          .doc(vehicleDoc.id)
+          .collection('service_records')
+          .get();
+      for (final serviceDoc in serviceRecordsSnapshot.docs) {
+        final serviceData = serviceDoc.data();
+        final description = serviceData['description'] ?? '';
+        final dateStr = serviceData['date'] ?? serviceData['createdAt'] ?? '';
+        DateTime? parsedDate;
+        try {
+          // Try to parse Firestore date string, fallback to null if fails
+          parsedDate = _parseServiceRecordDate(dateStr);
+        } catch (_) {
+          parsedDate = null;
+        }
+        if (serviceData.containsKey('parts')) {
+          final parts = List<dynamic>.from(serviceData['parts']);
+          for (final partRaw in parts) {
+            final part = Map<String, dynamic>.from(partRaw);
+            if (part['name'] != null && part['name'].toString().trim().toLowerCase() == partName.trim().toLowerCase()) {
+              usageList.add({
+                'description': description,
+                'quantity': part['quantity'],
+                'vehicleId': vehicleDoc.id,
+                'serviceRecordId': serviceDoc.id,
+                'date': parsedDate,
+                'dateStr': dateStr,
+              });
+            }
+          }
+        }
+      }
+    }
+    // Sort by date descending (most recent first)
+    usageList.sort((a, b) {
+      final ad = a['date'] as DateTime?;
+      final bd = b['date'] as DateTime?;
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return bd.compareTo(ad);
+    });
+    // Remove 'date' field if not needed for display
+    for (final u in usageList) { u.remove('date'); }
+    return usageList;
+  }
+
+  // Helper to parse Firestore date string
+  DateTime? _parseServiceRecordDate(String dateStr) {
+    // Example: "17 September 2025 at 21:32:34 UTC+8"
+    try {
+      final regex = RegExp(r'^(\d{1,2}) ([A-Za-z]+) (\d{4}) at (\d{2}):(\d{2}):(\d{2})');
+      final match = regex.firstMatch(dateStr);
+      if (match != null) {
+        final day = int.parse(match.group(1)!);
+        final monthStr = match.group(2)!;
+        final year = int.parse(match.group(3)!);
+        final hour = int.parse(match.group(4)!);
+        final minute = int.parse(match.group(5)!);
+        final second = int.parse(match.group(6)!);
+        final month = _monthStringToInt(monthStr);
+        return DateTime(year, month, day, hour, minute, second);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  int _monthStringToInt(String month) {
+    switch (month.toLowerCase()) {
+      case 'january': return 1;
+      case 'february': return 2;
+      case 'march': return 3;
+      case 'april': return 4;
+      case 'may': return 5;
+      case 'june': return 6;
+      case 'july': return 7;
+      case 'august': return 8;
+      case 'september': return 9;
+      case 'october': return 10;
+      case 'november': return 11;
+      case 'december': return 12;
+      default: return 1;
+    }
+  }
+}
