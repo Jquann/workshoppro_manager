@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 
@@ -77,13 +78,16 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   final _form = GlobalKey<FormState>();
   final _date = TextEditingController();
   final _desc = TextEditingController();
-  final _mech = TextEditingController();
   final _notes = TextEditingController();
 
   final _partQty = TextEditingController();
   final _partPrice = TextEditingController();
 
   final List<PartLine> _parts = [];
+  String? _selectedMechanicId;
+  String? _selectedMechanicName;
+  List<Map<String, dynamic>> _mechanics = [];
+  bool _mechanicsLoading = true;
 
   // animations
   late final AnimationController _fadeAnimationController;
@@ -105,10 +109,11 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     super.initState();
     _date.text = _fmt(DateTime.now());
     _loadCategories();
+    _loadMechanics();
     
     // Auto-populate fields from schedule data if provided
     if (widget.mechanicName != null) {
-      _mech.text = widget.mechanicName!;
+      _selectedMechanicName = widget.mechanicName!;
     }
     if (widget.serviceType != null) {
       _desc.text = widget.serviceType!;
@@ -139,7 +144,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     _slideAnimationController.dispose();
     _date.dispose();
     _desc.dispose();
-    _mech.dispose();
     _notes.dispose();
     _partQty.dispose();
     _partPrice.dispose();
@@ -321,12 +325,63 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           const SizedBox(height: 20),
           _buildFormField(
             label: 'Mechanic',
-            child: TextFormField(
-              controller: _mech,
-              decoration: _input('Enter mechanic name', icon: Icons.person_rounded),
-              validator: _req,
-              textCapitalization: TextCapitalization.words,
-            ),
+            child: _mechanicsLoading
+                ? TextFormField(
+                    enabled: false,
+                    decoration: _input('Loading mechanics...', icon: Icons.person_rounded),
+                  )
+                : _mechanics.isEmpty
+                ? Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _kDivider),
+                      color: _kLightGrey.withValues(alpha: 0.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No mechanics found. Please add mechanics in User Management.',
+                            style: TextStyle(color: _kGrey, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : DropdownButtonFormField<String>(
+                    decoration: _input('Select mechanic', icon: Icons.person_rounded),
+                    value: _selectedMechanicId,
+                    hint: const Text('Select mechanic'),
+                    isExpanded: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select a mechanic';
+                      }
+                      return null;
+                    },
+                    items: _mechanics.map((mechanic) {
+                      return DropdownMenuItem<String>(
+                        value: mechanic['id'],
+                        child: Text(
+                          mechanic['name'] ?? 'Unknown',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedMechanicId = value;
+                        final selectedMechanic = _mechanics.firstWhere(
+                          (m) => m['id'] == value,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        _selectedMechanicName = selectedMechanic['name'];
+                      });
+                    },
+                  ),
           ),
           // NOTE: no status dropdown here — always auto "assign" on save.
         ],
@@ -841,11 +896,12 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       id: '',
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
-      mechanic: _mech.text.trim(),
+      mechanic: _selectedMechanicName ?? '',
       status: ServiceRecordModel.statusInProgress,
       parts: List.of(_parts),
       labor: laborLines,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      partsCategory: _selectedCategory,
     );
 
     // loading dialog
@@ -948,10 +1004,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       // text fields
       _date.clear();
       _desc.clear();
-      _mech.clear();
       _notes.clear();
       _partQty.clear();
       _partPrice.clear();
+
+      // mechanic selections
+      _selectedMechanicId = null;
+      _selectedMechanicName = null;
 
       // inventory selections
       _selectedCategory = null;
@@ -986,6 +1045,46 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() => _catsLoading = false);
       _showSnackBar('Failed to load categories: $e', _kError);
+    }
+  }
+
+  Future<void> _loadMechanics() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'mechanic')
+          .get();
+
+      final mechanicsList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+      
+      // Sort locally by name
+      mechanicsList.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+
+      setState(() {
+        _mechanics = mechanicsList;
+        _mechanicsLoading = false;
+        
+        // If mechanic name was provided, try to find and select the mechanic
+        if (widget.mechanicName != null) {
+          final matchingMechanic = _mechanics.firstWhere(
+            (m) => m['name'] == widget.mechanicName,
+            orElse: () => <String, dynamic>{},
+          );
+          if (matchingMechanic.isNotEmpty) {
+            _selectedMechanicId = matchingMechanic['id'];
+            _selectedMechanicName = matchingMechanic['name'];
+          }
+        }
+      });
+    } catch (e) {
+      print('Error loading mechanics: $e');
+      setState(() {
+        _mechanicsLoading = false;
+      });
     }
   }
 }

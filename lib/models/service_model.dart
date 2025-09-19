@@ -61,6 +61,7 @@ class ServiceRecordModel {
   List<PartLine> parts;
   List<LaborLine> labor;
   String? notes;
+  String? partsCategory; // Added parts category field for service records
 
   // Firestore timestamps
   DateTime? createdAt;
@@ -85,6 +86,7 @@ class ServiceRecordModel {
     this.parts = const [],
     this.labor = const [],
     this.notes,
+    this.partsCategory,
     this.createdAt,
     this.updatedAt,
     this.partsTotalDb,
@@ -133,6 +135,7 @@ class ServiceRecordModel {
           .map((e) => LaborLine.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
       notes: (m['notes'] as String?),
+      partsCategory: (m['partsCategory'] as String?),
       createdAt: parseTimestamp(m['createdAt']),
       updatedAt: parseTimestamp(m['updatedAt']),
       partsTotalDb: (m['partsTotal'] is num)
@@ -157,6 +160,7 @@ class ServiceRecordModel {
       'parts': parts.map((e) => e.toMap()).toList(),
       'labor': labor.map((e) => e.toMap()).toList(),
       if (notes != null && notes!.isNotEmpty) 'notes': notes,
+      if (partsCategory != null && partsCategory!.isNotEmpty) 'partsCategory': partsCategory,
       // denormalized
       'partsTotal': p,
       'laborTotal': l,

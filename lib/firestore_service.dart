@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/models/vehicle_model.dart';
 import 'models/invoice.dart';
 import 'models/service_model.dart';
-import 'package:workshoppro_manager/firestore_service.dart';
 
 class FirestoreService {
   final _db = FirebaseFirestore.instance;

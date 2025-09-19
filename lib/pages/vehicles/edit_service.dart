@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 
@@ -74,9 +75,6 @@ class _EditServiceState extends State<EditService>
   late final TextEditingController _desc = TextEditingController(
     text: widget.record.description,
   );
-  late final TextEditingController _mech = TextEditingController(
-    text: widget.record.mechanic,
-  );
   late final TextEditingController _notes = TextEditingController(
     text: widget.record.notes ?? '',
   );
@@ -92,6 +90,12 @@ class _EditServiceState extends State<EditService>
   String? _selectedCategory;
   List<InventoryPartVM> _availableParts = [];
   InventoryPartVM? _selectedPart;
+
+  // Mechanics dropdown
+  List<Map<String, dynamic>> _mechanics = [];
+  bool _mechanicsLoading = true;
+  String? _selectedMechanicId;
+  String? _selectedMechanicName;
 
   // Inventory indices
   final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
@@ -128,6 +132,13 @@ class _EditServiceState extends State<EditService>
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
     _loadCategories();
+    _loadMechanics();
+
+    // Initialize selected mechanic based on current record
+    _selectedMechanicName = widget.record.mechanic;
+    
+    // Initialize selected category based on current record
+    _selectedCategory = widget.record.partsCategory;
   }
 
   @override
@@ -136,7 +147,6 @@ class _EditServiceState extends State<EditService>
     _slideAnimationController.dispose();
     _date.dispose();
     _desc.dispose();
-    _mech.dispose();
     _notes.dispose();
     _partQty.dispose();
     _partPrice.dispose();
@@ -144,6 +154,11 @@ class _EditServiceState extends State<EditService>
   }
 
   // ---------- utils ----------
+  
+  bool get _isEditable => 
+      widget.record.status != ServiceRecordModel.statusCompleted && 
+      widget.record.status != ServiceRecordModel.statusCancel;
+  
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
 
   String? _req(String? v) =>
@@ -262,6 +277,93 @@ class _EditServiceState extends State<EditService>
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
+    
+    // Show read-only view for completed/cancelled services
+    if (!_isEditable) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 120,
+              floating: false,
+              pinned: true,
+              elevation: 0,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              leading: Container(
+                margin: const EdgeInsets.all(8),
+                child: Material(
+                  color: _kLightGrey,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: _kDarkText,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                centerTitle: true,
+                title: Text(
+                  'Service Record (Read-Only)',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: _kDarkText,
+                  ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock, color: Colors.orange.shade600, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Service Cannot Be Edited',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'This service is ${widget.record.status} and cannot be modified.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       body: CustomScrollView(
@@ -457,15 +559,86 @@ class _EditServiceState extends State<EditService>
           const SizedBox(height: 20),
           _buildFormField(
             label: 'Mechanic',
-            child: TextFormField(
-              controller: _mech,
-              decoration: _input(
-                'Enter mechanic name',
-                icon: Icons.person_rounded,
-              ),
-              validator: _req,
-              textCapitalization: TextCapitalization.words,
-            ),
+            child: _mechanicsLoading
+                ? Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _kDivider.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_rounded, size: 20, color: _kGrey),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(_kPrimary),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Loading mechanics...',
+                          style: TextStyle(color: _kGrey, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  )
+                : _mechanics.isEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.orange),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No mechanics found. Please add mechanics in User Management.',
+                                style: TextStyle(color: _kGrey, fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : DropdownButtonFormField<String>(
+                        decoration: _input('Select mechanic', icon: Icons.person_rounded),
+                        value: _selectedMechanicId,
+                        hint: const Text('Select mechanic'),
+                        isExpanded: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select a mechanic';
+                          }
+                          return null;
+                        },
+                        items: _mechanics.map((mechanic) {
+                          return DropdownMenuItem<String>(
+                            value: mechanic['id'],
+                            child: Text(
+                              mechanic['name'] ?? 'Unknown',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedMechanicId = value;
+                            final selectedMechanic = _mechanics.firstWhere(
+                              (m) => m['id'] == value,
+                              orElse: () => <String, dynamic>{},
+                            );
+                            _selectedMechanicName = selectedMechanic['name'];
+                          });
+                        },
+                      ),
           ),
         ],
       ),
@@ -1017,6 +1190,46 @@ class _EditServiceState extends State<EditService>
     ),
   );
 
+  // ----- sync to schedules -----
+
+  Future<void> _syncToSchedules(ServiceRecordModel serviceRecord) async {
+    try {
+      // Find schedules that match this service record
+      final schedules = await FirebaseFirestore.instance
+          .collection('schedules')
+          .where('vehicleId', isEqualTo: widget.vehicleId)
+          .where('serviceType', isEqualTo: serviceRecord.description)
+          .get();
+
+      for (final doc in schedules.docs) {
+        final scheduleData = doc.data();
+        
+        // Map service status to schedule status
+        String scheduleStatus;
+        switch (serviceRecord.status) {
+          case ServiceRecordModel.statusCompleted:
+            scheduleStatus = 'completed';
+            break;
+          case ServiceRecordModel.statusCancel:
+            scheduleStatus = 'cancelled';
+            break;
+          default:
+            scheduleStatus = scheduleData['status'] ?? 'pending';
+        }
+
+        // Update schedule with service data
+        await doc.reference.update({
+          'status': scheduleStatus,
+          'mechanic': serviceRecord.mechanic,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      print('Error syncing to schedules: $e');
+      // Don't throw - sync failure shouldn't break service update
+    }
+  }
+
   // ----- save -----
 
   Future<void> _onSave() async {
@@ -1032,13 +1245,14 @@ class _EditServiceState extends State<EditService>
       id: widget.record.id,
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
-      mechanic: _mech.text.trim(),
+      mechanic: _selectedMechanicName ?? widget.record.mechanic,
       status: widget.record.status,
       parts: List.of(_parts),
       labor: hours > 0
           ? [LaborLine(name: 'Labor', hours: hours, rate: rate)]
           : const [],
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      partsCategory: _selectedCategory,
     );
 
     // loading dialog
@@ -1064,7 +1278,10 @@ class _EditServiceState extends State<EditService>
       // 1) Update service
       await FirestoreService().updateService(widget.vehicleId, updated);
 
-      // 1.1) update Invoice if completed
+      // 1.1) Sync to related schedules
+      await _syncToSchedules(updated);
+
+      // 1.2) update Invoice if completed
       if (updated.status == ServiceRecordModel.statusCompleted) {
         // Get vehicle information for invoice creation
         final vehicle = await FirestoreService().getVehicle(widget.vehicleId);
@@ -1192,7 +1409,6 @@ class _EditServiceState extends State<EditService>
       // restore text fields
       _date.text  = _fmt(widget.record.date);
       _desc.text  = widget.record.description;
-      _mech.text  = widget.record.mechanic;
       _notes.text = widget.record.notes ?? '';
 
       // restore parts (deep copy)
@@ -1212,6 +1428,47 @@ class _EditServiceState extends State<EditService>
     _showSnackBar('Restored original service data', _kSuccess);
   }
 
+
+  Future<void> _loadMechanics() async {
+    try {
+      setState(() => _mechanicsLoading = true);
+      
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'mechanic')
+          .get();
+
+      final mechanicsList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+      
+      // Sort locally by name
+      mechanicsList.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+
+      if (!mounted) return;
+      setState(() {
+        _mechanics = mechanicsList;
+        _mechanicsLoading = false;
+        
+        // If current mechanic name exists, try to find and select it
+        if (_selectedMechanicName != null && _selectedMechanicName!.isNotEmpty) {
+          final matchingMechanic = mechanicsList.firstWhere(
+            (m) => m['name'] == _selectedMechanicName,
+            orElse: () => {},
+          );
+          if (matchingMechanic.isNotEmpty) {
+            _selectedMechanicId = matchingMechanic['id'];
+          }
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _mechanicsLoading = false);
+      _showSnackBar('Failed to load mechanics: $e', _kError);
+    }
+  }
 
   Future<void> _loadCategories() async {
     try {
