@@ -352,7 +352,13 @@ class _EditServiceState extends State<EditService>
                         const SizedBox(height: 24),
                         _buildNotesCard(),
                         const SizedBox(height: 32),
-                        _buildSaveButton(),
+                        Row(
+                          children: [
+                            Expanded(child: _buildResetButton()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSaveButton()),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -608,6 +614,22 @@ class _EditServiceState extends State<EditService>
       ),
     );
   }
+
+  Widget _buildResetButton() {
+    return OutlinedButton.icon(
+      onPressed: _reset,
+      icon: const Icon(Icons.restart_alt_rounded),
+      label: const Text('Reset'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _kDarkText,
+        minimumSize: const Size.fromHeight(56),
+        side: const BorderSide(color: _kDivider),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+      ),
+    );
+  }
+
 
   Widget _buildTotalsCard() => Container(
     decoration: BoxDecoration(
@@ -1205,4 +1227,35 @@ class _EditServiceState extends State<EditService>
       ),
     );
   }
+
+  void _reset() {
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      // restore text fields
+      _date.text  = _fmt(widget.record.date);
+      _desc.text  = widget.record.description;
+      _mech.text  = widget.record.mechanic;
+      _notes.text = widget.record.notes ?? '';
+
+      // restore status
+      _status = widget.record.status;
+
+      // restore parts (deep copy to avoid aliasing)
+      _parts
+        ..clear()
+        ..addAll(_originalParts.map((p) =>
+            PartLine(name: p.name, quantity: p.quantity, unitPrice: p.unitPrice)));
+
+      // clear inventory pickers & temp inputs
+      _selectedCategory = null;
+      _selectedPart = null;
+      _availableParts = [];
+      _partQty.clear();
+      _partPrice.clear();
+    });
+
+    _showSnackBar('Restored original service data', _kSuccess);
+  }
+
 }
