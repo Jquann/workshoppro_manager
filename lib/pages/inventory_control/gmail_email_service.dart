@@ -60,6 +60,7 @@ class GmailEmailService {
       // helper fields for filtering and counters
       'requestDateKey': dateKey,
       'poMonthKey': poMonthKey,
+      'inventoryUpdated': false, // <-- Ensure this attribute is always present
     };
 
     // Save to Firestore first
