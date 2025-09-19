@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workshoppro_manager/models/vehicle_model.dart';
 import 'models/invoice.dart';
 import 'models/service_model.dart';
-import 'package:workshoppro_manager/firestore_service.dart';
 
 class FirestoreService {
   final _db = FirebaseFirestore.instance;
@@ -150,8 +149,9 @@ class FirestoreService {
   }
 
   Future<List<String>> getPartCategories() async {
-    final snap =
-    await FirebaseFirestore.instance.collection('inventory_parts').get();
+    final snap = await FirebaseFirestore.instance
+        .collection('inventory_parts')
+        .get();
     final names = snap.docs.map((d) => d.id).toList();
     names.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return names;
@@ -251,6 +251,34 @@ class FirestoreService {
   Stream<QuerySnapshot> get customersStream =>
       _db.collection('customers').orderBy('customerName').snapshots();
 
+  // Get customer emails by customer name
+  Future<List<Map<String, String>>> getCustomerEmailsByName(
+    String customerName,
+  ) async {
+    try {
+      final querySnapshot = await _db
+          .collection('customers')
+          .where('customerName', isEqualTo: customerName)
+          .get();
+
+      final customers = <Map<String, String>>[];
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final email = data['emailAddress'] as String?;
+        final name = data['customerName'] as String?;
+
+        if (email != null && email.isNotEmpty && name != null) {
+          customers.add({'name': name, 'email': email, 'customerId': doc.id});
+        }
+      }
+
+      return customers;
+    } catch (e) {
+      print('Error fetching customer emails: $e');
+      return [];
+    }
+  }
+
   // ===== SERVICES =====
   CollectionReference _svc(String vehicleId) =>
       _vc.doc(vehicleId).collection('service_records');
@@ -286,7 +314,6 @@ class FirestoreService {
   Future<void> updateService(String vehicleId, ServiceRecordModel r) => _svc(
     vehicleId,
   ).doc(r.id).update({...r.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
-
 
   // ===== Invoices =====
   CollectionReference get _invoices => _db.collection('invoices');

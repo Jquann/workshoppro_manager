@@ -135,24 +135,6 @@ class _InvoiceListState extends State<InvoiceList> {
     return ['All', 'Paid', 'Unpaid'];
   }
 
-  String _getActiveFiltersText() {
-    List<String> activeFilters = [];
-    if (selectedFilterValue != null && selectedFilterValue != 'All') {
-      activeFilters.add(selectedFilterValue!);
-    }
-    if (selectedStatus != null && selectedStatus != 'All') {
-      activeFilters.add(selectedStatus!);
-    }
-    if (selectedPaymentStatus != null && selectedPaymentStatus != 'All') {
-      activeFilters.add(selectedPaymentStatus!);
-    }
-
-    if (activeFilters.isEmpty) {
-      return 'No filters applied';
-    }
-    return 'Active: ${activeFilters.join(', ')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,26 +218,6 @@ class _InvoiceListState extends State<InvoiceList> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // Active filters indicator
-                          if (_getActiveFiltersText() != 'No filters applied')
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[100],
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                _getActiveFiltersText(),
-                                style: TextStyle(
-                                  color: Colors.blue[800],
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
                           const Spacer(),
                           // Results count
                           Container(
@@ -804,7 +766,7 @@ class _InvoiceListState extends State<InvoiceList> {
                                             decoration: BoxDecoration(
                                               color: _getStatusColor(
                                                 invoice.status,
-                                              ).withOpacity(0.2),
+                                              ).withValues(alpha: 0.2),
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                               border: Border.all(
@@ -833,7 +795,7 @@ class _InvoiceListState extends State<InvoiceList> {
                                             decoration: BoxDecoration(
                                               color: _getPaymentStatusColor(
                                                 invoice.paymentStatus,
-                                              ).withOpacity(0.2),
+                                              ).withValues(alpha: 0.2),
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                               border: Border.all(
