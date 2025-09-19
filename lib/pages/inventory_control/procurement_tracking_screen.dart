@@ -147,7 +147,7 @@ class ProcurementTrackingScreen extends StatelessWidget {
           border: Border.all(color: Colors.grey[200]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey[100]!,
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),

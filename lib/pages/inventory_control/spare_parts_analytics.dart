@@ -33,75 +33,114 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
 
   Future<void> _fetchAnalyticsData() async {
     setState(() => _isLoading = true);
-
     try {
-      QuerySnapshot categorySnapshot = await _firestore.collection('inventory_parts').get();
-      Map<String, Map<String, dynamic>> analytics = {};
-      Map<String, double> utilization = {};
-      List<Map<String, dynamic>> partsUsage = [];
+      // Fetch inventory parts and build a map by normalized part name and category
+      QuerySnapshot inventorySnapshot = await _firestore.collection('inventory_parts').get();
+      Map<String, Map<String, dynamic>> inventoryMap = {};
+      Map<String, List<Map<String, dynamic>>> categoryPartsMap = {};
       int totalParts = 0;
-      int totalUsed = 0;
-
-      for (var categoryDoc in categorySnapshot.docs) {
-        String categoryName = categoryDoc.id;
-        Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
-
-        int categoryTotal = 0;
-        int categoryUsed = 0;
-        int categoryLowStock = 0;
-        int categoryRequested = 0;
-
-        data.forEach((partName, partData) {
+      for (var categoryDoc in inventorySnapshot.docs) {
+        Map<String, dynamic> categoryData = categoryDoc.data() as Map<String, dynamic>;
+        categoryData.forEach((partId, partData) {
           if (partData is Map<String, dynamic>) {
-            categoryTotal++;
-            totalParts++;
-
-            int quantity = partData['quantity'] ?? 0;
-            int originalQuantity = partData['originalQuantity'] ?? quantity;
-            bool isLowStock = partData['isLowStock'] ?? false;
-            bool isRequested = partData['isRequested'] ?? false;
-
-            int usedCount = originalQuantity - quantity;
-            if (usedCount > 0) {
-              categoryUsed += usedCount;
-              totalUsed += usedCount;
-
-              // Add to parts usage list
-              partsUsage.add({
-                'partName': partName,
-                'category': categoryName,
-                'usedCount': usedCount,
-                'totalCount': originalQuantity,
-                'currentStock': quantity,
-                'utilizationRate': originalQuantity > 0 ? (usedCount / originalQuantity) * 100 : 0,
-              });
+            String nameRaw = partData['name'] ?? '';
+            String name = nameRaw.trim().toLowerCase();
+            String category = partData['category'] ?? 'Unknown';
+            if (name.isNotEmpty) {
+              inventoryMap[name] = partData;
+              categoryPartsMap.putIfAbsent(category, () => []);
+              categoryPartsMap[category]!.add({...partData, 'normalizedName': name});
+              totalParts++;
             }
-
-            if (isLowStock) categoryLowStock++;
-            if (isRequested) categoryRequested++;
           }
         });
-
-        analytics[categoryName] = {
-          'totalParts': categoryTotal,
-          'usedParts': categoryUsed,
-          'lowStockParts': categoryLowStock,
-          'requestedParts': categoryRequested,
-          'utilizationRate': categoryTotal > 0 ? (categoryUsed / categoryTotal) * 100 : 0,
-        };
-
-        utilization[categoryName] = categoryTotal > 0 ? (categoryUsed / categoryTotal) * 100 : 0;
       }
 
-      // Sort parts by usage count
+      // Fetch part usage from invoices collection
+      QuerySnapshot invoiceSnapshot = await _firestore.collection('invoices').get();
+      Map<String, int> partUsageMap = {};
+      int totalPartsUsed = 0;
+      for (var invoiceDoc in invoiceSnapshot.docs) {
+        Map<String, dynamic> data = invoiceDoc.data() as Map<String, dynamic>;
+        List<dynamic> parts = data['parts'] ?? [];
+        for (var part in parts) {
+          String partNameRaw = part['name'] ?? '';
+          String partName = partNameRaw.trim().toLowerCase();
+          int quantity = part['quantity'] ?? 0;
+          if (partName.isEmpty) continue;
+          partUsageMap[partName] = (partUsageMap[partName] ?? 0) + quantity;
+          totalPartsUsed += quantity;
+        }
+      }
+
+      // Build topUsedParts with usage, stock, and category, and utilization
+      List<Map<String, dynamic>> partsUsage = [];
+      partUsageMap.forEach((partNameNormalized, usedCount) {
+        Map<String, dynamic>? inventory = inventoryMap[partNameNormalized];
+        String partNameRaw = inventory != null ? (inventory['name'] ?? partNameNormalized) : partNameNormalized;
+        final isMissing = inventory == null;
+        final currentStock = !isMissing ? (inventory['quantity'] ?? 0) : 0;
+        final category = !isMissing ? inventory['category'] ?? '-' : '-';
+        double utilizationRate;
+        String utilizationLabel;
+        if (isMissing) {
+          utilizationRate = 100.0;
+          utilizationLabel = 'Not in inventory';
+        } else if (currentStock == 0) {
+          utilizationRate = 100.0;
+          utilizationLabel = 'Out of stock';
+        } else {
+          utilizationRate = (usedCount + currentStock) > 0 ? (usedCount / (usedCount + currentStock)) * 100 : 0.0;
+          utilizationLabel = '${utilizationRate.toStringAsFixed(1)}%';
+        }
+        partsUsage.add({
+          'partName': partNameRaw,
+          'usedCount': usedCount,
+          'category': category,
+          'currentStock': currentStock,
+          'utilizationRate': utilizationRate,
+          'utilizationLabel': utilizationLabel,
+          'inventoryMissing': isMissing,
+        });
+      });
       partsUsage.sort((a, b) => b['usedCount'].compareTo(a['usedCount']));
 
+      // Build category analytics
+      Map<String, Map<String, dynamic>> categoryAnalyticsMap = {};
+      Map<String, double> utilizationPercentagesMap = {};
+      categoryPartsMap.forEach((category, partsList) {
+        int totalCategoryParts = partsList.length;
+        int lowStockParts = 0;
+        int requestedParts = 0;
+        int totalCategoryStock = 0;
+        int totalCategoryUsed = 0;
+        for (var part in partsList) {
+          String normalizedName = part['normalizedName'] ?? '';
+          int stock = part['quantity'] ?? 0;
+          int threshold = part['lowStockThreshold'] ?? 0;
+          int used = partUsageMap[normalizedName] ?? 0;
+          totalCategoryStock += stock;
+          totalCategoryUsed += used;
+          if (stock <= threshold) lowStockParts++;
+          if (used > 0) requestedParts++;
+        }
+        double utilizationRate = (totalCategoryUsed + totalCategoryStock) > 0 ? (totalCategoryUsed / (totalCategoryUsed + totalCategoryStock)) * 100 : 0.0;
+        categoryAnalyticsMap[category] = {
+          'totalParts': totalCategoryParts,
+          'usedParts': totalCategoryUsed,
+          'lowStockParts': lowStockParts,
+          'requestedParts': requestedParts,
+          'utilizationRate': utilizationRate,
+        };
+        utilizationPercentagesMap[category] = utilizationRate;
+      });
+
       setState(() {
-        categoryAnalytics = analytics;
-        utilizationPercentages = utilization;
         topUsedParts = partsUsage.take(10).toList();
+        totalUsedCount = totalPartsUsed;
         totalPartsCount = totalParts;
-        totalUsedCount = totalUsed;
+        categoryAnalytics = categoryAnalyticsMap;
+        utilizationPercentages = utilizationPercentagesMap;
         _isLoading = false;
       });
     } catch (e) {
@@ -140,6 +179,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
           labelColor: Colors.blue,
           unselectedLabelColor: Colors.grey,
           indicatorColor: Colors.blue,
+          isScrollable: true, // Add scrollable tabs for better responsiveness
           tabs: [
             Tab(text: 'Overview'),
             Tab(text: 'Usage Charts'),
@@ -168,50 +208,73 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Summary Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Total Parts',
-                    totalPartsCount.toString(),
-                    Icons.inventory,
-                    Colors.blue,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Parts Used',
-                    totalUsedCount.toString(),
-                    Icons.trending_up,
-                    Colors.green,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Categories',
-                    categoryAnalytics.length.toString(),
-                    Icons.category,
-                    Colors.orange,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Avg Utilization',
-                    '${_calculateAverageUtilization().toStringAsFixed(1)}%',
-                    Icons.percent,
-                    Colors.purple,
-                  ),
-                ),
-              ],
+            // Summary Cards - Improved responsive layout
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 600) {
+                  // Mobile layout - stack cards vertically
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Total Parts',
+                              totalPartsCount.toString(),
+                              Icons.inventory,
+                              Colors.blue,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Parts Used',
+                              totalUsedCount.toString(),
+                              Icons.trending_up,
+                              Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Categories',
+                              categoryAnalytics.length.toString(),
+                              Icons.category,
+                              Colors.orange,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Avg Utilization',
+                              '${_calculateAverageUtilization().toStringAsFixed(1)}%',
+                              Icons.percent,
+                              Colors.purple,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  // Tablet/Desktop layout - single row
+                  return Row(
+                    children: [
+                      Expanded(child: _buildSummaryCard('Total Parts', totalPartsCount.toString(), Icons.inventory, Colors.blue)),
+                      SizedBox(width: 12),
+                      Expanded(child: _buildSummaryCard('Parts Used', totalUsedCount.toString(), Icons.trending_up, Colors.green)),
+                      SizedBox(width: 12),
+                      Expanded(child: _buildSummaryCard('Categories', categoryAnalytics.length.toString(), Icons.category, Colors.orange)),
+                      SizedBox(width: 12),
+                      Expanded(child: _buildSummaryCard('Avg Utilization', '${_calculateAverageUtilization().toStringAsFixed(1)}%', Icons.percent, Colors.purple)),
+                    ],
+                  );
+                }
+              },
             ),
             SizedBox(height: 24),
 
@@ -251,9 +314,8 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               ),
             ),
             SizedBox(height: 16),
-
             Container(
-              height: 200,
+              height: 250, // Increased height for better visibility
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -264,9 +326,9 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
             ),
             SizedBox(height: 24),
 
-            // Parts Distribution Pie Chart
+            // Top Used Parts Table
             Text(
-              'Parts Distribution',
+              'Top Used Spare Parts',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -274,16 +336,14 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               ),
             ),
             SizedBox(height: 16),
-
             Container(
-              height: 250,
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey[200]!),
               ),
-              child: _buildDistributionChart(),
+              child: _buildTopUsedPartsTable(),
             ),
             SizedBox(height: 24),
 
@@ -297,9 +357,8 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               ),
             ),
             SizedBox(height: 16),
-
             Container(
-              height: 200,
+              height: 250, // Increased height for better visibility
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -309,6 +368,118 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               child: _buildUsageChart(),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopUsedPartsTable() {
+    if (topUsedParts.isEmpty) {
+      return Container(
+        height: 200,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+              SizedBox(height: 16),
+              Text(
+                'No usage data available',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        width: MediaQuery.of(context).size.width > 600
+            ? MediaQuery.of(context).size.width - 64
+            : null,
+        child: DataTable(
+          columnSpacing: 20,
+          horizontalMargin: 16,
+          headingRowHeight: 48,
+          dataRowHeight: 56,
+          headingTextStyle: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+            fontSize: 14,
+          ),
+          columns: const [
+            DataColumn(
+              label: Expanded(
+                child: Text('Part Name', overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            DataColumn(
+              label: Expanded(
+                child: Text('Category', overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            DataColumn(
+              label: Expanded(
+                child: Text('Used', overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            DataColumn(
+              label: Expanded(
+                child: Text('Stock', overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          rows: topUsedParts.map((part) {
+            return DataRow(cells: [
+              DataCell(
+                Container(
+                  width: 120,
+                  child: Text(
+                    part['partName'].toString(),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              DataCell(
+                Container(
+                  width: 80,
+                  child: Text(
+                    part['category'].toString(),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              DataCell(
+                Text(
+                  part['usedCount'].toString(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+              DataCell(
+                Text(
+                  part['currentStock'].toString(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ),
+            ]);
+          }).toList(),
         ),
       ),
     );
@@ -326,26 +497,47 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               children: [
                 Icon(Icons.star, color: Colors.orange),
                 SizedBox(width: 8),
-                Text(
-                  'Most Used Spare Parts',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                Expanded(
+                  child: Text(
+                    'Most Used Spare Parts',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.all(16),
-              itemCount: topUsedParts.length,
-              itemBuilder: (context, index) {
-                final part = topUsedParts[index];
-                return _buildTopPartCard(part, index + 1);
-              },
-            ),
+            child: topUsedParts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.info_outline, size: 64, color: Colors.grey[400]),
+                        SizedBox(height: 16),
+                        Text(
+                          'No usage data available',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.all(16),
+                    itemCount: topUsedParts.length,
+                    itemBuilder: (context, index) {
+                      final part = topUsedParts[index];
+                      return _buildTopPartCard(part, index + 1);
+                    },
+                  ),
           ),
         ],
       ),
@@ -356,9 +548,9 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha((0.1 * 255).toInt()),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withAlpha((0.3 * 255).toInt())),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,6 +567,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -387,6 +580,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               fontWeight: FontWeight.bold,
               color: color,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -407,7 +601,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha((0.1 * 255).toInt()),
             spreadRadius: 1,
             blurRadius: 3,
             offset: Offset(0, 1),
@@ -420,18 +614,21 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                categoryName,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+              Expanded(
+                child: Text(
+                  categoryName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getUtilizationColor(utilizationRate).withOpacity(0.2),
+                  color: _getUtilizationColor(utilizationRate).withAlpha((0.2 * 255).toInt()),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -447,21 +644,41 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
           ),
           SizedBox(height: 12),
 
-          Row(
-            children: [
-              Expanded(
-                child: _buildMiniStat('Total', data['totalParts'].toString(), Colors.blue),
-              ),
-              Expanded(
-                child: _buildMiniStat('Used', data['usedParts'].toString(), Colors.green),
-              ),
-              Expanded(
-                child: _buildMiniStat('Low Stock', data['lowStockParts'].toString(), Colors.orange),
-              ),
-              Expanded(
-                child: _buildMiniStat('Requested', data['requestedParts'].toString(), Colors.red),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 400) {
+                // Mobile layout - stack mini stats vertically
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _buildMiniStat('Total', data['totalParts'].toString(), Colors.blue)),
+                        SizedBox(width: 8),
+                        Expanded(child: _buildMiniStat('Used', data['usedParts'].toString(), Colors.green)),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _buildMiniStat('Low Stock', data['lowStockParts'].toString(), Colors.orange)),
+                        SizedBox(width: 8),
+                        Expanded(child: _buildMiniStat('Requested', data['requestedParts'].toString(), Colors.red)),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                // Desktop layout - single row
+                return Row(
+                  children: [
+                    Expanded(child: _buildMiniStat('Total', data['totalParts'].toString(), Colors.blue)),
+                    Expanded(child: _buildMiniStat('Used', data['usedParts'].toString(), Colors.green)),
+                    Expanded(child: _buildMiniStat('Low Stock', data['lowStockParts'].toString(), Colors.orange)),
+                    Expanded(child: _buildMiniStat('Requested', data['requestedParts'].toString(), Colors.red)),
+                  ],
+                );
+              }
+            },
           ),
 
           SizedBox(height: 12),
@@ -499,6 +716,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
             fontWeight: FontWeight.bold,
             color: color,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
         Text(
           label,
@@ -506,6 +724,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
             fontSize: 10,
             color: Colors.grey[600],
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -523,7 +742,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha((0.1 * 255).toInt()),
             spreadRadius: 1,
             blurRadius: 3,
             offset: Offset(0, 1),
@@ -565,6 +784,8 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
                 Text(
                   part['category'],
@@ -572,9 +793,11 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                     fontSize: 12,
                     color: Colors.grey[600],
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 16,
                   children: [
                     Text(
                       'Used: ${part['usedCount']}',
@@ -584,7 +807,6 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    SizedBox(width: 16),
                     Text(
                       'Stock: ${part['currentStock']}',
                       style: TextStyle(
@@ -627,17 +849,35 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
 
   Widget _buildUtilizationChart() {
     if (utilizationPercentages.isEmpty) {
-      return Center(child: Text('No data available'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 48, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              'No data available',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
     }
+
     final sortedEntries = utilizationPercentages.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: sortedEntries.map((entry) {
           final percentage = entry.value;
-          final height = (percentage / 100) * 120;
+          final height = (percentage / 100) * 150; // Increased chart height
           return Container(
             margin: EdgeInsets.symmetric(horizontal: 8),
             child: Column(
@@ -654,7 +894,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                 SizedBox(height: 4),
                 Container(
                   width: 36,
-                  height: height.clamp(10.0, 120.0),
+                  height: height.clamp(10.0, 150.0),
                   decoration: BoxDecoration(
                     color: _getUtilizationColor(percentage),
                     borderRadius: BorderRadius.circular(4),
@@ -682,77 +922,38 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
     );
   }
 
-  Widget _buildDistributionChart() {
-    if (categoryAnalytics.isEmpty) {
-      return Center(child: Text('No data available'));
-    }
-    return Column(
-      children: [
-        Container(
-          height: 120,
-          child: Center(
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: _getPieChartColors(),
-                  stops: _getPieChartStops(),
-                ),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: categoryAnalytics.entries.map((entry) {
-              final index = categoryAnalytics.keys.toList().indexOf(entry.key);
-              final color = _getCategoryColor(index);
-              return Container(
-                margin: EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      entry.key,
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildUsageChart() {
     if (categoryAnalytics.isEmpty) {
-      return Center(child: Text('No data available'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 48, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              'No data available',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
     }
+
     final maxUsage = categoryAnalytics.values
         .map((data) => data['usedParts'] as int)
         .fold(0, (max, current) => current > max ? current : max);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: categoryAnalytics.entries.map((entry) {
           final usedParts = entry.value['usedParts'] as int;
-          final height = maxUsage > 0 ? (usedParts / maxUsage) * 120 : 10.0;
+          final height = maxUsage > 0 ? (usedParts / maxUsage) * 150 : 10.0;
           return Container(
             margin: EdgeInsets.symmetric(horizontal: 8),
             child: Column(
@@ -769,7 +970,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                 SizedBox(height: 4),
                 Container(
                   width: 36,
-                  height: height.clamp(10.0, 120.0),
+                  height: height.clamp(10.0, 150.0),
                   decoration: BoxDecoration(
                     color: Colors.blue,
                     borderRadius: BorderRadius.circular(4),
@@ -825,27 +1026,6 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
     return colors[index % colors.length];
   }
 
-  List<Color> _getPieChartColors() {
-    return categoryAnalytics.entries.map((entry) {
-      final index = categoryAnalytics.keys.toList().indexOf(entry.key);
-      return _getCategoryColor(index);
-    }).toList();
-  }
-
-  List<double> _getPieChartStops() {
-    final total = categoryAnalytics.values
-        .map((data) => data['totalParts'] as int)
-        .fold(0, (sum, current) => sum + current);
-
-    if (total == 0) return [1.0];
-
-    double currentStop = 0.0;
-    return categoryAnalytics.values.map((data) {
-      final percentage = (data['totalParts'] as int) / total;
-      currentStop += percentage;
-      return currentStop;
-    }).toList();
-  }
 
   double _calculateAverageUtilization() {
     if (utilizationPercentages.isEmpty) return 0.0;
