@@ -20,6 +20,28 @@ class _CRMPageState extends State<CRMPage> {
   String q = '';
   bool isAscending = true; // Default to ascending
 
+  // Format phone number for display
+  String _formatPhoneNumber(String phoneNumber) {
+    // Remove all non-digit characters
+    String digits = phoneNumber.trim().replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Add leading zero if not present
+    if (digits.isNotEmpty && !digits.startsWith('0')) {
+      digits = '0$digits';
+    }
+    
+    // Format based on length
+    if (digits.length == 10) {
+      // Format: 012-345 6789
+      return '${digits.substring(0, 3)}-${digits.substring(3, 6)} ${digits.substring(6)}';
+    } else if (digits.length == 11) {
+      // Format: 012-3456 7890
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)} ${digits.substring(7)}';
+    }
+    
+    return digits.isNotEmpty ? digits : 'Not provided'; // Return digits if format doesn't match
+  }
+
   InputDecoration _searchInput(double s) => InputDecoration(
     hintText: 'Search',
     hintStyle: TextStyle(color: _kGrey, fontSize: (14 * s).clamp(13, 16)),
@@ -313,10 +335,10 @@ class _CRMPageState extends State<CRMPage> {
     String email = customerData['emailAddress'] ?? '';
     List<String> vehicleIds = List<String>.from(customerData['vehicleIds'] ?? []);
 
-    // Create display info from contact details
+    // Create display info from contact details with formatted phone number
     String displayInfo = '';
     if (phoneNumber.isNotEmpty) {
-      displayInfo = phoneNumber;
+      displayInfo = _formatPhoneNumber(phoneNumber);
     } else if (email.isNotEmpty) {
       displayInfo = email;
     }
