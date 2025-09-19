@@ -38,13 +38,15 @@ class _ProcurementRequestDetailsPageState extends State<ProcurementRequestDetail
   }
 
   List<Map<String, dynamic>> _getSteps() {
+    final neutralColor = Colors.grey[800];
+    final deliveredColor = Colors.green[700];
     final allSteps = [
-      {'label': 'Requested', 'icon': Icons.assignment, 'color': Colors.blue},
-      {'label': 'Confirmed', 'icon': Icons.verified, 'color': Colors.green},
-      {'label': 'Ordered', 'icon': Icons.shopping_cart, 'color': Colors.orange},
-      {'label': 'Paid', 'icon': Icons.credit_card, 'color': Colors.purple},
-      {'label': 'Shipped', 'icon': Icons.local_shipping, 'color': Colors.teal},
-      {'label': 'Delivered', 'icon': Icons.location_on, 'color': Colors.green}, // changed from grey to green
+      {'label': 'Requested', 'icon': Icons.assignment_outlined, 'color': neutralColor},
+      {'label': 'Confirmed', 'icon': Icons.verified_outlined, 'color': neutralColor},
+      {'label': 'Ordered', 'icon': Icons.shopping_cart_outlined, 'color': neutralColor},
+      {'label': 'Paid', 'icon': Icons.credit_card_outlined, 'color': neutralColor},
+      {'label': 'Shipped', 'icon': Icons.local_shipping_outlined, 'color': neutralColor},
+      {'label': 'Delivered', 'icon': Icons.location_on_outlined, 'color': deliveredColor},
     ];
 
     // If status is rejected, show steps up to where rejection happened
@@ -92,17 +94,14 @@ class _ProcurementRequestDetailsPageState extends State<ProcurementRequestDetail
         Color textColor;
 
         if (isRejectedStep) {
-          iconColor = Colors.red;
-          textColor = Colors.red;
-        } else if (isCurrentStep && !isRejected) {
-          iconColor = step['color'];
-          textColor = step['color'];
-        } else if (isCompletedStep) {
-          iconColor = step['color'];
-          textColor = Colors.grey[800]!;
+          iconColor = Colors.red[700]!;
+          textColor = Colors.red[700]!;
+        } else if (step['label'] == 'Delivered') {
+          iconColor = Colors.green[700]!;
+          textColor = Colors.green[700]!;
         } else {
-          iconColor = Colors.grey[400]!;
-          textColor = Colors.grey[600]!;
+          iconColor = Colors.grey[800]!;
+          textColor = Colors.grey[900]!;
         }
 
         return Row(
@@ -112,37 +111,18 @@ class _ProcurementRequestDetailsPageState extends State<ProcurementRequestDetail
               children: [
                 Container(
                   margin: EdgeInsets.symmetric(vertical: 4),
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isRejectedStep
-                        ? Colors.red.withValues(alpha: 0.1)
-                        : (isCurrentStep || isCompletedStep)
-                            ? step['color'].withValues(alpha: 0.1)
-                            : Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isRejectedStep
-                          ? Colors.red.withValues(alpha: 0.3)
-                          : (isCurrentStep || isCompletedStep)
-                              ? step['color'].withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.3),
-                      width: isCurrentStep ? 2 : 1,
-                    ),
-                  ),
+                  padding: EdgeInsets.all(0), // No colored background
                   child: Icon(
                     step['icon'],
                     color: iconColor,
                     size: 24,
                   ),
                 ),
-                // Only show the line if not the last step
                 if (idx < steps.length - 1)
                   Container(
                     width: 2,
                     height: 32,
-                    color: isRejectedStep
-                        ? Colors.red.withValues(alpha: 0.3)
-                        : Colors.grey[300],
+                    color: Colors.grey[300],
                   ),
               ],
             ),
@@ -151,8 +131,9 @@ class _ProcurementRequestDetailsPageState extends State<ProcurementRequestDetail
               step['label'],
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: isCurrentStep ? FontWeight.bold : FontWeight.w600,
+                fontWeight: isCurrentStep ? FontWeight.bold : FontWeight.w500,
                 color: textColor,
+                letterSpacing: 0.2,
               ),
             ),
           ],

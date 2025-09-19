@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'inventory_data_manager.dart';
 
 class InventoryPartRequestsPage extends StatefulWidget {
   const InventoryPartRequestsPage({Key? key}) : super(key: key);
@@ -11,9 +12,10 @@ class InventoryPartRequestsPage extends StatefulWidget {
 class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
   final _firestore = FirebaseFirestore.instance;
 
+  // Updated sample requests to use part IDs from InventoryDataManager
   final List<Map<String, dynamic>> sampleInventoryRequests = [
     {
-      'partId': 'SP0001',
+      'partId': 'PRT001',
       'partName': 'Engine Oil (5W-30)',
       'quantityRequested': 2,
       'requester': 'Alice Tan',
@@ -23,7 +25,7 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'For scheduled maintenance'
     },
     {
-      'partId': 'SP0013',
+      'partId': 'PRT010',
       'partName': 'Water Pumps (common models)',
       'quantityRequested': 1,
       'requester': 'Bob Lee',
@@ -33,7 +35,7 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'Urgent replacement'
     },
     {
-      'partId': 'SP0015',
+      'partId': 'PRT012',
       'partName': 'Brake Pads (Front & Rear)',
       'quantityRequested': 4,
       'requester': 'Charlie Lim',
@@ -43,7 +45,7 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'Customer complaint: squeaking brakes'
     },
     {
-      'partId': 'SP0020',
+      'partId': 'PRT021',
       'partName': 'Car Batteries (12V - common sizes)',
       'quantityRequested': 1,
       'requester': 'Diana Ng',
@@ -53,7 +55,7 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'Battery replacement'
     },
     {
-      'partId': 'SP0031',
+      'partId': 'PRT031',
       'partName': 'Wiper Blades (18", 20", 22", 24")',
       'quantityRequested': 2,
       'requester': 'Eddie Wong',
@@ -82,20 +84,24 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
   Future<void> _handleRequestAction(String requestId, String partId, int quantityRequested, String action) async {
     try {
       final requestRef = _firestore.collection('inventory_requests').doc(requestId);
-      final partRef = _firestore.collection('inventory_parts').doc(partId);
+      // Fetch part details using InventoryDataManager
+      final partData = InventoryDataManager.getPartById(partId);
+      if (partData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Part not found!'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      final currentQty = partData['quantity'] ?? 0;
       if (action == 'accept') {
-        // Get current part quantity
-        final partDoc = await partRef.get();
-        final partData = partDoc.data() as Map<String, dynamic>?;
-        final currentQty = partData?['quantity'] ?? 0;
         if (currentQty < quantityRequested) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Insufficient inventory!'), backgroundColor: Colors.red),
           );
           return;
         }
-        // Update part quantity and request status
-        await partRef.update({'quantity': currentQty - quantityRequested});
+        // Update part quantity in Firestore (by partId)
+        await _firestore.collection('inventory_parts').doc(partId).update({'quantity': currentQty - quantityRequested});
         await requestRef.update({'status': 'accepted'});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Request accepted.'), backgroundColor: Colors.green),
@@ -189,6 +195,9 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
               final requester = data['requester'] ?? '-';
               final status = data['status'] ?? 'pending';
               final requestedAt = data['requestedAt'] != null ? (data['requestedAt'] as Timestamp).toDate() : null;
+              // Get procurement recommendation for this part
+              final procurement = InventoryDataManager.getProcurementRecommendation(partName, quantityRequested);
+              final supplier = procurement['recommendedSupplier'] ?? {};
               return Card(
                 margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Padding(
@@ -201,8 +210,16 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
                       Text('Requested Qty: $quantityRequested'),
                       Text('Requester: $requester'),
                       if (requestedAt != null)
-                        Text('Requested At: ${requestedAt.day}/${requestedAt.month}/${requestedAt.year} ${requestedAt.hour}:${requestedAt.minute.toString().padLeft(2, '0')}'),
+                        Text('Requested At: ${requestedAt.day}/${requestedAt.month}/${requestedAt.year} ${requestedAt.hour}:${requestedAt.minute.toString().padLeft(2, '0')}'),
                       SizedBox(height: 8),
+                      if (supplier.isNotEmpty) ...[
+                        Text('Recommended Supplier: ${supplier['name'] ?? '-'}'),
+                        Text('Unit Price: RM${supplier['unitPrice']?.toStringAsFixed(2) ?? '-'}'),
+                        Text('Lead Time: ${supplier['leadTime'] ?? '-'} days'),
+                        Text('Reliability: ${(supplier['reliabilityScore'] != null) ? (supplier['reliabilityScore'] * 100).toStringAsFixed(0) + '%' : '-'}'),
+                        Text('Total Cost: RM${supplier['totalCost']?.toStringAsFixed(2) ?? '-'}'),
+                        SizedBox(height: 8),
+                      ],
                       Row(
                         children: [
                           Chip(label: Text(status.toUpperCase()), backgroundColor: status == 'accepted' ? Colors.green[100] : status == 'rejected' ? Colors.red[100] : Colors.grey[200]),
