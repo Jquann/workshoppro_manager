@@ -86,26 +86,9 @@ class _EditServiceState extends State<EditService>
 
   // Parts list being edited
   late final List<PartLine> _parts = List.of(widget.record.parts);
-  late String _status;
-  static const List<String> _statusOptions = [
-    ServiceRecordModel.statusAssign,
-    ServiceRecordModel.statusInProgress,
-    ServiceRecordModel.statusCompleted,
-    ServiceRecordModel.statusCancel,
-  ];
 
-  // For inventory dropdowns
-  static const List<String> _categories = <String>[
-    'Body',
-    'Brakes',
-    'Consumables',
-    'Electrical',
-    'Engine',
-    'Exhaust',
-    'Maintenance',
-    'Suspension',
-    'Transmission',
-  ];
+  List<String> _categories = [];
+  bool _catsLoading = true;
   String? _selectedCategory;
   List<InventoryPartVM> _availableParts = [];
   InventoryPartVM? _selectedPart;
@@ -144,10 +127,7 @@ class _EditServiceState extends State<EditService>
         );
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
-    _status = widget.record.status;
-
-    // Preload inventory for ALL categories so we can map names->categories for delta calc.
-    _preloadInventory();
+    _loadCategories();
   }
 
   @override
@@ -215,9 +195,9 @@ class _EditServiceState extends State<EditService>
 
   // ----- inventory helpers -----
 
-  Future<void> _preloadInventory() async {
+  Future<void> _preloadInventory(List<String> categories) async {
     final svc = FirestoreService();
-    for (final c in _categories) {
+    for (final c in categories) {
       final rows = await svc.getPartsByCategory(c);
       for (final m in rows) {
         final vm = InventoryPartVM(
@@ -231,8 +211,8 @@ class _EditServiceState extends State<EditService>
         _invIndex[vm.key] = vm;
       }
     }
-    if (mounted) setState(() {});
   }
+
 
   Future<List<InventoryPartVM>> _fetchParts(String category) async {
     final rows = await FirestoreService().getPartsByCategory(category);
@@ -485,29 +465,6 @@ class _EditServiceState extends State<EditService>
               ),
               validator: _req,
               textCapitalization: TextCapitalization.words,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildFormField(
-            label: 'Status',
-            child: DropdownButtonFormField<String>(
-              value: _status,
-              isExpanded: true,
-              decoration: _input('Select status', icon: Icons.flag_rounded),
-              items: _statusOptions.map((s) {
-                return DropdownMenuItem(
-                  value: s,
-                  child: Text(
-                    s[0].toUpperCase() + s.substring(1), // nice label
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _status = v);
-              },
-              validator: _req,
             ),
           ),
         ],
@@ -1076,7 +1033,7 @@ class _EditServiceState extends State<EditService>
       date: DateTime.parse(_date.text),
       description: _desc.text.trim(),
       mechanic: _mech.text.trim(),
-      status: _status,
+      status: widget.record.status,
       parts: List.of(_parts),
       labor: hours > 0
           ? [LaborLine(name: 'Labor', hours: hours, rate: rate)]
@@ -1238,13 +1195,10 @@ class _EditServiceState extends State<EditService>
       _mech.text  = widget.record.mechanic;
       _notes.text = widget.record.notes ?? '';
 
-      // restore status
-      _status = widget.record.status;
-
-      // restore parts (deep copy to avoid aliasing)
+      // restore parts (deep copy)
       _parts
         ..clear()
-        ..addAll(_originalParts.map((p) =>
+        ..addAll(widget.record.parts.map((p) =>
             PartLine(name: p.name, quantity: p.quantity, unitPrice: p.unitPrice)));
 
       // clear inventory pickers & temp inputs
@@ -1256,6 +1210,26 @@ class _EditServiceState extends State<EditService>
     });
 
     _showSnackBar('Restored original service data', _kSuccess);
+  }
+
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await FirestoreService().getPartCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        _catsLoading = false;
+      });
+
+      // After we know the category names, preload inventory for labor calc & lookups
+      await _preloadInventory(cats);
+      if (mounted) setState(() {}); // refresh totals once inventory is in
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _catsLoading = false);
+      _showSnackBar('Failed to load categories: $e', _kError);
+    }
   }
 
 }

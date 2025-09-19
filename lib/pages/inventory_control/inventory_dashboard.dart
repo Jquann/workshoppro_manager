@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_inv_part.dart';
 import 'all_inv_part.dart';
-import 'inventory_data_manager.dart';
 import '../navigations/drawer.dart';
 import 'procurement_tracking_screen.dart';
 import 'request_inv_parts.dart';
@@ -22,13 +21,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   int lowStockParts = 0;
   bool _isLoading = true;
 
-  Map<String, int> categoryUsage = {
-    'Engine': 0,
-    'Brakes': 0,
-    'Tires': 0,
-    'Suspension': 0,
-    'Electrical': 0,
-  };
+  Map<String, int> categoryUsage = {};
 
   @override
   void initState() {
@@ -36,15 +29,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _fetchInventoryStats();
   }
 
-  // Fetch all category documents and their parts from Firestore, calculate usage, and show top 5 categories
+  // Fetch all category documents and their parts from Firestore, calculate usage dynamically
   Future<void> _fetchInventoryStats() async {
     try {
       QuerySnapshot inventorySnapshot = await _firestore.collection('inventory_parts').get();
       Map<String, String> partCategoryMap = {};
-      int totalPartItems = 0; // <-- Correct total parts counter
+      int totalPartItems = 0;
+
       for (var categoryDoc in inventorySnapshot.docs) {
         Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
-        // Count each part field in the category document
         data.forEach((partId, partData) {
           if (partData is Map<String, dynamic>) {
             totalPartItems++;
@@ -58,18 +51,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
         });
       }
 
-      // Step 2: Get all invoices and sum usage by category
+      // Step 2: Get all invoices and sum usage by category (dynamic)
       QuerySnapshot invoiceSnapshot = await _firestore.collection('invoices').get();
-      Map<String, int> usageByCategory = {
-        'Engine': 0,
-        'Brakes': 0,
-        'Tires': 0,
-        'Suspension': 0,
-        'Electrical': 0,
-      };
+      Map<String, int> usageByCategory = {};
       int used = 0;
       int requested = 0;
       int lowStock = 0;
+
       for (var invoiceDoc in invoiceSnapshot.docs) {
         Map<String, dynamic> invoiceData = invoiceDoc.data() as Map<String, dynamic>;
         List<dynamic> parts = invoiceData['parts'] ?? [];
@@ -78,19 +66,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
           String partName = partNameRaw.trim().toLowerCase();
           int quantity = part['quantity'] ?? 0;
           String category = partCategoryMap[partName] ?? 'Unknown';
-          if (usageByCategory.containsKey(category)) {
-            usageByCategory[category] = usageByCategory[category]! + quantity;
-          }
+          usageByCategory[category] = (usageByCategory[category] ?? 0) + quantity;
           used += quantity;
         }
       }
 
-      // Step 3: (Optional) Get requested/low stock from inventory if needed for other cards
+      // Step 3: Get requested/low stock from inventory if needed for other cards
       for (var categoryDoc in inventorySnapshot.docs) {
         Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
         data.forEach((partId, partData) {
           if (partData is Map<String, dynamic>) {
-            int quantity = partData['quantity'] ?? 0;
             bool isLowStock = partData['isLowStock'] ?? false;
             bool isRequested = partData['isRequested'] ?? false;
             if (isRequested || isLowStock) {
@@ -104,7 +89,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       }
 
       setState(() {
-        totalParts = totalPartItems; // <-- Set correct total parts value
+        totalParts = totalPartItems;
         partsUsed = used;
         partsRequested = requested;
         lowStockParts = lowStock;
@@ -120,19 +105,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  double _getUsageHeight(String category) {
-    int count = categoryUsage[category] ?? 0;
-    int maxCount = categoryUsage.values.fold(0, (max, current) => current > max ? current : max);
-    if (maxCount == 0) return 0.1;
-    return (count / maxCount).clamp(0.1, 1.0);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
-      drawer: CustomDrawer(), // Use the drawer from drawer.dart
+      drawer: CustomDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -367,9 +345,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.red,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           'Urgent',
@@ -433,7 +409,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ],
                         ),
                         SizedBox(height: 16),
-
                         Text(
                           'Part Usage by Category',
                           style: TextStyle(
@@ -444,43 +419,33 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                         SizedBox(height: 20),
 
-                        // Chart Container
+                        // Chart Container - Fixed implementation
                         Container(
                           height: 200,
                           child: _isLoading
                               ? Center(child: CircularProgressIndicator())
-                              : Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    _buildChartBar(
-                                      'Engine',
-                                      _getUsageHeight('Engine'),
-                                      Colors.blue,
+                              : categoryUsage.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No usage data available',
+                                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                                      ),
+                                    )
+                                  : SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          for (int i = 0; i < categoryUsage.length; i++)
+                                            _buildDynamicChartBar(
+                                              categoryUsage.keys.elementAt(i),
+                                              categoryUsage.values.elementAt(i),
+                                              _getCategoryColor(i),
+                                              categoryUsage.values.reduce((a, b) => a > b ? a : b),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                    _buildChartBar(
-                                      'Brakes',
-                                      _getUsageHeight('Brakes'),
-                                      Colors.red,
-                                    ),
-                                    _buildChartBar(
-                                      'Tires',
-                                      _getUsageHeight('Tires'),
-                                      Colors.orange,
-                                    ),
-                                    _buildChartBar(
-                                      'Suspension',
-                                      _getUsageHeight('Suspension'),
-                                      Colors.green,
-                                    ),
-                                    _buildChartBar(
-                                      'Electrical',
-                                      _getUsageHeight('Electrical'),
-                                      Colors.purple,
-                                    ),
-                                  ],
-                                ),
                         ),
 
                         SizedBox(height: 32),
@@ -496,7 +461,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                         SizedBox(height: 16),
 
-                        // Recent Procurement Requests Preview (always visible, any status)
+                        // Recent Procurement Requests Preview
                         Container(
                           padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -583,7 +548,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                     );
                                   }
 
-                                  // Always show the 3 most recent requests, any status
                                   return Column(
                                     children: snapshot.data!.docs.map((doc) {
                                       final data = doc.data() as Map<String, dynamic>;
@@ -696,29 +660,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
 
-                        SizedBox(height: 32), // Space for bottom navigation
-                        SizedBox(height: 16),
-
-
                         SizedBox(height: 32),
-
-                        // Bottom navigation placeholder
-                        SizedBox(height: 16),
-
-                        // Data Import Button
-
-                      ], // End of children for Column
-                    ), // End of Column
-                  ), // End of SingleChildScrollView
-                ), // End of RefreshIndicator
-              ), // End of Container
-            ), // End of Expanded
-          ], // End of children for main Column
-        ), // End of main Column
-      ), // End of SafeArea
-    ); // End of Scaffold
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
-
 
   Widget _buildOverviewCard(String title, String value, bool isLoading) {
     return Container(
@@ -753,34 +706,65 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  Widget _buildChartBar(String label, double height, Color color) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Container(
-          width: 40,
-          height: 120 * height,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(6),
+  Widget _buildDynamicChartBar(String label, int usage, Color color, int maxUsage) {
+    final barHeight = maxUsage > 0 ? (usage / maxUsage) * 120 : 10.0;
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            usage.toString(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
-        SizedBox(height: 12),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: color,
-            fontWeight: FontWeight.w500,
+          SizedBox(height: 4),
+          Container(
+            width: 36,
+            height: barHeight.clamp(10.0, 120.0),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(6),
+            ),
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+          SizedBox(height: 8),
+          Container(
+            width: 60,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
+  Color _getCategoryColor(int index) {
+    final colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.orange,
+      Colors.green,
+      Colors.purple,
+      Colors.teal,
+      Colors.pink,
+      Colors.indigo,
+    ];
+    return colors[index % colors.length];
+  }
+
   Widget _buildProcurementPreviewItem(Map<String, dynamic> data) {
-    final requestId = data['requestId'] ?? '';
     final partName = data['partName'] ?? 'Unknown Part';
     final quantity = data['requestedQty'] ?? data['quantity'] ?? 0;
     final status = data['status'] ?? 'Pending';
@@ -823,7 +807,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Supplier: $supplier', // This will now show the supplier name
+                  'Supplier: $supplier',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[700],
@@ -877,7 +861,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildPartRequestPreviewItem(Map<String, dynamic> data) {
-    final requestId = data['requestId'] ?? '';
     final partName = data['partName'] ?? 'Unknown Part';
     final requestedBy = data['requestedBy'] ?? 'N/A';
     final status = data['status'] ?? 'Pending';

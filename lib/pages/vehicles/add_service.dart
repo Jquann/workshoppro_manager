@@ -92,9 +92,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   late final Animation<Offset> _slideAnimation;
 
   // inventory
-  static const List<String> _categories = <String>[
-    'Body','Brakes','Consumables','Electrical','Engine','Exhaust','Maintenance','Suspension','Transmission',
-  ];
+  List<String> _categories = [];
+  bool _catsLoading = true;
   String? _selectedCategory;
   List<InventoryPartVM> _availableParts = [];
   InventoryPartVM? _selectedPart;
@@ -105,6 +104,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _date.text = _fmt(DateTime.now());
+    _loadCategories();
     
     // Auto-populate fields from schedule data if provided
     if (widget.mechanicName != null) {
@@ -576,11 +576,18 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       children: [
         _buildFormField(
           label: 'Category',
-          child: DropdownButtonFormField<String>(
+          child: _catsLoading
+              ? TextFormField(
+            enabled: false,
+            decoration: _input('Loading categories...', icon: Icons.category_rounded),
+          )
+              : DropdownButtonFormField<String>(
             decoration: _input('Select category', icon: Icons.category_rounded),
             value: _selectedCategory,
             isExpanded: true,
-            items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            items: _categories
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
             onChanged: (cat) async {
               if (cat == null) return;
               setState(() {
@@ -591,7 +598,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                 _availableParts = [];
               });
               final fetched = await _fetchParts(cat);
-              setState(() => _availableParts = fetched);
+              if (mounted) setState(() => _availableParts = fetched);
             },
           ),
         ),
@@ -957,5 +964,28 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     });
 
     _showSnackBar('Form cleared', _kSuccess);
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await FirestoreService().getPartCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        _catsLoading = false;
+      });
+
+      // If a preferred category was passed in, preselect it and load parts.
+      final prefer = widget.partsCategory;
+      if (prefer != null && cats.contains(prefer)) {
+        _selectedCategory = prefer;
+        final parts = await _fetchParts(prefer);
+        if (mounted) setState(() => _availableParts = parts);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _catsLoading = false);
+      _showSnackBar('Failed to load categories: $e', _kError);
+    }
   }
 }
