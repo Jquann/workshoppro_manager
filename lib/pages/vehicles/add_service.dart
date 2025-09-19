@@ -271,7 +271,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                         const SizedBox(height: 24),
                         _buildNotesCard(),
                         const SizedBox(height: 32),
-                        _buildSaveButton(),
+                        Row(
+                          children: [
+                            Expanded(child: _buildResetButton()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSaveButton()),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -673,6 +679,22 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildResetButton() {
+    return OutlinedButton.icon(
+      onPressed: _resetForm,
+      icon: const Icon(Icons.restart_alt_rounded),
+      label: const Text('Reset'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _kDarkText,
+        minimumSize: const Size.fromHeight(56),
+        side: const BorderSide(color: _kDivider),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+      ),
+    );
+  }
+
+
   Future<List<InventoryPartVM>> _fetchParts(String category) async {
     final rows = await FirestoreService().getPartsByCategory(category);
     final list = <InventoryPartVM>[];
@@ -910,5 +932,30 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _resetForm() {
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      // text fields
+      _date.clear();
+      _desc.clear();
+      _mech.clear();
+      _notes.clear();
+      _partQty.clear();
+      _partPrice.clear();
+
+      // inventory selections
+      _selectedCategory = null;
+      _selectedPart = null;
+      _availableParts = [];
+
+      // parts & stock deltas
+      _parts.clear();
+      _stockDeltas.clear();
+    });
+
+    _showSnackBar('Form cleared', _kSuccess);
   }
 }
