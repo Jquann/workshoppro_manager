@@ -21,6 +21,15 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   final _descriptionController = TextEditingController();
   final _lowStockThresholdController = TextEditingController();
   final _supplierEmailController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _quantityController = TextEditingController();
+  final _isLowStockController = TextEditingController();
+  // Supplier fields
+  final _supplierLeadTimeController = TextEditingController();
+  final _supplierMinOrderQtyController = TextEditingController();
+  final _supplierIsPrimaryController = TextEditingController();
+  final _supplierReliabilityScoreController = TextEditingController();
+  final _supplierPriceController = TextEditingController();
 
   String? selectedCategory;
   List<String> categories = [];
@@ -43,6 +52,18 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       _lowStockThresholdController.text = widget.part!.lowStockThreshold.toString();
       selectedCategory = widget.part!.category;
       _supplierEmailController.text = widget.part!.supplierEmail;
+      _priceController.text = widget.part!.price.toString();
+      _quantityController.text = widget.part!.quantity.toString();
+      _isLowStockController.text = widget.part!.isLowStock.toString();
+      // Supplier fields - properly access map values
+      if (widget.part!.suppliers.isNotEmpty) {
+        var supplier = widget.part!.suppliers.first;
+        _supplierLeadTimeController.text = (supplier['leadTime'] ?? 0).toString();
+        _supplierMinOrderQtyController.text = (supplier['minOrderQty'] ?? 1).toString();
+        _supplierIsPrimaryController.text = (supplier['isPrimary'] ?? true).toString();
+        _supplierReliabilityScoreController.text = (supplier['reliabilityScore'] ?? 1.0).toString();
+        _supplierPriceController.text = (supplier['price'] ?? 0).toString();
+      }
     }
   }
 
@@ -61,65 +82,44 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
 
   Future<void> _fetchNextSparePartId() async {
     try {
-      // Get all category documents under inventory_parts
       final categoriesSnapshot = await _firestore.collection('inventory_parts').get();
       List<String> categoryNames = categoriesSnapshot.docs.map((doc) => doc.id).toList();
       List<String> ids = [];
-
-      print('Found categories: $categoryNames'); // Debug log
-
       for (final category in categoryNames) {
-        try {
-          // Get the category document
-          final categoryDoc = await _firestore
-              .collection('inventory_parts')
-              .doc(category)
-              .get();
-
-          if (categoryDoc.exists) {
-            final categoryData = categoryDoc.data();
-            print('Category $category data keys: ${categoryData?.keys.toList()}'); // Debug log
-
-            if (categoryData != null) {
-              // Check each field in the category document for spare part data
-              categoryData.forEach((key, value) {
-                if (value is Map<String, dynamic> && value.containsKey('sparePartId')) {
-                  ids.add(value['sparePartId']);
-                  print('Found spare part ID: ${value['sparePartId']} in category: $category'); // Debug log
+        final categoryDoc = await _firestore.collection('inventory_parts').doc(category).get();
+        if (categoryDoc.exists) {
+          final categoryData = categoryDoc.data();
+          if (categoryData != null) {
+            categoryData.forEach((key, value) {
+              if (value is Map<String, dynamic> && value.containsKey('id')) {
+                final id = value['id'];
+                if (id is String && id.startsWith('PRT')) {
+                  ids.add(id);
                 }
-              });
-            }
+              }
+            });
           }
-        } catch (e) {
-          print('Error fetching parts from category $category: $e');
         }
       }
-
-      print('All found IDs: $ids'); // Debug log
-
       int maxId = 0;
       for (var id in ids) {
-        final match = RegExp(r'SP(\d{4})').firstMatch(id);
+        final match = RegExp(r'PRT(\d{3})').firstMatch(id);
         if (match != null) {
           int num = int.parse(match.group(1)!);
           if (num > maxId) maxId = num;
         }
       }
-
-      print('Max ID found: $maxId'); // Debug log
-      String nextId = 'SP' + (maxId + 1).toString().padLeft(4, '0');
-      print('Next ID will be: $nextId'); // Debug log
-
+      String nextId = 'PRT' + (maxId + 1).toString().padLeft(3, '0');
       if (mounted) {
         setState(() {
           _partIdController.text = nextId;
         });
       }
     } catch (e) {
-      print('Error fetching next sparePartId: $e');
+      print('Error fetching next part id: $e');
       if (mounted) {
         setState(() {
-          _partIdController.text = 'SP0001';
+          _partIdController.text = 'PRT001';
         });
       }
     }
@@ -136,27 +136,10 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
 
       print('✅ Firestore connection successful!');
 
-      // Show success snackbar
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Firestore connected successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+
     } catch (e) {
       print('❌ Firestore connection failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Firestore connection failed: $e'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
+
     }
   }
 
@@ -176,26 +159,36 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
       _isLoading = true;
     });
     try {
-      // Use part name as field name in the category document
-      String partFieldName = _partNameController.text.trim();
+      // Use part ID as field name in the category document (based on database structure)
+      String partFieldName = _partIdController.text.trim(); // Use part ID as field name
       int lowStockThreshold = int.tryParse(_lowStockThresholdController.text.trim()) ?? 0;
 
       Map<String, dynamic> partData = {
+        'id': _partIdController.text.trim(),
         'name': _partNameController.text.trim(),
-        'sparePartId': _partIdController.text.trim(),
         'category': selectedCategory,
-        'supplier': _supplierController.text.trim(),
-        'supplierEmail': _supplierEmailController.text.trim(),
-        'quantity': 0, // Always 0 for new part
-        'lowStockThreshold': lowStockThreshold,
         'description': _descriptionController.text.trim(),
-        'isLowStock': true, // Always true for new part with 0 quantity
+        'quantity': int.tryParse(_quantityController.text.trim()) ?? 0,
+        'lowStockThreshold': int.tryParse(_lowStockThresholdController.text.trim()) ?? 0,
+        'isLowStock': (int.tryParse(_quantityController.text.trim()) ?? 0) <= lowStockThreshold,
+        'price': double.tryParse(_priceController.text.trim()) ?? 0,
+        'suppliers': [
+          {
+            'email': _supplierEmailController.text.trim(),
+            'isPrimary': (_supplierIsPrimaryController.text.trim().toLowerCase() == 'true'),
+            'leadTime': int.tryParse(_supplierLeadTimeController.text.trim()) ?? 0,
+            'minOrderQty': int.tryParse(_supplierMinOrderQtyController.text.trim()) ?? 1,
+            'name': _supplierController.text.trim(),
+            'price': double.tryParse(_supplierPriceController.text.trim()) ?? 0,
+            'reliabilityScore': double.tryParse(_supplierReliabilityScoreController.text.trim()) ?? 1.0,
+          }
+        ],
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       };
 
       if (widget.documentId != null) {
-        // Edit existing part - update the field in the category document
+        // Edit existing part - update the field in the category document using part ID as field name
         await _firestore
             .collection('inventory_parts')
             .doc(selectedCategory)
@@ -209,12 +202,12 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
           ),
         );
       } else {
-        // Add new part as a field in the category document
+        // Add new part as a field in the category document using part ID as field name
         await _firestore
             .collection('inventory_parts')
             .doc(selectedCategory)
             .update({
-              partFieldName: partData,  // Add part as a field in the category document
+              partFieldName: partData,  // Add part using part ID as field name
             });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -238,376 +231,281 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Enhanced Header
             Container(
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
               child: Row(
                 children: [
-                  Text(
-                    'Add New Part',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700], size: 18),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add New Part',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        Text(
+                          'Create inventory part',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Content
+            // Enhanced Form Content
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Header inside white container
-                    Container(
-                      padding: EdgeInsets.all(20),
-                      child: Row(
+              child: SingleChildScrollView(
+                physics: BouncingScrollPhysics(),
+                padding: EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Basic Information Section
+                      _buildSectionCard(
+                        title: 'Basic Information',
+                        icon: Icons.info_outline,
+                        color: Colors.blue,
                         children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.black,
-                                size: 20,
-                              ),
-                            ),
+                          _buildInputField(
+                            label: 'Part Name',
+                            controller: _partNameController,
+                            hintText: 'Enter part name',
+                            isRequired: true,
+                            icon: Icons.build_circle_outlined,
                           ),
-                          SizedBox(width: 16),
-                          Text(
-                            'Add New Part',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                          SizedBox(height: 16),
+                          _buildReadOnlyField(
+                            label: 'Part ID',
+                            value: _partIdController.text,
+                            icon: Icons.qr_code,
+                          ),
+                          SizedBox(height: 16),
+                          _buildCategoryDropdown(),
+                          SizedBox(height: 16),
+                          _buildDescriptionField(),
+                        ],
+                      ),
+                      SizedBox(height: 20),
+
+                      // Stock & Pricing Section
+                      _buildSectionCard(
+                        title: 'Stock & Pricing',
+                        icon: Icons.inventory_2_outlined,
+                        color: Colors.green,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Quantity',
+                                  controller: _quantityController,
+                                  hintText: '0',
+                                  isRequired: true,
+                                  icon: Icons.numbers,
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Price (RM)',
+                                  controller: _priceController,
+                                  hintText: '0.00',
+                                  isRequired: true,
+                                  icon: Icons.attach_money,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          _buildInputField(
+                            label: 'Low Stock Threshold',
+                            controller: _lowStockThresholdController,
+                            hintText: 'Enter threshold value',
+                            isRequired: true,
+                            icon: Icons.warning_amber_outlined,
+                            keyboardType: TextInputType.number,
                           ),
                         ],
                       ),
-                    ),
+                      SizedBox(height: 20),
 
-                    // Form
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      // Supplier Information Section
+                      _buildSectionCard(
+                        title: 'Primary Supplier',
+                        icon: Icons.business_outlined,
+                        color: Colors.orange,
+                        children: [
+                          _buildInputField(
+                            label: 'Supplier Name',
+                            controller: _supplierController,
+                            hintText: 'Enter supplier name',
+                            isRequired: true,
+                            icon: Icons.store,
+                          ),
+                          SizedBox(height: 16),
+                          _buildInputField(
+                            label: 'Supplier Email',
+                            controller: _supplierEmailController,
+                            hintText: 'supplier@example.com',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          SizedBox(height: 16),
+                          Row(
                             children: [
-                              Text(
-                                'Parts Details',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Lead Time (days)',
+                                  controller: _supplierLeadTimeController,
+                                  hintText: '7',
+                                  isRequired: true,
+                                  keyboardType: TextInputType.number,
                                 ),
                               ),
-                              SizedBox(height: 20),
-
-                              // Part Name
-                              _buildInputField(
-                                label: 'Part Name :',
-                                controller: _partNameController,
-                                hintText: 'Enter Part Name',
-                                isRequired: true,
-                              ),
-                              SizedBox(height: 20),
-
-                              // Part ID (read-only)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Spare Part ID:',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: _partIdController,
-                                    readOnly: true,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue),
-                                      ),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-
-                              // Category Dropdown
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Category : *',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: selectedCategory == null
-                                            ? Colors.red[300]!
-                                            : Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: selectedCategory,
-                                        hint: Text(
-                                          'Select Category',
-                                          style: TextStyle(
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                        items: categories.map((
-                                          String category,
-                                        ) {
-                                          return DropdownMenuItem<String>(
-                                            value: category,
-                                            child: Text(category),
-                                          );
-                                        }).toList(),
-                                        onChanged: (String? newValue) {
-                                          setState(() {
-                                            selectedCategory = newValue;
-                                          });
-                                        },
-                                        icon: Icon(Icons.keyboard_arrow_down),
-                                        iconSize: 24,
-                                        isExpanded: true,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-
-                              // Supplier
-                              _buildInputField(
-                                label: 'Supplier :',
-                                controller: _supplierController,
-                                hintText: 'Enter Supplier Name',
-                                isRequired: true,
-                              ),
-                              SizedBox(height: 20),
-
-                              // Supplier Email
-                              _buildInputField(
-                                label: 'Supplier Email :',
-                                controller: _supplierEmailController,
-                                hintText: 'Enter Supplier Email',
-                                isRequired: false,
-                              ),
-                              SizedBox(height: 20),
-
-                              // Low Stock Threshold
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Low Stock Threshold *',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Container(
-                                    width: 120,
-                                    child: TextFormField(
-                                      controller: _lowStockThresholdController,
-                                      keyboardType: TextInputType.number,
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Required';
-                                        }
-                                        if (int.tryParse(value) == null) {
-                                          return 'Enter valid number';
-                                        }
-                                        return null;
-                                      },
-                                      decoration: InputDecoration(
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey[300]!,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey[300]!,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.blue,
-                                          ),
-                                        ),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-
-                              // Description
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Description :',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Container(
-                                    width: double.infinity,
-                                    height: 100,
-                                    padding: EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: TextFormField(
-                                      controller: _descriptionController,
-                                      maxLines: null,
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: 'Enter description...',
-                                        hintStyle: TextStyle(
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 40),
-
-                              // Add Part Button
-                              Container(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _submitPartToFirestore,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isLoading
-                                        ? Colors.grey[300]
-                                        : Colors.blue[50],
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: _isLoading
-                                      ? Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.blue),
-                                              ),
-                                            ),
-                                            SizedBox(width: 12),
-                                            Text(
-                                              'Adding Part...',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.blue[700],
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      : Text(
-                                          'Add Part to Firestore',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.blue[700],
-                                          ),
-                                        ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Min Order Qty',
+                                  controller: _supplierMinOrderQtyController,
+                                  hintText: '1',
+                                  isRequired: true,
+                                  keyboardType: TextInputType.number,
                                 ),
                               ),
-                              SizedBox(height: 20),
                             ],
                           ),
+                          SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Supplier Price (RM)',
+                                  controller: _supplierPriceController,
+                                  hintText: '0.00',
+                                  isRequired: true,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildInputField(
+                                  label: 'Reliability Score',
+                                  controller: _supplierReliabilityScoreController,
+                                  hintText: '0.85',
+                                  isRequired: true,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          _buildSwitchField(
+                            label: 'Set as Primary Supplier',
+                            controller: _supplierIsPrimaryController,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 30),
+
+                      // Submit Button
+                      Container(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _submitPartToFirestore,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isLoading ? Colors.grey[300] : Colors.blue[600],
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                            shadowColor: Colors.blue.withOpacity(0.3),
+                          ),
+                          child: _isLoading
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Adding Part...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_circle_outline, size: 24),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Add Part',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
                       ),
-                    ),
-                  ],
+                      SizedBox(height: 20), // Bottom padding for scroll
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -617,11 +515,288 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     );
   }
 
+  // Enhanced Section Card Builder
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.05),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Enhanced Read-only Field
+  Widget _buildReadOnlyField({
+    required String label,
+    required String value,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            border: Border.all(color: Colors.blue[200]!, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.blue[600], size: 20),
+                SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Text(
+                  value.isEmpty ? 'Auto-generated' : value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.blue[800],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Enhanced Category Dropdown
+  Widget _buildCategoryDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Category *',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selectedCategory == null ? Colors.red[300]! : Colors.grey[300]!,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[50],
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.category_outlined, color: Colors.grey[600], size: 20),
+              SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedCategory,
+                    hint: Text(
+                      'Select category',
+                      style: TextStyle(color: Colors.grey[500]),
+                    ),
+                    items: categories.map((String category) {
+                      return DropdownMenuItem<String>(
+                        value: category,
+                        child: Text(
+                          category,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedCategory = newValue;
+                      });
+                    },
+                    icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600]),
+                    isExpanded: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (selectedCategory == null)
+          Padding(
+            padding: EdgeInsets.only(top: 8, left: 12),
+            child: Text(
+              'Please select a category',
+              style: TextStyle(color: Colors.red[600], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // Enhanced Description Field
+  Widget _buildDescriptionField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Description',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[50],
+          ),
+          child: TextFormField(
+            controller: _descriptionController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Enter part description...',
+              hintStyle: TextStyle(color: Colors.grey[500]),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(16),
+              prefixIcon: Padding(
+                padding: EdgeInsets.only(left: 16, right: 12, top: 16),
+                child: Icon(Icons.description_outlined, color: Colors.grey[600], size: 20),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Enhanced Switch Field
+  Widget _buildSwitchField({
+    required String label,
+    required TextEditingController controller,
+  }) {
+    bool switchValue = controller.text.toLowerCase() == 'true';
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: switchValue ? Colors.blue[50] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: switchValue ? Colors.blue[200]! : Colors.grey[300]!,
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            switchValue ? Icons.star : Icons.star_outline,
+            color: switchValue ? Colors.blue[600] : Colors.grey[600],
+            size: 20,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: switchValue ? Colors.blue[800] : Colors.grey[700],
+              ),
+            ),
+          ),
+          Switch(
+            value: switchValue,
+            onChanged: (value) {
+              setState(() {
+                controller.text = value.toString();
+              });
+            },
+            activeColor: Colors.blue[600],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Enhanced Input Field Builder
   Widget _buildInputField({
     required String label,
     required TextEditingController controller,
     required String hintText,
     bool isRequired = false,
+    IconData? icon,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,38 +804,52 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
         Text(
           isRequired ? '$label *' : label,
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
           ),
         ),
         SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          validator: isRequired
-              ? (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'This field is required';
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[50],
+          ),
+          child: TextFormField(
+            controller: controller,
+            keyboardType: keyboardType,
+            validator: isRequired
+                ? (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'This field is required';
+                    }
+                    if (keyboardType == TextInputType.number ||
+                        keyboardType == TextInputType.numberWithOptions(decimal: true)) {
+                      if (double.tryParse(value.trim()) == null) {
+                        return 'Please enter a valid number';
+                      }
+                    }
+                    if (keyboardType == TextInputType.emailAddress) {
+                      if (!value.contains('@') && value.trim().isNotEmpty) {
+                        return 'Please enter a valid email address';
+                      }
+                    }
+                    return null;
                   }
-                  return null;
-                }
-              : null,
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(color: Colors.grey[500]),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+                : null,
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: TextStyle(color: Colors.grey[500]),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(16),
+              prefixIcon: icon != null
+                  ? Padding(
+                      padding: EdgeInsets.only(left: 16, right: 12),
+                      child: Icon(icon, color: Colors.grey[600], size: 20),
+                    )
+                  : null,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.blue),
-            ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],
@@ -675,6 +864,14 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     _descriptionController.dispose();
     _lowStockThresholdController.dispose();
     _supplierEmailController.dispose();
+    _priceController.dispose();
+    _quantityController.dispose();
+    _isLowStockController.dispose();
+    _supplierLeadTimeController.dispose();
+    _supplierMinOrderQtyController.dispose();
+    _supplierIsPrimaryController.dispose();
+    _supplierReliabilityScoreController.dispose();
+    _supplierPriceController.dispose();
     super.dispose();
   }
 }

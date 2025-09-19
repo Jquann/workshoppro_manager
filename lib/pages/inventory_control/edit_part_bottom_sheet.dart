@@ -386,14 +386,10 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
           bool isPrimary = isPrimaryList[i];
 
           if (name.isNotEmpty || email.isNotEmpty) {
-            // Get existing supplier data if available
+            // Create supplier data with defaults if needed
             Map<String, dynamic> supplierData = {
               'name': name,
               'email': email,
-              'price': double.tryParse(price) ?? 0.0,
-              'leadTime': int.tryParse(leadTime) ?? 3,
-              'minOrderQty': int.tryParse(minOrderQty) ?? 10,
-              'reliabilityScore': double.tryParse(reliabilityScore) ?? 0.85,
               'isPrimary': isPrimary,
             };
 
@@ -401,20 +397,18 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
             if (i < widget.part.suppliers.length) {
               final existingSupplier = widget.part.suppliers[i];
               supplierData.addAll({
-                'price': existingSupplier['price'] ?? widget.part.price,
-                'leadTime': existingSupplier['leadTime'] ?? 3,
-                'minOrderQty': existingSupplier['minOrderQty'] ?? 10,
-                'reliabilityScore': existingSupplier['reliabilityScore'] ?? 0.85,
-                'isPrimary': existingSupplier['isPrimary'] ?? (i == 0),
+                'price': double.tryParse(price) ?? existingSupplier['price'] ?? widget.part.price,
+                'leadTime': int.tryParse(leadTime) ?? existingSupplier['leadTime'] ?? 3,
+                'minOrderQty': int.tryParse(minOrderQty) ?? existingSupplier['minOrderQty'] ?? 10,
+                'reliabilityScore': double.tryParse(reliabilityScore) ?? existingSupplier['reliabilityScore'] ?? 0.85,
               });
             } else {
               // New supplier - add default values
               supplierData.addAll({
-                'price': widget.part.price,
-                'leadTime': 3,
-                'minOrderQty': 10,
-                'reliabilityScore': 0.85,
-                'isPrimary': i == 0, // First supplier is primary
+                'price': double.tryParse(price) ?? widget.part.price,
+                'leadTime': int.tryParse(leadTime) ?? 3,
+                'minOrderQty': int.tryParse(minOrderQty) ?? 10,
+                'reliabilityScore': double.tryParse(reliabilityScore) ?? 0.85,
               });
             }
 
@@ -423,6 +417,7 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
         }
 
         final firestore = FirebaseFirestore.instance;
+        final lowStockThreshold = int.parse(thresholdController.text.trim());
 
         // Create updated part data
         final updatedPartData = {
@@ -430,16 +425,18 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
           'name': nameController.text.trim(),
           'category': widget.part.category,
           'quantity': widget.part.quantity, // preserve current quantity
-          'isLowStock': widget.part.isLowStock,
-          'lowStockThreshold': int.parse(thresholdController.text.trim()),
+          'isLowStock': widget.part.quantity <= lowStockThreshold,
+          'lowStockThreshold': lowStockThreshold,
           'description': descriptionController.text.trim(),
           'price': double.tryParse(priceController.text.trim()) ?? 0.0,
           'unit': unitController.text.trim(),
           'suppliers': suppliers,
+          'updatedAt': FieldValue.serverTimestamp(),
         };
 
+        // Use part ID as field name (based on database structure)
         await firestore.collection('inventory_parts').doc(widget.part.category).update({
-          widget.part.id: updatedPartData
+          widget.part.id: updatedPartData  // Use part ID as field name
         });
 
         ScaffoldMessenger.of(context).showSnackBar(

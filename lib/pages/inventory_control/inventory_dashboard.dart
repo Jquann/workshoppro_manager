@@ -39,28 +39,60 @@ class _InventoryScreenState extends State<InventoryScreen> {
   // Fetch all category documents and their parts from Firestore, calculate usage, and show top 5 categories
   Future<void> _fetchInventoryStats() async {
     try {
-      QuerySnapshot categorySnapshot = await _firestore.collection('inventory_parts').get();
-      Map<String, int> usage = {};
-      int total = 0;
+      QuerySnapshot inventorySnapshot = await _firestore.collection('inventory_parts').get();
+      Map<String, String> partCategoryMap = {};
+      int totalPartItems = 0; // <-- Correct total parts counter
+      for (var categoryDoc in inventorySnapshot.docs) {
+        Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
+        // Count each part field in the category document
+        data.forEach((partId, partData) {
+          if (partData is Map<String, dynamic>) {
+            totalPartItems++;
+            String nameRaw = partData['name'] ?? '';
+            String name = nameRaw.trim().toLowerCase();
+            String category = partData['category'] ?? 'Unknown';
+            if (name.isNotEmpty) {
+              partCategoryMap[name] = category;
+            }
+          }
+        });
+      }
+
+      // Step 2: Get all invoices and sum usage by category
+      QuerySnapshot invoiceSnapshot = await _firestore.collection('invoices').get();
+      Map<String, int> usageByCategory = {
+        'Engine': 0,
+        'Brakes': 0,
+        'Tires': 0,
+        'Suspension': 0,
+        'Electrical': 0,
+      };
       int used = 0;
       int requested = 0;
       int lowStock = 0;
-      for (var categoryDoc in categorySnapshot.docs) {
+      for (var invoiceDoc in invoiceSnapshot.docs) {
+        Map<String, dynamic> invoiceData = invoiceDoc.data() as Map<String, dynamic>;
+        List<dynamic> parts = invoiceData['parts'] ?? [];
+        for (var part in parts) {
+          String partNameRaw = part['name'] ?? '';
+          String partName = partNameRaw.trim().toLowerCase();
+          int quantity = part['quantity'] ?? 0;
+          String category = partCategoryMap[partName] ?? 'Unknown';
+          if (usageByCategory.containsKey(category)) {
+            usageByCategory[category] = usageByCategory[category]! + quantity;
+          }
+          used += quantity;
+        }
+      }
+
+      // Step 3: (Optional) Get requested/low stock from inventory if needed for other cards
+      for (var categoryDoc in inventorySnapshot.docs) {
         Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
-        int categoryCount = 0;
-        data.forEach((partName, partData) {
+        data.forEach((partId, partData) {
           if (partData is Map<String, dynamic>) {
-            categoryCount++;
-            total++;
             int quantity = partData['quantity'] ?? 0;
-            int originalQuantity = partData['originalQuantity'] ?? quantity;
             bool isLowStock = partData['isLowStock'] ?? false;
             bool isRequested = partData['isRequested'] ?? false;
-            // Used parts: originalQuantity - quantity
-            if (originalQuantity > quantity) {
-              used += (originalQuantity - quantity);
-            }
-            // Requested parts: flagged as requested or low stock
             if (isRequested || isLowStock) {
               requested++;
             }
@@ -69,23 +101,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
             }
           }
         });
-        usage[categoryDoc.id] = categoryCount;
       }
-      // Sort usage and get top 5
-      final sortedUsage = Map.fromEntries(
-        usage.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value)),
-      );
-      final top5Usage = Map<String, int>.fromEntries(sortedUsage.entries.take(5));
+
       setState(() {
-        totalParts = total;
+        totalParts = totalPartItems; // <-- Set correct total parts value
         partsUsed = used;
         partsRequested = requested;
         lowStockParts = lowStock;
-        categoryUsage = top5Usage;
+        categoryUsage = usageByCategory;
         _isLoading = false;
       });
-      print('✅ Inventory stats updated: Total: $total, Used: $used, Requested: $requested, Top5: $top5Usage');
+      print('✅ Inventory stats updated from invoices: Total: $totalParts, Used: $partsUsed, Requested: $partsRequested, UsageByCategory: $categoryUsage');
     } catch (e) {
       print('❌ Error fetching inventory stats: $e');
       setState(() {
@@ -326,7 +352,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      'Parts Requested',
+                                      'Low Stock',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.grey[600],
@@ -673,103 +699,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         SizedBox(height: 32), // Space for bottom navigation
                         SizedBox(height: 16),
 
-                        // Data Import/Export Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: Icon(Icons.delete, color: Colors.white),
-                                label: Text('Delete All Spare Parts'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  textStyle: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text('Delete All Spare Parts'),
-                                      content: Text('Are you sure you want to delete ALL spare parts? This action cannot be undone.'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
-                                          child: Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
-                                          child: Text('Delete', style: TextStyle(color: Colors.red)),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirm == true) {
-                                    try {
-                                      // Get all categories from Firestore
-                                      final snapshot = await FirebaseFirestore.instance.collection('inventory_parts').get();
-                                      final categories = snapshot.docs.map((doc) => doc.id).toList();
-                                      await InventoryDataManager(FirebaseFirestore.instance).deleteAllInventoryParts(categories);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('✅ All spare parts deleted.'), backgroundColor: Colors.green),
-                                      );
-                                      await _fetchInventoryStats();
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('❌ Failed to delete: $e'), backgroundColor: Colors.red),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: Icon(Icons.upload, color: Colors.white),
-                                label: Text('Upload All Spare Parts'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  textStyle: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text('Upload All Spare Parts'),
-                                      content: Text('Are you sure you want to upload the latest spare parts? This will overwrite existing data.'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
-                                          child: Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
-                                          child: Text('Upload', style: TextStyle(color: Colors.blue)),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirm == true) {
-                                    try {
-                                      await InventoryDataManager(FirebaseFirestore.instance).uploadDefaultParts(InventoryDataManager.getDefaultPartsWithIds());
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('✅ All spare parts uploaded.'), backgroundColor: Colors.green),
-                                      );
-                                      await _fetchInventoryStats();
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('❌ Failed to upload: $e'), backgroundColor: Colors.red),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+
                         SizedBox(height: 32),
 
                         // Bottom navigation placeholder

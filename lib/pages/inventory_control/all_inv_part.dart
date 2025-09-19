@@ -146,248 +146,343 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: null, // Remove the top AppBar entirely
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
           children: [
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  double horizontalPadding = constraints.maxWidth < 500 ? 12 : 32;
-                  double headerFontSize = constraints.maxWidth < 500 ? 20 : 24;
-                  double labelFontSize = constraints.maxWidth < 500 ? 14 : 16;
-                  return Container(
+            // Enhanced Header
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
-                      ),
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700], size: 18),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header inside white container
-                        Container(
-                          padding: EdgeInsets.all(20),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.arrow_back),
-                                    onPressed: () => Navigator.pop(context),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'All Inventory Parts',
-                                    style: TextStyle(
-                                      fontSize: headerFontSize,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue[50],
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  '${parts.length} parts',
-                                  style: TextStyle(
-                                    color: Colors.blue[700],
-                                    fontSize: labelFontSize,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          'All Inventory Parts',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        // Search Bar + Filters
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
+                        Text(
+                          '${filteredParts.length} of ${parts.length} parts',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.search,
-                                    color: Colors.grey[500],
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextField(
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _searchQuery = value;
-                                        });
-                                      },
-                                      decoration: InputDecoration(
-                                        hintText: 'Search parts...',
-                                        hintStyle: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: labelFontSize,
-                                        ),
-                                        border: InputBorder.none,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  // Category Filter
-                                  Expanded(
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey[300]!),
-                                      ),
-                                      child: DropdownButton<String>(
-                                        value: selectedCategory,
-                                        underline: SizedBox(),
-                                        icon: Icon(Icons.arrow_drop_down, size: 20),
-                                        items: ['All', ...categories]
-                                            .map((cat) => DropdownMenuItem(
-                                                  value: cat,
-                                                  child: Text(cat, style: TextStyle(fontSize: 14)),
-                                                ))
-                                            .toList(),
-                                        onChanged: (v) => setState(() => selectedCategory = v!),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  // Stock Status Filter
-                                  Expanded(
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: showLowStockOnly ? Colors.grey[100] : Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey[300]!),
-                                      ),
-                                      child: DropdownButton<String>(
-                                        value: selectedStockStatus,
-                                        underline: SizedBox(),
-                                        icon: Icon(Icons.arrow_drop_down, size: 20),
-                                        items: ['All', 'Low Stock', 'In Stock']
-                                            .map((s) => DropdownMenuItem(
-                                                  value: s,
-                                                  child: Text(
-                                                    s,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      color: showLowStockOnly ? Colors.grey[500] : Colors.black,
-                                                    ),
-                                                  ),
-                                                ))
-                                            .toList(),
-                                        onChanged: showLowStockOnly ? null : (v) => setState(() => selectedStockStatus = v!),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedCategory = 'All';
-                                        selectedStockStatus = 'All';
-                                        _searchQuery = '';
-                                        showLowStockOnly = false;
-                                      });
-                                    },
-                                    icon: Icon(Icons.clear_all, size: 16),
-                                    label: Text('Reset'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey[300],
-                                      foregroundColor: Colors.black,
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      textStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Parts List
-                        Expanded(
-                          child: _isLoading
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 16),
-                                      Text(
-                                        'Loading parts from Firestore...',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : filteredParts.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.inventory_2_outlined,
-                                            size: 80,
-                                            color: Colors.grey[400],
-                                          ),
-                                          SizedBox(height: 16),
-                                          Text(
-                                            _searchQuery.isEmpty
-                                                ? 'No parts found.\nAdd some parts to get started!'
-                                                : 'No parts match your search.',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : RefreshIndicator(
-                                      onRefresh: _fetchPartsAndFiltersFromFirestore,
-                                      child: ListView.builder(
-                                        padding: EdgeInsets.symmetric(horizontal: 20),
-                                        itemCount: filteredParts.length,
-                                        itemBuilder: (context, index) {
-                                          return _buildPartItem(filteredParts[index]);
-                                        },
-                                      ),
-                                    ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
+            ),
+
+            // Enhanced Search and Filters Section
+            Container(
+              margin: EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search Bar
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search by part name, ID, or category...',
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 20),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Filter Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Category',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedCategory,
+                                  hint: Text('All categories'),
+                                  isExpanded: true,
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  items: ['All', ...categories].map((cat) {
+                                    return DropdownMenuItem(
+                                      value: cat,
+                                      child: Text(
+                                        cat,
+                                        style: TextStyle(fontSize: 14),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) => setState(() => selectedCategory = v!),
+                                  icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 20),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Stock Status',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedStockStatus,
+                                  hint: Text('All status'),
+                                  isExpanded: true,
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  items: ['All', 'Low Stock', 'In Stock'].map((status) {
+                                    return DropdownMenuItem(
+                                      value: status,
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(fontSize: 14),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) => setState(() => selectedStockStatus = v!),
+                                  icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 20),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+
+                  // Quick Actions Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _resetFilters,
+                          icon: Icon(Icons.clear_all, size: 18),
+                          label: Text('Reset Filters'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[100],
+                            foregroundColor: Colors.grey[700],
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: showLowStockOnly ? Colors.red[50] : Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: showLowStockOnly ? Colors.red[200]! : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              showLowStockOnly = !showLowStockOnly;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  showLowStockOnly ? Icons.warning : Icons.warning_outlined,
+                                  color: showLowStockOnly ? Colors.red[600] : Colors.grey[600],
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Low Stock Only',
+                                  style: TextStyle(
+                                    color: showLowStockOnly ? Colors.red[700] : Colors.grey[700],
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Parts List
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: Colors.blue[600]),
+                          SizedBox(height: 16),
+                          Text(
+                            'Loading inventory parts...',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : filteredParts.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                              SizedBox(height: 24),
+                              Text(
+                                _searchQuery.isEmpty
+                                    ? 'No parts found'
+                                    : 'No parts match your search',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                _searchQuery.isEmpty
+                                    ? 'Add some parts to get started!'
+                                    : 'Try adjusting your filters or search terms',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _fetchPartsAndFiltersFromFirestore,
+                          color: Colors.blue[600],
+                          child: ListView.builder(
+                            physics: BouncingScrollPhysics(),
+                            padding: EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: filteredParts.length,
+                            itemBuilder: (context, index) {
+                              return _buildEnhancedPartItem(filteredParts[index]);
+                            },
+                          ),
+                        ),
             ),
           ],
         ),
@@ -395,7 +490,7 @@ class _AllInventoryPartsScreenState extends State<AllInventoryPartsScreen> {
     );
   }
 
-  Widget _buildPartItem(Part part) {
+  Widget _buildEnhancedPartItem(Part part) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
