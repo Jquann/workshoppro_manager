@@ -1081,7 +1081,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         }
       });
     } catch (e) {
-      print('Error loading mechanics: $e');
       setState(() {
         _mechanicsLoading = false;
       });
