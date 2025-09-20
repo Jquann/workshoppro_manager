@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart'; // <- added for StreamBuilder
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:workshoppro_manager/firestore_service.dart';
 import '../../models/vehicle_model.dart';
@@ -5,13 +8,11 @@ import '../../models/service_model.dart';
 import 'edit_vehicle.dart';
 import 'view_service.dart';
 import 'add_service.dart';
-
+import 'package:workshoppro_manager/firebase_options.dart';
 import 'package:intl/intl.dart';
+
 final _currency = NumberFormat.currency(locale: 'ms_MY', symbol: 'RM', decimalDigits: 2);
 
-const String kRestorePassword = 'admin123'; // TODO: change this
-
-// --- Service status filter state (kept global as you wrote) ---
 String _statusFilter = 'all';
 final List<String> _statusTabs = const [
   'all',
@@ -75,14 +76,38 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
     super.dispose();
   }
 
+  // ---- Local stream for a single vehicle doc (no change to your FirestoreService required) ----
+  Stream<VehicleModel?> _vehicleStream(String id) {
+    return FirebaseFirestore.instance
+        .collection('vehicles')
+        .doc(id)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data() as Map<String, dynamic>;
+      return VehicleModel(
+        id: doc.id,
+        customerName: (data['customerName'] ?? '') as String,
+        make: (data['make'] ?? '') as String,
+        model: (data['model'] ?? '') as String,
+        year: data['year'] is int
+            ? data['year'] as int
+            : int.tryParse('${data['year']}') ?? 0,
+        carPlate: (data['carPlate'] ?? '') as String,
+        description: data['description'] == null ? null : '${data['description']}',
+        status: (data['status'] ?? 'active') as String,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = FirestoreService();
 
-    return FutureBuilder<VehicleModel?>(
-      future: db.getVehicle(widget.vehicleId),
+    return StreamBuilder<VehicleModel?>(
+      stream: _vehicleStream(widget.vehicleId), // <- StreamBuilder instead of FutureBuilder
       builder: (context, snap) {
-        if (!snap.hasData) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return Scaffold(
             backgroundColor: _kLightGrey,
             body: Center(
@@ -100,6 +125,29 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
                       color: _kGrey,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (snap.hasError) {
+          return Scaffold(
+            backgroundColor: _kLightGrey,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: _kGrey),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to load vehicle',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: _kGrey,
                     ),
                   ),
                 ],
@@ -959,78 +1007,158 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
 
   Future<bool> _promptPassword(BuildContext context) async {
     final ctrl = TextEditingController();
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.lock_rounded, color: _kPrimary, size: 28),
-            const SizedBox(width: 12),
-            const Text('Confirm Restore'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enter the manager password to restore this vehicle:'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: ctrl,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Manager Password',
-                prefixIcon: const Icon(Icons.key_rounded),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+      builder: (context) =>
+          AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Icon(Icons.lock_rounded, color: _kPrimary, size: 28),
+                const SizedBox(width: 12),
+                const Text('Confirm Restore'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                    'Enter the manager password to restore this vehicle:'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Manager Password',
+                    prefixIcon: const Icon(Icons.key_rounded),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _kPrimary, width: 2),
+                    ),
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _kPrimary, width: 2),
+              ],
+            ),
+            actions: [
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Cancel', style: TextStyle(color: _kGrey)),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: _kGrey)),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kSuccess,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Continue'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kSuccess,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
     ) ?? false;
 
     if (!ok) return false;
 
-    if (ctrl.text.trim() != kRestorePassword) {
+    final inputPw = ctrl.text.trim();
+    if (inputPw.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Incorrect password'),
+            content: const Text('Password cannot be empty'),
             backgroundColor: _kDanger,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
       return false;
     }
-    return true;
+
+    const managerEmail = 'workshopmanagera@gmail.com';
+
+    FirebaseApp? tempApp;
+    try {
+      tempApp = await Firebase.initializeApp(
+        name: 'managerCheck',
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+
+      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+
+      // Try to sign in with the manager account
+      await tempAuth.signInWithEmailAndPassword(
+        email: managerEmail,
+        password: inputPw,
+      );
+
+      // Clean up the temporary session
+      await tempAuth.signOut();
+      await tempApp.delete();
+
+      return true; // password correct
+    } on FirebaseAuthException catch (e) {
+      // Clean up if needed
+      try {
+        if (tempApp != null) {
+          final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+          await tempAuth.signOut();
+          await tempApp.delete();
+        }
+      } catch (_) {}
+
+      String msg = 'Authentication failed';
+      if (e.code == 'wrong-password') msg = 'Incorrect password';
+      if (e.code == 'user-not-found') msg = 'Manager account not found';
+      if (e.code == 'too-many-requests')
+        msg = 'Too many attempts. Try again later.';
+      if (e.code == 'network-request-failed')
+        msg = 'Network error. Check your connection.';
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: _kDanger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return false;
+    } catch (e) {
+      // Any other unexpected error
+      try {
+        if (tempApp != null) await tempApp.delete();
+      } catch (_) {}
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: _kDanger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return false;
+    }
   }
 
   static String _fmt(DateTime d) =>

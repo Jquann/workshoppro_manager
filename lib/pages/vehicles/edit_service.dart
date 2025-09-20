@@ -42,7 +42,6 @@ class EditService extends StatefulWidget {
 
 class _EditServiceState extends State<EditService>
     with TickerProviderStateMixin {
-  // --- colors (match AddService) ---
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -54,7 +53,6 @@ class _EditServiceState extends State<EditService>
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
-  // --- Labor policy (same as AddService) ---
   static const double _hourlyRate = 80.0; // RM/hour
   static const Map<String, double> _defaultHoursByCategory = {
     'Body': 0.3,
@@ -99,7 +97,6 @@ class _EditServiceState extends State<EditService>
 
   // Inventory indices
   final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
-  // Track deltas vs ORIGINAL record to adjust stock correctly on save.
   late final List<PartLine> _originalParts = List.of(widget.record.parts);
 
   // animations
@@ -134,10 +131,7 @@ class _EditServiceState extends State<EditService>
     _loadCategories();
     _loadMechanics();
 
-    // Initialize selected mechanic based on current record
     _selectedMechanicName = widget.record.mechanic;
-    
-    // Initialize selected category based on current record
     _selectedCategory = widget.record.partsCategory;
   }
 
@@ -154,7 +148,6 @@ class _EditServiceState extends State<EditService>
   }
 
   // ---------- utils ----------
-  
   bool get _isEditable => 
       widget.record.status != ServiceRecordModel.statusCompleted && 
       widget.record.status != ServiceRecordModel.statusCancel;
@@ -209,7 +202,6 @@ class _EditServiceState extends State<EditService>
   );
 
   // ----- inventory helpers -----
-
   Future<void> _preloadInventory(List<String> categories) async {
     final svc = FirestoreService();
     for (final c in categories) {
@@ -454,7 +446,6 @@ class _EditServiceState extends State<EditService>
   }
 
   // ----- sections (same card style as AddService) -----
-
   Widget _buildCard({
     required IconData icon,
     required String title,
@@ -902,8 +893,7 @@ class _EditServiceState extends State<EditService>
         ],
       );
 
-  // ----- inventory editor (match AddService) -----
-
+  // ----- inventory editor -----
   Widget _inventoryPartEditor() {
     final stockLine = (_selectedPart == null)
         ? null
@@ -1191,7 +1181,6 @@ class _EditServiceState extends State<EditService>
   );
 
   // ----- sync to schedules -----
-
   Future<void> _syncToSchedules(ServiceRecordModel serviceRecord) async {
     try {
       // Find schedules that match this service record
@@ -1226,21 +1215,17 @@ class _EditServiceState extends State<EditService>
       }
     } catch (e) {
       print('Error syncing to schedules: $e');
-      // Don't throw - sync failure shouldn't break service update
     }
   }
 
   // ----- save -----
-
   Future<void> _onSave() async {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
-    // compute auto labor so toMap() writes laborTotal/total correctly
     final hours = _computedHours;
     final rate = _hourlyRate;
 
-    // Build updated record (keep status unchanged)
     final updated = ServiceRecordModel(
       id: widget.record.id,
       date: DateTime.parse(_date.text),
@@ -1479,7 +1464,6 @@ class _EditServiceState extends State<EditService>
         _catsLoading = false;
       });
 
-      // After we know the category names, preload inventory for labor calc & lookups
       await _preloadInventory(cats);
       if (mounted) setState(() {}); // refresh totals once inventory is in
     } catch (e) {

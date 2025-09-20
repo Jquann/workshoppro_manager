@@ -20,7 +20,7 @@ class VehiclesPage extends StatefulWidget {
 class _VehiclesPageState extends State<VehiclesPage> {
   final db = FirestoreService();
 
-  // Voice-search state (kept minimal; no flow changes)
+  // Voice-search state
   final _searchCtrl = TextEditingController();
   String q = '';
   bool _listening = false;
@@ -325,7 +325,6 @@ class _VehiclesPageState extends State<VehiclesPage> {
     );
   }
 
-  // colored “avatar” circle/square like mock
   Widget _thumb(int i, double s) {
     const swatches = [
       Color(0xFFE3F2FD),
@@ -351,7 +350,6 @@ class _VehiclesPageState extends State<VehiclesPage> {
 }
 
 /// ===================== INACTIVE VEHICLES PAGE =====================
-
 class InactiveVehiclesPage extends StatelessWidget {
   const InactiveVehiclesPage({super.key});
 

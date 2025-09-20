@@ -11,7 +11,6 @@ class EditVehicle extends StatefulWidget {
 }
 
 class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin {
-  // —— Same tokens as AddVehicle ——
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -47,8 +46,7 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-
-    // Prefill fields from vehicle
+    // Initialize form fields with existing vehicle data
     _model.text = widget.vehicle.model;
     _make.text = widget.vehicle.make;
     _year.text = widget.vehicle.year.toString();
@@ -157,7 +155,6 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
     });
   }
 
-  // —— Same input deco as AddVehicle ——
   InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
     hintText: hint,
     hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
@@ -203,7 +200,6 @@ class _EditVehicleState extends State<EditVehicle> with TickerProviderStateMixin
       backgroundColor: const Color(0xFFFAFAFA),
       body: CustomScrollView(
         slivers: [
-          // —— SliverAppBar identical to AddVehicle ——
           SliverAppBar(
             expandedHeight: 120,
             floating: false,
