@@ -558,7 +558,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
                 ElevatedButton.icon(
                   onPressed: categoryAnalytics.isNotEmpty ? _exportCategoryBreakdownToPDF : null,
                   icon: Icon(Icons.picture_as_pdf, size: 18),
-                  label: Text('Export PDF'),
+                  label: Text(''),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
