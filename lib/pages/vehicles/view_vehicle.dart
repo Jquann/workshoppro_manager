@@ -913,15 +913,13 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          icon: Icon(
-            isInactive ? Icons.restore_rounded : Icons.archive_rounded,
-            size: 24,
-          ),
-          label: Text(
-            isInactive ? 'Restore Vehicle' : 'Deactivate Vehicle',
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
+          label: Expanded(
+            child: Text(
+              isInactive ? 'Restore Vehicle' : 'Deactivate Vehicle',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
             ),
           ),
           onPressed: () async {
@@ -974,7 +972,7 @@ class _ViewVehicleState extends State<ViewVehicle> with TickerProviderStateMixin
         title: Row(
           children: [
             Icon(Icons.warning_rounded, color: _kWarning, size: 28),
-            const SizedBox(width: 12),
+            SizedBox.shrink(),
             const Text('Deactivate Vehicle'),
           ],
         ),
