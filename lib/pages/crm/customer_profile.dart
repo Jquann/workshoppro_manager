@@ -525,79 +525,83 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     }
 
               return Column(
-                children: vehicles.map((doc) {
-                  final vehicleData = doc.data() as Map<String, dynamic>;
-                  return Column(
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ViewVehicle(
-                                vehicleId: doc.id,
+                children: [
+                  // Display existing vehicles
+                  ...vehicles.map((doc) {
+                    final vehicleData = doc.data() as Map<String, dynamic>;
+                    return Column(
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ViewVehicle(
+                                  vehicleId: doc.id,
+                                ),
                               ),
+                            );
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFF007AFF).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.directions_car,
+                                    color: Color(0xFF007AFF),
+                                    size: 20,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${vehicleData['year']?.toString() ?? ''} ${vehicleData['make'] ?? ''} ${vehicleData['model'] ?? ''}',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          color: Colors.black87,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        '${vehicleData['carPlate'] ?? ''}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black45,
+                                        ),
+                                      ),
+                                    ], 
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Colors.black26,
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF007AFF).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.directions_car,
-                                  color: Color(0xFF007AFF),
-                                  size: 20,
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${vehicleData['year']?.toString() ?? ''} ${vehicleData['make'] ?? ''} ${vehicleData['model'] ?? ''}',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.black87,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      '${vehicleData['carPlate'] ?? ''}',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                  ], 
-                                ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                size: 16,
-                                color: Colors.black26,
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                      if (doc.id != vehicles.last.id)
                         Container(
                           height: 1,
                           color: Color(0xFFEEEEEE),
                         ),
-                    ],
-                  );
-                }).toList(),
+                      ],
+                    );
+                  }).toList(),
+                  // Always show Add Vehicle button at the bottom
+                  _buildAddVehicleButton(customerName: customerName),
+                ],
               );
             },
           ),
