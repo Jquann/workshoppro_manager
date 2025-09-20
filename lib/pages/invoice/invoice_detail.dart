@@ -229,7 +229,7 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invoice PDF saved successfully!\nPath: $filePath'),
+            content: Text('Invoice PDF saved to Download successfully!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
