@@ -13,7 +13,6 @@ class VehicleUI extends StatefulWidget {
 }
 
 class _VehicleUIState extends State<VehicleUI> with TickerProviderStateMixin {
-  // Enhanced color scheme
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);

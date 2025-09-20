@@ -36,7 +36,7 @@ class _VehicleDashboardState extends State<VehicleDashboard> {
     return FirebaseFirestore.instance
         .collection('vehicles')
         .orderBy('updatedAt', descending: true)
-        .limit(5) // Reduced to 5 for better UX
+        .limit(5)
         .snapshots()
         .map((s) => s.docs
         .map((d) => VehicleModel.fromMap(d.id, d.data()))
@@ -486,7 +486,6 @@ class _VehicleDashboardState extends State<VehicleDashboard> {
   }
 
   // ===== UI helpers =====
-
   Widget _statCard({
     required double s,
     required String title,

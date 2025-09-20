@@ -61,7 +61,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   static const _kDarkText = Color(0xFF1C1C1E);
   static const _kCardShadow = Color(0x1A000000);
 
-  // Labor policy
   static const double _hourlyRate = 80.0; // RM/hour
   static const Map<String, double> _defaultHoursByCategory = {
     'Body': 0.3,
@@ -295,7 +294,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   }
 
   // ----- sections
-
   Widget _buildServiceDetailsCard() {
     return _buildCard(
       icon: Icons.build_rounded,
@@ -383,7 +381,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
                     },
                   ),
           ),
-          // NOTE: no status dropdown here — always auto "assign" on save.
         ],
       ),
     );
@@ -603,7 +600,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   );
 
   // ----- inventory editor
-
   Widget _inventoryPartEditor() {
     final stockLine = (_selectedPart == null)
         ? null
@@ -881,7 +877,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   );
 
   // ----- save
-
   Future<void> _onSave() async {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
