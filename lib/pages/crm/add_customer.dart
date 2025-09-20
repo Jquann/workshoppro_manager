@@ -626,10 +626,10 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
           // Update customer document first
           await _firestore.collection('customers').doc(widget.documentId).update(customerData);
           
-          // Update all vehicles that belong to this customer
+          // Update all vehicles and schedules that belong to this customer
           await _updateVehicleCustomerNames(oldCustomerName, newCustomerName);
           
-          _showSnackBar('Customer and related vehicles updated successfully!', _kSuccess);
+          _showSnackBar('Customer, vehicles, and schedules updated successfully!', _kSuccess);
         } else {
           // Just update customer document (no name change)
           await _firestore.collection('customers').doc(widget.documentId).update(customerData);
@@ -654,16 +654,32 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
   // Update all vehicle records that have the old customer name
   Future<void> _updateVehicleCustomerNames(String oldCustomerName, String newCustomerName) async {
     try {
-      // Find all vehicles with the old customer name
+      // Update vehicles
       QuerySnapshot vehicleQuery = await _firestore
           .collection('vehicles')
           .where('customerName', isEqualTo: oldCustomerName)
           .get();
       
-      // Update each vehicle document with the new customer name
+      // Update schedules
+      QuerySnapshot scheduleQuery = await _firestore
+          .collection('schedules')
+          .where('customerName', isEqualTo: oldCustomerName)
+          .get();
+      
+      // Use batch operation for better performance and atomicity
       WriteBatch batch = _firestore.batch();
+      
+      // Update each vehicle document with the new customer name
       for (QueryDocumentSnapshot vehicleDoc in vehicleQuery.docs) {
         batch.update(vehicleDoc.reference, {
+          'customerName': newCustomerName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      // Update each schedule document with the new customer name
+      for (QueryDocumentSnapshot scheduleDoc in scheduleQuery.docs) {
+        batch.update(scheduleDoc.reference, {
           'customerName': newCustomerName,
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -672,10 +688,10 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
       // Commit the batch update
       await batch.commit();
       
-      print('Updated ${vehicleQuery.docs.length} vehicle(s) with new customer name: $newCustomerName');
+      print('Updated ${vehicleQuery.docs.length} vehicle(s) and ${scheduleQuery.docs.length} schedule(s) with new customer name: $newCustomerName');
     } catch (e) {
-      print('Error updating vehicle customer names: $e');
-      // Don't throw here - we want the customer update to succeed even if vehicle update fails
+      print('Error updating vehicle and schedule customer names: $e');
+      // Don't throw here - we want the customer update to succeed even if vehicle/schedule update fails
     }
   }
 }
