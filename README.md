@@ -1,37 +1,64 @@
-# workshoppro_manager
+# WorkshopPro Manager
 
-BMIT2073 Mobile Application Development Assignment
+**BMIT2073 Mobile Application Development Assignment**
 
-# GitHub Manual (Android Studio - GUI)
+This is our team's assignment project for the Mobile Application Development course. We are developing a mobile application for workshop management using Flutter.
 
-## Update File (Sync `my_branch` with latest `master`)
-- `my_branch` is your name
-1. Click the top-left 'burger icon' (4 dash line) > Click `Git` > Click `Fetch`
-2. Click the top-left `my_branch`
-3. Merge latest from github master:
-   1. Click the `Remote` > `origin` > `master`
-   2. Merge `origin/master` into `my_branch`
-4. Click the top-left `my_branch` again
-5. Click `Push`
+## Project Overview
 
----
+Our team has selected the following core function:
 
-## Commit File (Add/Edit/Delete Files)
-1. Navigate to the **Commit** window at the left navigation bar
-2. Select the files you want to commit (check the boxes)
-3. Write a meaningful commit message in the message box
-4. **`Commit and Push`**
-   1. Click **`Commit and Push`**
-   2. Click **`Push`** in the pop-up window
-5. Click **`Create pull request`** at bottom-right pop-up window
-6. Click **`Create Pull Request`** at the **Pull Request** window
-7. Merge
-   1. Method 1: Request Reviewer before merge
-      1. Click **`Request Reviewer`**
-      2. Select the reviewer you want (check the boxes)
-   2. Method 2: Self Merge (Must Confirm no error before merge)
-      1. Click **`More`** (3 dot beside Request Reviewer)
-      2. Click **`Merge Review`**
-      3. Click **`Merge`**
-      4. Write **`Merge commit message`**
-      5. Click **`Merge`**
+**A. Job Management for Workshop Manager**
+
+This application focuses on providing comprehensive job management capabilities for workshop managers, including job scheduling, tracking, and workflow management.
+
+## Technology Stack
+
+- **Framework**: Flutter
+- **Platform**: Android/iOS
+- **Backend**: Firebase
+- **Language**: Dart
+
+## Getting Started
+
+1. Clone the repository
+2. Run `flutter pub get` to install dependencies
+3. Configure Firebase (see `firebase.json`)
+4. Run `flutter run` to start the application
+
+## Team Members
+
+- **Lee Jia Quan**
+- **Beh Jing Hen**
+- **Ooi Choon Chong**
+- **Yeong Ching Zhou**
+
+## What We've Accomplished
+
+### Project Setup & Infrastructure
+- Flutter project initialization and configuration
+- Firebase integration and setup
+- GitHub repository with CI/CD workflow
+- Project structure organization
+
+### Authentication System
+- Firebase Authentication implementation
+- User login/registration functionality
+- Auth service integration
+
+### Core Features Implemented
+- **Vehicle Management**: Vehicle models and data handling
+- **Inventory Control**: Parts and inventory tracking system
+- **Invoice System**: Invoice generation and management
+- **Service Management**: Service models and workflow
+- **Customer Relationship Management (CRM)**: Customer data handling
+- **Admin Panel**: Administrative functions and controls
+- **User Profile**: Profile management system
+- **Schedule Management**: Job scheduling capabilities
+
+### Technical Components
+- **Data Models**: Vehicle, Part, Service, and Invoice models
+- **Services**: Authentication, Image handling, and Storage services
+- **Firebase Integration**: Firestore database connectivity
+- **UI Components**: Multiple page layouts and navigation system
+- **State Management**: Organized app state handling
