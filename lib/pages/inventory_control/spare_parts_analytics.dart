@@ -498,35 +498,38 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 20,
-          horizontalMargin: 16,
-          headingRowHeight: 48,
-          headingTextStyle: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-            fontSize: 14,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: 600), // Ensure minimum width for table
+          child: DataTable(
+            columnSpacing: 20,
+            horizontalMargin: 16,
+            headingRowHeight: 48,
+            headingTextStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+              fontSize: 14,
+            ),
+            columns: const [
+              DataColumn(label: Text('Category', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Total', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Used', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Low Stock', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Requested', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Utilization', overflow: TextOverflow.ellipsis)),
+            ],
+            rows: categoryNames.map((cat) {
+              final data = categoryAnalytics[cat];
+              final hasParts = (data != null && (data['totalParts'] ?? 0) > 0);
+              return DataRow(cells: [
+                DataCell(Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                DataCell(Text(hasParts ? data['totalParts'].toString() : '-', style: TextStyle(fontSize: 13))),
+                DataCell(Text(hasParts ? data['usedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.green[700], fontWeight: FontWeight.w600))),
+                DataCell(Text(hasParts ? data['lowStockParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.orange[700], fontWeight: FontWeight.w600))),
+                DataCell(Text(hasParts ? data['requestedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.red[700], fontWeight: FontWeight.w600))),
+                DataCell(Text(hasParts ? '${data['utilizationRate'].toStringAsFixed(1)}%' : '-', style: TextStyle(fontSize: 13, color: hasParts ? _getUtilizationColor(data['utilizationRate']) : Colors.grey, fontWeight: FontWeight.w600))),
+              ]);
+            }).toList(),
           ),
-          columns: const [
-            DataColumn(label: Text('Category', overflow: TextOverflow.ellipsis)),
-            DataColumn(label: Text('Total', overflow: TextOverflow.ellipsis)),
-            DataColumn(label: Text('Used', overflow: TextOverflow.ellipsis)),
-            DataColumn(label: Text('Low Stock', overflow: TextOverflow.ellipsis)),
-            DataColumn(label: Text('Requested', overflow: TextOverflow.ellipsis)),
-            DataColumn(label: Text('Utilization', overflow: TextOverflow.ellipsis)),
-          ],
-          rows: categoryNames.map((cat) {
-            final data = categoryAnalytics[cat];
-            final hasParts = (data != null && (data['totalParts'] ?? 0) > 0);
-            return DataRow(cells: [
-              DataCell(Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-              DataCell(Text(hasParts ? data['totalParts'].toString() : '-', style: TextStyle(fontSize: 13))),
-              DataCell(Text(hasParts ? data['usedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.green[700], fontWeight: FontWeight.w600))),
-              DataCell(Text(hasParts ? data['lowStockParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.orange[700], fontWeight: FontWeight.w600))),
-              DataCell(Text(hasParts ? data['requestedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.red[700], fontWeight: FontWeight.w600))),
-              DataCell(Text(hasParts ? '${data['utilizationRate'].toStringAsFixed(1)}%' : '-', style: TextStyle(fontSize: 13, color: hasParts ? _getUtilizationColor(data['utilizationRate']) : Colors.grey, fontWeight: FontWeight.w600))),
-            ]);
-          }).toList(),
         ),
       ),
     );
@@ -1400,59 +1403,4 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
