@@ -374,6 +374,15 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
   Future<void> _updatePart() async {
     if (_formKey.currentState!.validate()) {
       try {
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+
         // Collect suppliers data
         List<Map<String, dynamic>> suppliers = [];
         for (int i = 0; i < supplierControllers.length; i++) {
@@ -386,31 +395,16 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
           bool isPrimary = isPrimaryList[i];
 
           if (name.isNotEmpty || email.isNotEmpty) {
-            // Create supplier data with defaults if needed
+            // Create supplier data
             Map<String, dynamic> supplierData = {
               'name': name,
               'email': email,
               'isPrimary': isPrimary,
+              'price': double.tryParse(price) ?? 0.0,
+              'leadTime': int.tryParse(leadTime) ?? 3,
+              'minOrderQty': int.tryParse(minOrderQty) ?? 10,
+              'reliabilityScore': double.tryParse(reliabilityScore) ?? 0.85,
             };
-
-            // Preserve existing supplier data from the original part if this supplier exists
-            if (i < widget.part.suppliers.length) {
-              final existingSupplier = widget.part.suppliers[i];
-              supplierData.addAll({
-                'price': double.tryParse(price) ?? existingSupplier['price'] ?? widget.part.price,
-                'leadTime': int.tryParse(leadTime) ?? existingSupplier['leadTime'] ?? 3,
-                'minOrderQty': int.tryParse(minOrderQty) ?? existingSupplier['minOrderQty'] ?? 10,
-                'reliabilityScore': double.tryParse(reliabilityScore) ?? existingSupplier['reliabilityScore'] ?? 0.85,
-              });
-            } else {
-              // New supplier - add default values
-              supplierData.addAll({
-                'price': double.tryParse(price) ?? widget.part.price,
-                'leadTime': int.tryParse(leadTime) ?? 3,
-                'minOrderQty': int.tryParse(minOrderQty) ?? 10,
-                'reliabilityScore': double.tryParse(reliabilityScore) ?? 0.85,
-              });
-            }
 
             suppliers.add(supplierData);
           }
@@ -418,37 +412,90 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
 
         final firestore = FirebaseFirestore.instance;
         final lowStockThreshold = int.parse(thresholdController.text.trim());
+        final updatedPrice = double.tryParse(priceController.text.trim()) ?? widget.part.price;
 
-        // Create updated part data
+        // Get the correct part ID - prioritize the existing ID structure
+        String partId = widget.part.id.isNotEmpty ? widget.part.id :
+                       widget.part.sparePartId.isNotEmpty ? widget.part.sparePartId :
+                       'PRT${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
+        // Create updated part data that matches the Firestore structure
         final updatedPartData = {
-          'id': widget.part.id,
+          'id': partId,
           'name': nameController.text.trim(),
           'category': widget.part.category,
           'quantity': widget.part.quantity, // preserve current quantity
           'isLowStock': widget.part.quantity <= lowStockThreshold,
           'lowStockThreshold': lowStockThreshold,
           'description': descriptionController.text.trim(),
-          'price': double.tryParse(priceController.text.trim()) ?? 0.0,
+          'price': updatedPrice,
           'unit': unitController.text.trim(),
           'suppliers': suppliers,
+          'manufacturer': widget.part.manufacturer, // preserve existing manufacturer
+          'barcode': widget.part.barcode, // preserve existing barcode
+          'supplier': suppliers.isNotEmpty ? suppliers.first['name'] : widget.part.supplier, // use first supplier as main supplier
+          'supplierEmail': suppliers.isNotEmpty ? suppliers.first['email'] : widget.part.supplierEmail,
+          'sparePartId': partId, // ensure sparePartId is set
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        // Use part ID as field name (based on database structure)
+        print('🔧 Updating part with data: $updatedPartData');
+        print('📍 Document path: inventory_parts/${widget.part.category}');
+        print('🔑 Field key: $partId');
+
+        // Update the part in Firestore using the correct document structure
         await firestore.collection('inventory_parts').doc(widget.part.category).update({
-          widget.part.id: updatedPartData  // Use part ID as field name
+          partId: updatedPartData  // Use part ID as field name
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Part updated successfully!'), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context);
-        Navigator.pop(context); // Go back to previous screen
-      } catch (e) {
+        // Hide loading indicator
+        Navigator.of(context).pop();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Error updating part: $e'),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Part updated successfully!'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Close the bottom sheet and return to previous screen
+        Navigator.pop(context);
+
+        // Optionally navigate back to refresh the previous screen
+        Navigator.pop(context);
+
+      } catch (e) {
+        // Hide loading indicator if still showing
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+
+        print('❌ Error updating part: $e');
+        print('📊 Part data attempted: ${widget.part.toString()}');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Error updating part: ${e.toString()}')),
+              ],
+            ),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _updatePart(),
+            ),
           ),
         );
       }

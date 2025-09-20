@@ -57,6 +57,8 @@ dependencies:
   # PDF generation and file handling
   pdf: ^3.10.4
   printing: ^5.11.0
+  csv: ^5.0.2
+  fl_chart: ^0.66.0
   path_provider: ^2.1.1
   path: ^1.8.3
   speech_to_text: ^7.3.0

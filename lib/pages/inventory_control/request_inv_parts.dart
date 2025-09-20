@@ -140,39 +140,7 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Inventory Part Requests'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.cloud_upload),
-            tooltip: 'Upload Sample Requests',
-            onPressed: _uploadSampleRequests,
-          ),
-          IconButton(
-            icon: Icon(Icons.delete),
-            tooltip: 'Delete All Requests',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text('Delete All Requests'),
-                  content: Text('Are you sure you want to delete ALL inventory part requests? This action cannot be undone.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: Text('Delete', style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                await _deleteAllRequests();
-              }
-            },
-          ),
-        ],
+
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore.collection('inventory_requests').orderBy('requestedAt', descending: true).snapshots(),

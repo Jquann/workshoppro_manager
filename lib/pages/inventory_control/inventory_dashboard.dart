@@ -36,6 +36,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       Map<String, String> partCategoryMap = {};
       int totalPartItems = 0;
 
+      // Build normalized part name to category map
       for (var categoryDoc in inventorySnapshot.docs) {
         Map<String, dynamic> data = categoryDoc.data() as Map<String, dynamic>;
         data.forEach((partId, partData) {
@@ -51,7 +52,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         });
       }
 
-      // Step 2: Get all invoices and sum usage by category (dynamic)
       QuerySnapshot invoiceSnapshot = await _firestore.collection('invoices').get();
       Map<String, int> usageByCategory = {};
       int used = 0;
@@ -63,9 +63,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
         List<dynamic> parts = invoiceData['parts'] ?? [];
         for (var part in parts) {
           String partNameRaw = part['name'] ?? '';
-          String partName = partNameRaw.trim().toLowerCase();
+          String partNameNormalized = partNameRaw.trim().toLowerCase();
           int quantity = part['quantity'] ?? 0;
-          String category = partCategoryMap[partName] ?? 'Unknown';
+
+          // Try exact match first
+          String category = partCategoryMap[partNameNormalized] ?? '';
+
+          // If not found, try partial match (contains)
+          if (category.isEmpty) {
+            for (final entry in partCategoryMap.entries) {
+              if (partNameNormalized.contains(entry.key) || entry.key.contains(partNameNormalized)) {
+                category = entry.value;
+                break;
+              }
+            }
+          }
+
+          // If still not found, fallback to Unknown
+          if (category.isEmpty) category = 'Unknown';
+
           usageByCategory[category] = (usageByCategory[category] ?? 0) + quantity;
           used += quantity;
         }
@@ -120,24 +136,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.menu, color: Colors.black, size: 28),
-                        onPressed: () {
-                          _scaffoldKey.currentState?.openDrawer();
-                        },
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Inventory',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.menu, color: Colors.black, size: 28),
+                          onPressed: () {
+                            _scaffoldKey.currentState?.openDrawer();
+                          },
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Inventory',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Row(
                     children: [
@@ -210,15 +231,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Overview',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                            Flexible(
+                              child: Text(
+                                'Overview',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (_isLoading)
                                   SizedBox(
@@ -312,29 +337,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             width: double.infinity,
                             padding: EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: partsRequested > 10
-                                  ? Colors.red[50]
-                                  : Colors.grey[50],
+                              color: partsRequested > 10 ? Colors.red[50] : Colors.grey[50],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: partsRequested > 10
-                                    ? Colors.red[200]!
-                                    : Colors.grey[200]!,
+                                color: partsRequested > 10 ? Colors.red[200]! : Colors.grey[200]!,
                               ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'Low Stock',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
+                                    Flexible(
+                                      child: Text(
+                                        'Low Stock',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     if (partsRequested > 10)
@@ -359,14 +382,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                   ],
                                 ),
                                 SizedBox(height: 8),
-                                Text(
-                                  _isLoading ? '...' : '$partsRequested',
-                                  style: TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    color: partsRequested > 10
-                                        ? Colors.red[700]
-                                        : Colors.black,
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    _isLoading ? '...' : '$partsRequested',
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: partsRequested > 10 ? Colors.red[700] : Colors.black,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -380,12 +404,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Part Usage',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                            Flexible(
+                              child: Text(
+                                'Part Usage',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             GestureDetector(
@@ -419,33 +446,45 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                         SizedBox(height: 20),
 
-                        // Chart Container - Fixed implementation
+                        // Chart Container - Fixed implementation with proper alignment
                         Container(
                           height: 200,
                           child: _isLoading
                               ? Center(child: CircularProgressIndicator())
-                              : categoryUsage.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'No usage data available',
-                                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                                      ),
-                                    )
-                                  : SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          for (int i = 0; i < categoryUsage.length; i++)
-                                            _buildDynamicChartBar(
-                                              categoryUsage.keys.elementAt(i),
-                                              categoryUsage.values.elementAt(i),
-                                              _getCategoryColor(i),
-                                              categoryUsage.values.reduce((a, b) => a > b ? a : b),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
+                              : (() {
+                            // Filter out 'Unknown' and get top 5 usage categories
+                            final filteredUsage = Map.fromEntries(
+                                categoryUsage.entries
+                                    .where((e) => e.key.toLowerCase() != 'unknown')
+                                    .toList()
+                            );
+                            final sortedUsage = filteredUsage.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value));
+                            final topUsage = sortedUsage.take(5).toList();
+                            if (topUsage.isEmpty) {
+                              return Center(
+                                child: Text(
+                                  'No usage data available',
+                                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                                ),
+                              );
+                            }
+                            final maxUsage = topUsage.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: topUsage.asMap().entries.map((entry) {
+                                int index = entry.key;
+                                MapEntry<String, int> usage = entry.value;
+                                return _buildDynamicChartBar(
+                                  usage.key,
+                                  usage.value,
+                                  _getCategoryColor(index),
+                                  maxUsage,
+                                );
+                              }).toList(),
+                            );
+                          })(),
                         ),
 
                         SizedBox(height: 32),
@@ -475,20 +514,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.track_changes, color: Colors.orange[700], size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Recent Procurement Requests',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.orange[700],
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.track_changes, color: Colors.orange[700], size: 20),
+                                        SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            'Recent Procurement Requests',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.orange[700],
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
+                                  SizedBox(width: 8),
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(
@@ -575,20 +620,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.assignment, color: Colors.teal[700], size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Recent Part Requests',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.teal[700],
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.assignment, color: Colors.teal[700], size: 20),
+                                        SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            'Recent Part Requests',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.teal[700],
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
+                                  SizedBox(width: 8),
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(
@@ -693,12 +744,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
           SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
           ),
         ],
@@ -708,31 +762,44 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _buildDynamicChartBar(String label, int usage, Color color, int maxUsage) {
     final barHeight = maxUsage > 0 ? (usage / maxUsage) * 120 : 10.0;
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8),
+    return Expanded(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
-            usage.toString(),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
+          // Value on top
+          SizedBox(
+            height: 20,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                usage.toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
             ),
           ),
           SizedBox(height: 4),
+          // Bar with fixed container height for alignment
           Container(
+            height: 120,
             width: 36,
-            height: barHeight.clamp(10.0, 120.0),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(6),
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              width: 36,
+              height: barHeight.clamp(10.0, 120.0),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           SizedBox(height: 8),
-          Container(
-            width: 60,
+          // Label at bottom
+          SizedBox(
+            height: 40,
             child: Text(
               label,
               style: TextStyle(
@@ -783,7 +850,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         border: Border.all(color: isUrgent ? Colors.red[200]! : Colors.grey[300]!),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: Column(
@@ -796,6 +862,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     fontWeight: FontWeight.w500,
                     color: isUrgent ? Colors.red[700] : Colors.black,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -804,6 +872,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     fontSize: 14,
                     color: Colors.grey[700],
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -812,6 +882,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     fontSize: 14,
                     color: Colors.grey[700],
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -821,6 +893,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     color: isUrgent ? Colors.red[700] : Colors.grey[700],
                     fontWeight: isUrgent ? FontWeight.bold : FontWeight.normal,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
@@ -829,13 +903,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                timestamp != null ? '${timestamp.day}/${timestamp.month}/${timestamp.year}' : '',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
+              if (timestamp != null)
+                Text(
+                  '${timestamp.day}/${timestamp.month}/${timestamp.year}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
                 ),
-              ),
               SizedBox(height: 4),
               if (isUrgent)
                 Container(
@@ -876,7 +951,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         border: Border.all(color: isApproved ? Colors.green[200]! : Colors.grey[300]!),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: Column(
@@ -889,6 +963,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     fontWeight: FontWeight.w500,
                     color: isApproved ? Colors.green[700] : Colors.black,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -897,6 +973,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     fontSize: 14,
                     color: Colors.grey[700],
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -906,6 +984,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     color: isApproved ? Colors.green[700] : Colors.grey[700],
                     fontWeight: isApproved ? FontWeight.bold : FontWeight.normal,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
@@ -945,15 +1025,3 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
