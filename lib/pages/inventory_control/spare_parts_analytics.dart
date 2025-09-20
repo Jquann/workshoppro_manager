@@ -544,32 +544,72 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Category Breakdown (tables only) with export button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Category Breakdown (Table)',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: categoryAnalytics.isNotEmpty ? _exportCategoryBreakdownToPDF : null,
-                  icon: Icon(Icons.picture_as_pdf, size: 18),
-                  label: Text('Export PDF'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    textStyle: TextStyle(fontSize: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 370) {
+                  // On small screens, stack vertically
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Category Breakdown (Table)',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: ElevatedButton.icon(
+                          onPressed: categoryAnalytics.isNotEmpty ? _exportCategoryBreakdownToPDF : null,
+                          icon: Icon(Icons.picture_as_pdf, size: 18),
+                          label: Text('Export PDF'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            textStyle: TextStyle(fontSize: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  // On larger screens, keep in a row
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Category Breakdown (Table)',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: categoryAnalytics.isNotEmpty ? _exportCategoryBreakdownToPDF : null,
+                        icon: Icon(Icons.picture_as_pdf, size: 18),
+                        label: Text('Export PDF'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: TextStyle(fontSize: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
             SizedBox(height: 12),
 
