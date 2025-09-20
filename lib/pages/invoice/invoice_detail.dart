@@ -41,6 +41,13 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     _currentInvoice = widget.invoice;
   }
 
+  @override
+  void dispose() {
+    // Clear any pending operations and free up resources
+    _selectedPaymentMethod = null;
+    super.dispose();
+  }
+
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
@@ -222,7 +229,7 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invoice PDF saved successfully!\nPath: $filePath'),
+            content: Text('Invoice PDF saved to Download successfully!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
@@ -1065,13 +1072,13 @@ class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 650),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Title
+            // Title - Make more compact
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.blue[600],
                 borderRadius: const BorderRadius.only(
@@ -1081,24 +1088,26 @@ class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.email, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text(
-                    'Send Invoice via Email',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Icon(Icons.email, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Send Invoice via Email',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Content
+            // Content - Make more compact
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1106,71 +1115,95 @@ class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
                     Text(
                       'Invoice: ${widget.invoice.invoiceId}',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: Colors.grey[600],
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     const Text(
                       'Select Customer Email:',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<Map<String, String>>(
-                      value: _selectedCustomer,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      menuMaxHeight: 200,
-                      items: widget.customerEmails.map((customer) {
-                        return DropdownMenuItem<Map<String, String>>(
-                          value: customer,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                customer['name']!,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                customer['email']!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(minHeight: 45),
+                      child: DropdownButtonFormField<Map<String, String>>(
+                        value: _selectedCustomer,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCustomer = value;
-                        });
-                      },
+                          isDense: true,
+                        ),
+                        menuMaxHeight: 200,
+                        itemHeight: 50,
+                        selectedItemBuilder: (BuildContext context) {
+                          return widget.customerEmails.map<Widget>((customer) {
+                            return Container(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                customer['email']!,
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList();
+                        },
+                        items: widget.customerEmails.map((customer) {
+                          return DropdownMenuItem<Map<String, String>>(
+                            value: customer,
+                            child: Container(
+                              height: 40,
+                              padding: const EdgeInsets.symmetric(vertical: 1),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Text(
+                                  //   customer['name']!,
+                                  //   style: const TextStyle(
+                                  //     fontSize: 12,
+                                  //     fontWeight: FontWeight.w600,
+                                  //   ),
+                                  //   overflow: TextOverflow.ellipsis,
+                                  //   maxLines: 1,
+                                  // ),
+                                  Text(
+                                    customer['email']!,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[600],
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCustomer = value;
+                          });
+                        },
+                      ),
                     ),
                     if (_selectedCustomer != null) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: Colors.blue[200]!),
                         ),
                         child: Column(
@@ -1179,23 +1212,22 @@ class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
                             const Text(
                               'Email Preview:',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.blue,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 3),
                             Text(
                               'To: ${_selectedCustomer!['email']}',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 11),
                             ),
                             Text(
                               'Subject: Invoice ${widget.invoice.invoiceId} - Workshop Pro Manager',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 11),
                             ),
                             Text(
                               'Attachment: Invoice_${widget.invoice.invoiceId}.pdf',
-                              style: const TextStyle(fontSize: 12),
                             ),
                           ],
                         ),

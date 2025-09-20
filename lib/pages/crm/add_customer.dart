@@ -604,19 +604,37 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
         return;
       }
       
+      String newCustomerName = _customerNameController.text.trim();
+      
       Map<String, dynamic> customerData = {
-        'customerName': _customerNameController.text.trim(),
+        'customerName': newCustomerName,
         'phoneNumber': _phoneNumberController.text.trim().replaceAll(RegExp(r'[^\d]'), ''), // Store only digits
         'emailAddress': _emailController.text.trim(),
-        'vehicleIds': [],
         'isDeleted': false,
         'updatedAt': FieldValue.serverTimestamp(),
       };
       
+      // Only set vehicleIds for new customers, preserve existing for updates
+      if (widget.documentId == null) {
+        customerData['vehicleIds'] = [];
+      }
+      
       if (widget.documentId != null) {
-        // Edit
-        await _firestore.collection('customers').doc(widget.documentId).update(customerData);
-        _showSnackBar('Customer updated successfully!', _kSuccess);
+        // Edit - Check if customer name has changed
+        String? oldCustomerName = widget.customer?.customerName;
+        if (oldCustomerName != null && oldCustomerName != newCustomerName) {
+          // Update customer document first
+          await _firestore.collection('customers').doc(widget.documentId).update(customerData);
+          
+          // Update all vehicles and schedules that belong to this customer
+          await _updateVehicleCustomerNames(oldCustomerName, newCustomerName);
+          
+          _showSnackBar('Customer, vehicles, and schedules updated successfully!', _kSuccess);
+        } else {
+          // Just update customer document (no name change)
+          await _firestore.collection('customers').doc(widget.documentId).update(customerData);
+          _showSnackBar('Customer updated successfully!', _kSuccess);
+        }
       } else {
         // Add
         customerData['createdAt'] = FieldValue.serverTimestamp();
@@ -630,6 +648,50 @@ class _AddCustomerPageState extends State<AddCustomerPage> with TickerProviderSt
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // Update all vehicle records that have the old customer name
+  Future<void> _updateVehicleCustomerNames(String oldCustomerName, String newCustomerName) async {
+    try {
+      // Update vehicles
+      QuerySnapshot vehicleQuery = await _firestore
+          .collection('vehicles')
+          .where('customerName', isEqualTo: oldCustomerName)
+          .get();
+      
+      // Update schedules
+      QuerySnapshot scheduleQuery = await _firestore
+          .collection('schedules')
+          .where('customerName', isEqualTo: oldCustomerName)
+          .get();
+      
+      // Use batch operation for better performance and atomicity
+      WriteBatch batch = _firestore.batch();
+      
+      // Update each vehicle document with the new customer name
+      for (QueryDocumentSnapshot vehicleDoc in vehicleQuery.docs) {
+        batch.update(vehicleDoc.reference, {
+          'customerName': newCustomerName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      // Update each schedule document with the new customer name
+      for (QueryDocumentSnapshot scheduleDoc in scheduleQuery.docs) {
+        batch.update(scheduleDoc.reference, {
+          'customerName': newCustomerName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      // Commit the batch update
+      await batch.commit();
+      
+      print('Updated ${vehicleQuery.docs.length} vehicle(s) and ${scheduleQuery.docs.length} schedule(s) with new customer name: $newCustomerName');
+    } catch (e) {
+      print('Error updating vehicle and schedule customer names: $e');
+      // Don't throw here - we want the customer update to succeed even if vehicle/schedule update fails
     }
   }
 }

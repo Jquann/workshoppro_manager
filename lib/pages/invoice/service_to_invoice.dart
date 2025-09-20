@@ -27,6 +27,14 @@ class _ServiceToInvoiceMigrationState extends State<ServiceToInvoiceMigration> {
   final FirestoreService _firestoreService = FirestoreService();
 
   @override
+  void dispose() {
+    // Clear all lists and reset state to free up memory
+    _errorLogs.clear();
+    _successLogs.clear();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../models/invoice.dart';
 import '../../firestore_service.dart';
 import 'invoice_list.dart';
@@ -19,11 +20,18 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
   String? _errorMessage;
 
   final FirestoreService _firestoreService = FirestoreService();
+  StreamSubscription<List<Invoice>>? _invoicesSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadInvoicesFromFirestore();
+  }
+
+  @override
+  void dispose() {
+    _invoicesSubscription?.cancel();
+    super.dispose();
   }
 
   void _loadInvoicesFromFirestore() {
@@ -32,7 +40,8 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
       _errorMessage = null;
     });
 
-    _firestoreService.invoicesStream().listen(
+    _invoicesSubscription?.cancel(); // Cancel previous subscription if exists
+    _invoicesSubscription = _firestoreService.invoicesStream().listen(
       (List<Invoice> fetchedInvoices) {
         if (mounted) {
           setState(() {
