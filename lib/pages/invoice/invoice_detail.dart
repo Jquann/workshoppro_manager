@@ -41,6 +41,13 @@ class _InvoiceDetailState extends State<InvoiceDetail> {
     _currentInvoice = widget.invoice;
   }
 
+  @override
+  void dispose() {
+    // Clear any pending operations and free up resources
+    _selectedPaymentMethod = null;
+    super.dispose();
+  }
+
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
@@ -1137,6 +1144,18 @@ class _EmailSelectionDialogState extends State<_EmailSelectionDialog> {
                         ),
                         menuMaxHeight: 200,
                         itemHeight: 50,
+                        selectedItemBuilder: (BuildContext context) {
+                          return widget.customerEmails.map<Widget>((customer) {
+                            return Container(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                customer['email']!,
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList();
+                        },
                         items: widget.customerEmails.map((customer) {
                           return DropdownMenuItem<Map<String, String>>(
                             value: customer,

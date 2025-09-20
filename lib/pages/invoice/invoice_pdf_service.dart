@@ -9,6 +9,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:external_path/external_path.dart';
 import 'package:intl/intl.dart';
 import '../../models/invoice.dart';
 import '../../models/service_model.dart';
@@ -538,11 +539,24 @@ class InvoicePdfService {
     Uint8List pdfBytes,
   ) async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final fileName = '${invoice.invoiceId}_$timestamp.pdf';
-      final file = File('${directory.path}/$fileName');
 
+      // Get the external Downloads directory path
+      String downloadsPath;
+
+      // For Android, use external storage Downloads folder
+      if (Platform.isAndroid) {
+        downloadsPath = await ExternalPath.getExternalStoragePublicDirectory(
+          ExternalPath.DIRECTORY_DOWNLOAD,
+        );
+      } else {
+        // Fallback to internal documents directory for other platforms
+        final directory = await getApplicationDocumentsDirectory();
+        downloadsPath = directory.path;
+      }
+
+      final file = File('$downloadsPath/$fileName');
       await file.writeAsBytes(pdfBytes);
       return file.path;
     } catch (e) {
