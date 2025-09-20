@@ -449,13 +449,7 @@ import 'package:flutter/material.dart';
                       _requestData?['supplierEmail'] ?? '-',
                       Colors.green,
                     ),
-                    SizedBox(height: 16),
-                    _buildDetailRow(
-                      Icons.access_time,
-                      'ETA',
-                      _requestData?['eta'] != null ? _formatDateTime(_requestData?['eta']) : '-',
-                      Colors.purple,
-                    ),
+
                     SizedBox(height: 16),
                     _buildDetailRow(
                       Icons.schedule,
@@ -468,27 +462,7 @@ import 'package:flutter/material.dart';
               ),
               SizedBox(height: 24),
 
-              // Debug info (remove in production)
-              if (_requestData != null) ...[
-                ExpansionTile(
-                  title: Text('Debug Info', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _requestData.toString(),
-                        style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-              ],
+
 
               // Delivery Status Section
               Text(
