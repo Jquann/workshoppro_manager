@@ -6,17 +6,6 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Load keystore properties
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
-// Add required imports
-import java.util.Properties
-import java.io.FileInputStream
-
 android {
     namespace = "my.edu.tarumt.workshoppro_manager"
     compileSdk = flutter.compileSdkVersion
@@ -41,20 +30,10 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        release {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = file(keystoreProperties["storeFile"] as String? ?: "key.jks")
-            storePassword = keystoreProperties["storePassword"] as String?
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
-            minifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+            // 使用debug签名进行快速构建
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     dependencies {
