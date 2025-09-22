@@ -29,7 +29,7 @@ class _ViewServiceState extends State<ViewService>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Keep a mutable copy so we can refresh after editing
+  // Keep a mutable copy so can refresh after editing
   late ServiceRecordModel _record;
 
   // Color tokens
@@ -175,7 +175,7 @@ class _ViewServiceState extends State<ViewService>
                           ),
                         );
                         if (changed == true) {
-                          await _refreshRecord(); // <- reload and repaint
+                          await _refreshRecord();
                         }
                       },
                     ),
@@ -943,7 +943,6 @@ class _ViewServiceState extends State<ViewService>
   }
 
   // ------- STATUS BAR (Stepper) -------
-
   int _statusIndexOf(String raw) {
     final s = raw.trim().toLowerCase();
     if (s == ServiceRecordModel.statusCancel) return -1;          // cancelled
@@ -1137,7 +1136,6 @@ class _ViewServiceState extends State<ViewService>
     );
 
     try {
-      // keep everything same, only change status
       final updated = ServiceRecordModel(
         id: _record.id,
         date: _record.date,

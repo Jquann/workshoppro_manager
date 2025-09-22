@@ -18,7 +18,6 @@ class AddVehicle extends StatefulWidget {
 }
 
 class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
-  // Enhanced color scheme - consistent with add_service.dart
   static const _kPrimary = Color(0xFF007AFF);
   static const _kSecondary = Color(0xFF5856D6);
   static const _kSuccess = Color(0xFF34C759);
@@ -141,7 +140,6 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // Enhanced UI tokens - consistent with add_service.dart
   InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
     hintText: hint,
     hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
@@ -186,7 +184,6 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
       backgroundColor: const Color(0xFFFAFAFA),
       body: CustomScrollView(
         slivers: [
-          // Enhanced App Bar - consistent with add_service.dart
           SliverAppBar(
             expandedHeight: 120,
             floating: false,
@@ -569,7 +566,7 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
     if (!confirm) return;
 
     setState(() {
-      // Clear all text fields
+
       _make.clear();
       _model.clear();
       _year.clear();
@@ -577,7 +574,6 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
       _desc.clear();
       _customerController.clear();
 
-      // Reset customer selection (only if user is picking in this screen)
       if (widget.customerId == null) {
         selectedCustomerId = null;
         selectedCustomerName = null;
@@ -586,7 +582,6 @@ class _AddVehicleState extends State<AddVehicle> with TickerProviderStateMixin {
       }
     });
 
-    // IMPORTANT: don't call _form.currentState?.reset() here.
     _showSnackBar('Form cleared', _kSuccess);
   }
 
