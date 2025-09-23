@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'inventory_data_manager.dart';
 
 class InventoryPartRequestsPage extends StatefulWidget {
   const InventoryPartRequestsPage({Key? key}) : super(key: key);
@@ -12,11 +11,11 @@ class InventoryPartRequestsPage extends StatefulWidget {
 class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
   final _firestore = FirebaseFirestore.instance;
 
-  // Updated sample requests to use part IDs from InventoryDataManager
+  // Sample requests using actual part IDs from your Firestore database
   final List<Map<String, dynamic>> sampleInventoryRequests = [
     {
-      'partId': 'PRT001',
-      'partName': 'Engine Oil (5W-30)',
+      'partId': 'PRT017',
+      'partName': 'Car Batteries (12V - common sizes)',
       'quantityRequested': 2,
       'requester': 'Alice Tan',
       'requesterId': 'user_001',
@@ -25,9 +24,9 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'For scheduled maintenance'
     },
     {
-      'partId': 'PRT010',
-      'partName': 'Water Pumps (common models)',
-      'quantityRequested': 1,
+      'partId': 'PRT017',
+      'partName': 'Car Batteries (12V - common sizes)',
+      'quantityRequested': 5,
       'requester': 'Bob Lee',
       'requesterId': 'user_002',
       'status': 'pending',
@@ -35,34 +34,34 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
       'notes': 'Urgent replacement'
     },
     {
-      'partId': 'PRT012',
-      'partName': 'Brake Pads (Front & Rear)',
-      'quantityRequested': 4,
+      'partId': 'PRT017',
+      'partName': 'Car Batteries (12V - common sizes)',
+      'quantityRequested': 15,
       'requester': 'Charlie Lim',
       'requesterId': 'user_003',
       'status': 'pending',
       'requestedAt': Timestamp.now(),
-      'notes': 'Customer complaint: squeaking brakes'
+      'notes': 'This should be rejected - requesting more than available (current stock: 10)'
     },
     {
-      'partId': 'PRT021',
-      'partName': 'Car Batteries (12V - common sizes)',
+      'partId': 'PRT031',
+      'partName': 'Bumpers (Front and Rear)',
       'quantityRequested': 1,
       'requester': 'Diana Ng',
       'requesterId': 'user_004',
       'status': 'pending',
       'requestedAt': Timestamp.now(),
-      'notes': 'Battery replacement'
+      'notes': 'Single bumper replacement'
     },
     {
       'partId': 'PRT031',
-      'partName': 'Wiper Blades (18", 20", 22", 24")',
-      'quantityRequested': 2,
+      'partName': 'Bumpers (Front and Rear)',
+      'quantityRequested': 12,
       'requester': 'Eddie Wong',
       'requesterId': 'user_005',
       'status': 'pending',
       'requestedAt': Timestamp.now(),
-      'notes': 'Visibility issue'
+      'notes': 'This should be rejected - requesting more than available (current stock: 9)'
     },
   ];
 
@@ -81,45 +80,225 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
     }
   }
 
+  // Returns part data for structure: inventory_parts/{CategoryDoc} where each part is a map field:
+  // inventory_parts/Body (doc) with field PRT031: { id, name, quantity, ... }
+  Future<Map<String, dynamic>?> _getPartByPartId(String partId) async {
+    try {
+      final categories = ['Body', 'Brakes', 'Electrical', 'Engine', 'Exhaust', 'Interior', 'Steering', 'Suspension'];
+
+      for (final category in categories) {
+        final catRef = _firestore.collection('inventory_parts').doc(category);
+        final catSnap = await catRef.get();
+        if (!catSnap.exists) continue;
+        final data = catSnap.data() as Map<String, dynamic>;
+
+        // 1) Exact field key equals partId
+        if (data.containsKey(partId) && data[partId] is Map) {
+          final map = Map<String, dynamic>.from(data[partId] as Map);
+          return {
+            ...map,
+            'categoryDocId': category,
+            'writeMode': 'mapField',
+            'fieldPrefix': partId,
+          };
+        }
+
+        // 2) Or any field with id matching partId
+        for (final entry in data.entries) {
+          if (entry.value is Map) {
+            final map = Map<String, dynamic>.from(entry.value as Map);
+            if ((map['id'] ?? entry.key) == partId) {
+              return {
+                ...map,
+                'categoryDocId': category,
+                'writeMode': 'mapField',
+                'fieldPrefix': entry.key,
+              };
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching part by id: $e');
+      return null;
+    }
+  }
+
   Future<void> _handleRequestAction(String requestId, String partId, int quantityRequested, String action) async {
     try {
       final requestRef = _firestore.collection('inventory_requests').doc(requestId);
-      // Fetch part details using InventoryDataManager
-      final partData = InventoryDataManager.getPartById(partId);
-      if (partData == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Part not found!'), backgroundColor: Colors.red),
-        );
-        return;
-      }
-      final currentQty = partData['quantity'] ?? 0;
+
       if (action == 'accept') {
-        if (currentQty < quantityRequested) {
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(child: CircularProgressIndicator()),
+        );
+
+        // Fetch part details from Firestore
+        final partData = await _getPartByPartId(partId);
+
+        // Hide loading indicator
+        Navigator.of(context).pop();
+
+        if (partData == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Insufficient inventory!'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Part not found in inventory!\nSearched for Part ID: $partId'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
           );
           return;
         }
-        // Update part quantity in Firestore (by partId)
-        await _firestore.collection('inventory_parts').doc(partId).update({'quantity': currentQty - quantityRequested});
-        await requestRef.update({'status': 'accepted'});
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request accepted.'), backgroundColor: Colors.green),
+
+        final currentQuantity = ((partData['quantity'] ?? 0) as num).toInt();
+        final partName = partData['name']?.toString() ?? 'Unknown Part';
+
+        // Quick pre-check before confirmation
+        if (currentQuantity < quantityRequested) {
+          await requestRef.update({
+            'status': 'rejected',
+            'rejectionReason': 'Insufficient stock. Available: $currentQuantity, Requested: $quantityRequested',
+            'processedAt': Timestamp.now(),
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Request rejected. Available: $currentQuantity, Requested: $quantityRequested'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+
+        // Ask user to confirm
+        final confirmed = await _showConfirmationDialog(
+          context,
+          'Confirm Request Approval',
+          'Part: $partName\n'
+          'Available Stock: $currentQuantity\n'
+          'Requested Quantity: $quantityRequested\n'
+          'Remaining after approval: ${currentQuantity - quantityRequested}\n\n'
+          'Do you want to approve this request?',
         );
+        if (!confirmed) return;
+
+        // Transaction to re-check latest stock and update atomically
+        final writeMode = partData['writeMode'];
+        final String? categoryDocId = partData['categoryDocId'];
+        final String? fieldPrefix = partData['fieldPrefix'];
+
+        final result = await _firestore.runTransaction<String>((tx) async {
+          // Ensure request is still pending
+          final reqSnap = await tx.get(requestRef);
+          if (!reqSnap.exists) return 'error:request_missing';
+          final req = reqSnap.data() as Map<String, dynamic>;
+          if ((req['status'] ?? 'pending') != 'pending') return 'noop:already_processed';
+
+          if (writeMode == 'mapField') {
+            final catRef = _firestore.collection('inventory_parts').doc(categoryDocId!);
+            final catSnap = await tx.get(catRef);
+            if (!catSnap.exists) return 'error:category_missing';
+            final data = catSnap.data() as Map<String, dynamic>;
+            final map = Map<String, dynamic>.from((data[fieldPrefix!] ?? {}) as Map);
+            final liveQty = ((map['quantity'] ?? 0) as num).toInt();
+            if (liveQty < quantityRequested) {
+              tx.update(requestRef, {
+                'status': 'rejected',
+                'rejectionReason': 'Insufficient stock. Available: $liveQty, Requested: $quantityRequested',
+                'processedAt': Timestamp.now(),
+              });
+              return 'rejected:stock';
+            }
+            tx.update(catRef, {
+              '$fieldPrefix.quantity': liveQty - quantityRequested,
+            });
+            tx.update(requestRef, {
+              'status': 'accepted',
+              'processedAt': Timestamp.now(),
+            });
+            return 'accepted';
+          }
+
+          return 'error:unknown_write_mode';
+        });
+
+        if (result == 'accepted') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Request approved! Stock updated.'), backgroundColor: Colors.green),
+          );
+        } else if (result.startsWith('rejected')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Request rejected due to insufficient stock.'), backgroundColor: Colors.red),
+          );
+        } else if (result == 'noop:already_processed') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Request already processed.'), backgroundColor: Colors.orange),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error processing request ($result).'), backgroundColor: Colors.red),
+          );
+        }
       } else if (action == 'reject') {
-        await requestRef.update({'status': 'rejected'});
+        final confirmed = await _showConfirmationDialog(
+          context,
+          'Confirm Request Rejection',
+          'Are you sure you want to reject this request?',
+        );
+        if (!confirmed) return;
+
+        await requestRef.update({
+          'status': 'rejected',
+          'rejectionReason': 'Manually rejected by manager',
+          'processedAt': Timestamp.now(),
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request rejected.'), backgroundColor: Colors.orange),
+          SnackBar(content: Text('Request rejected successfully.'), backgroundColor: Colors.orange),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error processing request: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
+  Future<bool> _showConfirmationDialog(BuildContext context, String title, String content) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Future<void> _deleteAllRequests() async {
+    final confirmed = await _showConfirmationDialog(
+      context,
+      'Delete All Requests',
+      'Are you sure you want to delete all requests? This action cannot be undone.',
+    );
+    if (!confirmed) return;
+
     try {
       final snapshot = await _firestore.collection('inventory_requests').get();
       for (final doc in snapshot.docs) {
@@ -140,7 +319,18 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Inventory Part Requests'),
-
+        actions: [
+          IconButton(
+            onPressed: _uploadSampleRequests,
+            icon: Icon(Icons.upload),
+            tooltip: 'Upload Sample Requests',
+          ),
+          IconButton(
+            onPressed: _deleteAllRequests,
+            icon: Icon(Icons.delete_forever),
+            tooltip: 'Delete All Requests',
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore.collection('inventory_requests').orderBy('requestedAt', descending: true).snapshots(),
@@ -149,10 +339,27 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
             return Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(child: Text('No requests found.'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inventory, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('No requests found.', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _uploadSampleRequests,
+                    icon: Icon(Icons.upload),
+                    label: Text('Upload Sample Requests'),
+                  ),
+                ],
+              ),
+            );
           }
+
           final requests = snapshot.data!.docs;
           return ListView.builder(
+            padding: EdgeInsets.all(8),
             itemCount: requests.length,
             itemBuilder: (context, index) {
               final data = requests[index].data() as Map<String, dynamic>;
@@ -162,51 +369,102 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
               final quantityRequested = data['quantityRequested'] ?? 0;
               final requester = data['requester'] ?? '-';
               final status = data['status'] ?? 'pending';
+              final notes = data['notes'] ?? '';
               final requestedAt = data['requestedAt'] != null ? (data['requestedAt'] as Timestamp).toDate() : null;
-              // Get procurement recommendation for this part
-              final procurement = InventoryDataManager.getProcurementRecommendation(partName, quantityRequested);
-              final supplier = procurement['recommendedSupplier'] ?? {};
+              final processedAt = data['processedAt'] != null ? (data['processedAt'] as Timestamp).toDate() : null;
+              final rejectionReason = data['rejectionReason'] ?? '';
+
               return Card(
-                margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                margin: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                elevation: 3,
                 child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(partName, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 4),
-                      Text('Requested Qty: $quantityRequested'),
-                      Text('Requester: $requester'),
-                      if (requestedAt != null)
-                        Text('Requested At: ${requestedAt.day}/${requestedAt.month}/${requestedAt.year} ${requestedAt.hour}:${requestedAt.minute.toString().padLeft(2, '0')}'),
-                      SizedBox(height: 8),
-                      if (supplier.isNotEmpty) ...[
-                        Text('Recommended Supplier: ${supplier['name'] ?? '-'}'),
-                        Text('Unit Price: RM${supplier['unitPrice']?.toStringAsFixed(2) ?? '-'}'),
-                        Text('Lead Time: ${supplier['leadTime'] ?? '-'} days'),
-                        Text('Reliability: ${(supplier['reliabilityScore'] != null) ? (supplier['reliabilityScore'] * 100).toStringAsFixed(0) + '%' : '-'}'),
-                        Text('Total Cost: RM${supplier['totalCost']?.toStringAsFixed(2) ?? '-'}'),
-                        SizedBox(height: 8),
-                      ],
                       Row(
                         children: [
-                          Chip(label: Text(status.toUpperCase()), backgroundColor: status == 'accepted' ? Colors.green[100] : status == 'rejected' ? Colors.red[100] : Colors.grey[200]),
-                          Spacer(),
-                          if (status == 'pending') ...[
-                            ElevatedButton(
-                              onPressed: () => _handleRequestAction(requestId, partId, quantityRequested, 'accept'),
-                              child: Text('Accept'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                          Expanded(
+                            child: Text(
+                              partName,
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                            SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: () => _handleRequestAction(requestId, partId, quantityRequested, 'reject'),
-                              child: Text('Reject'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(status),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                          ],
+                            child: Text(
+                              status.toUpperCase(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
+                      SizedBox(height: 8),
+                      _buildInfoRow('Part ID:', partId),
+                      _buildInfoRow('Requested Qty:', quantityRequested.toString()),
+                      _buildInfoRow('Requester:', requester),
+                      if (requestedAt != null) _buildInfoRow('Requested At:', _formatDateTime(requestedAt)),
+                      if (processedAt != null) _buildInfoRow('Processed At:', _formatDateTime(processedAt)),
+                      if (notes.isNotEmpty) _buildInfoRow('Notes:', notes),
+                      if (rejectionReason.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.warning, color: Colors.red, size: 16),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Rejection Reason: $rejectionReason',
+                                    style: TextStyle(color: Colors.red[800], fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (status == 'pending') ...[
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () => _handleRequestAction(requestId, partId, quantityRequested, 'reject'),
+                              icon: Icon(Icons.cancel, size: 16),
+                              label: Text('Reject'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: () => _handleRequestAction(requestId, partId, quantityRequested, 'accept'),
+                              icon: Icon(Icons.check, size: 16),
+                              label: Text('Approve'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -216,5 +474,49 @@ class _InventoryPartRequestsPageState extends State<InventoryPartRequestsPage> {
         },
       ),
     );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
