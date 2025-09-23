@@ -937,7 +937,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _buildPartRequestPreviewItem(Map<String, dynamic> data) {
     final partName = data['partName'] ?? 'Unknown Part';
-    final requestedBy = data['requestedBy'] ?? 'N/A';
+    final requestedBy = data['requester'] ?? 'N/A';
     final status = data['status'] ?? 'Pending';
     final requestedAt = (data['requestedAt'] as Timestamp).toDate();
     final isApproved = status == 'Approved';
