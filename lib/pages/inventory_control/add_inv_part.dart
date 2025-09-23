@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import '../../models/part.dart';
 
 class AddNewPartScreen extends StatefulWidget {
@@ -242,7 +243,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: Offset(0, 2),
                   ),
@@ -344,6 +345,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                   isRequired: true,
                                   icon: Icons.numbers,
                                   keyboardType: TextInputType.number,
+                                  integerOnly: true,
                                 ),
                               ),
                               SizedBox(width: 16),
@@ -354,7 +356,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                   hintText: '0.00',
                                   isRequired: true,
                                   icon: Icons.attach_money,
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 ),
                               ),
                             ],
@@ -367,6 +369,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                             isRequired: true,
                             icon: Icons.warning_amber_outlined,
                             keyboardType: TextInputType.number,
+                            integerOnly: true,
                           ),
                         ],
                       ),
@@ -403,6 +406,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                   hintText: '7',
                                   isRequired: true,
                                   keyboardType: TextInputType.number,
+                                  integerOnly: true,
                                 ),
                               ),
                               SizedBox(width: 16),
@@ -413,6 +417,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                                   hintText: '1',
                                   isRequired: true,
                                   keyboardType: TextInputType.number,
+                                  integerOnly: true,
                                 ),
                               ),
                             ],
@@ -463,7 +468,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             elevation: 2,
-                            shadowColor: Colors.blue.withOpacity(0.3),
+                            shadowColor: Colors.blue.withValues(alpha: 0.3),
                           ),
                           child: _isLoading
                               ? Row(
@@ -528,7 +533,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: Offset(0, 4),
           ),
@@ -541,7 +546,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
           Container(
             padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.05),
+              color: color.withValues(alpha: 0.05),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -552,7 +557,7 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
                 Container(
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: color, size: 20),
@@ -797,7 +802,19 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
     bool isRequired = false,
     IconData? icon,
     TextInputType? keyboardType,
+    bool integerOnly = false,
   }) {
+    final isNumberType = keyboardType != null && keyboardType.toString().contains('number');
+
+    // Decide input formatters based on type
+    List<TextInputFormatter>? formatters;
+    if (isNumberType && integerOnly) {
+      formatters = [FilteringTextInputFormatter.digitsOnly];
+    } else if (isNumberType) {
+      // Allow digits and a single decimal point
+      formatters = [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -819,25 +836,33 @@ class _AddNewPartScreenState extends State<AddNewPartScreen> {
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
-            validator: isRequired
-                ? (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'This field is required';
-                    }
-                    if (keyboardType == TextInputType.number ||
-                        keyboardType == TextInputType.numberWithOptions(decimal: true)) {
-                      if (double.tryParse(value.trim()) == null) {
-                        return 'Please enter a valid number';
-                      }
-                    }
-                    if (keyboardType == TextInputType.emailAddress) {
-                      if (!value.contains('@') && value.trim().isNotEmpty) {
-                        return 'Please enter a valid email address';
-                      }
-                    }
-                    return null;
-                  }
-                : null,
+            inputFormatters: formatters,
+            validator: (value) {
+              final text = value?.trim() ?? '';
+
+              // Required check
+              if (isRequired && text.isEmpty) {
+                return 'This field is required';
+              }
+
+              // Email validation (runs if email type and non-empty)
+              if (keyboardType == TextInputType.emailAddress) {
+                if (text.isEmpty) return null;
+                final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+                if (!emailRegex.hasMatch(text)) return 'Please enter a valid email address';
+              }
+
+              // Numeric validation
+              if (isNumberType && text.isNotEmpty) {
+                if (integerOnly) {
+                  if (!RegExp(r'^\d+$').hasMatch(text)) return 'Please enter a whole number';
+                } else {
+                  if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(text)) return 'Please enter a valid number';
+                }
+              }
+
+              return null;
+            },
             decoration: InputDecoration(
               hintText: hintText,
               hintStyle: TextStyle(color: Colors.grey[500]),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import '../../models/part.dart';
 
 class EditPartBottomSheet extends StatefulWidget {
@@ -229,9 +230,10 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value != null && value.isNotEmpty && !value.contains('@')) {
-                          return 'Enter a valid email address';
-                        }
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return null; // optional
+                        final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+                        if (!emailRegex.hasMatch(text)) return 'Enter a valid email address';
                         return null;
                       },
                     ),
@@ -258,7 +260,14 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                         prefixText: 'RM ',
                         labelStyle: TextStyle(color: Colors.grey[600]),
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return null;
+                        if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(text)) return 'Enter a valid number';
+                        return null;
+                      },
                     ),
                   ),
                 ),
@@ -279,6 +288,13 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                         labelStyle: TextStyle(color: Colors.grey[600]),
                       ),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return null; // optional
+                        if (!RegExp(r'^\d+$').hasMatch(text)) return 'Enter a whole number';
+                        return null;
+                      },
                     ),
                   ),
                 ),
@@ -303,6 +319,13 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                         labelStyle: TextStyle(color: Colors.grey[600]),
                       ),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return null; // optional
+                        if (!RegExp(r'^\d+$').hasMatch(text)) return 'Enter a whole number';
+                        return null;
+                      },
                     ),
                   ),
                 ),
@@ -322,7 +345,14 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                         contentPadding: EdgeInsets.all(16),
                         labelStyle: TextStyle(color: Colors.grey[600]),
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return null; // optional
+                        if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(text)) return 'Enter a valid number';
+                        return null;
+                      },
                     ),
                   ),
                 ),
@@ -545,7 +575,20 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
     String? Function(String?)? validator,
     String? helperText,
     int maxLines = 1,
+    bool isRequired = false,
+    bool integerOnly = false,
+    bool isEmail = false,
+    bool decimal = false,
   }) {
+    // Decide input formatters based on type
+    final isNumberType = keyboardType != null && keyboardType.toString().contains('number');
+    List<TextInputFormatter>? formatters;
+    if (integerOnly) {
+      formatters = [FilteringTextInputFormatter.digitsOnly];
+    } else if (decimal || isNumberType) {
+      formatters = [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey[50],
@@ -555,7 +598,34 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
-        validator: validator,
+        inputFormatters: formatters,
+        validator: (value) {
+          final text = value?.trim() ?? '';
+
+          if (isRequired && text.isEmpty) {
+            return 'This field is required';
+          }
+
+          if (isEmail) {
+            if (text.isEmpty) return null;
+            final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+            if (!emailRegex.hasMatch(text)) return 'Please enter a valid email address';
+          }
+
+          if ((integerOnly || isNumberType || decimal) && text.isNotEmpty) {
+            if (integerOnly) {
+              if (!RegExp(r'^\d+$').hasMatch(text)) return 'Please enter a whole number';
+            } else {
+              if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(text)) return 'Please enter a valid number';
+            }
+          }
+
+          if (validator != null) {
+            return validator(value);
+          }
+
+          return null;
+        },
         maxLines: maxLines,
         decoration: InputDecoration(
           labelText: labelText,
@@ -722,18 +792,13 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                               controller: nameController,
                               labelText: 'Part Name *',
                               prefixIcon: Icons.build,
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Part name is required';
-                                }
-                                return null;
-                              },
+                              isRequired: true,
                             ),
                           ],
                         ),
                       ),
                       SizedBox(height: 20),
-                      // Stock Info Section with enhanced design
+                      // Stock Info Section
                       Container(
                         padding: EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -781,11 +846,13 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                               prefixIcon: Icons.warning,
                               keyboardType: TextInputType.number,
                               helperText: 'Alert when quantity falls below this number',
+                              isRequired: true,
+                              integerOnly: true,
                               validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Threshold is required';
-                                }
-                                final threshold = int.tryParse(value.trim());
+                                // preserve existing semantics (>= 0)
+                                final t = value?.trim() ?? '';
+                                if (t.isEmpty) return 'Threshold is required';
+                                final threshold = int.tryParse(t);
                                 if (threshold == null || threshold < 0) {
                                   return 'Please enter a valid number (0 or greater)';
                                 }
@@ -800,7 +867,8 @@ class _EditPartBottomSheetState extends State<EditPartBottomSheet> {
                                     controller: priceController,
                                     labelText: 'Price (RM)',
                                     prefixText: 'RM ',
-                                    keyboardType: TextInputType.number,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decimal: true,
                                   ),
                                 ),
                                 SizedBox(width: 12),
