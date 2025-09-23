@@ -58,13 +58,12 @@ class _EditServiceState extends State<EditService>
   static const Map<String, double> _defaultHoursByCategory = {
     'Body': 0.3,
     'Brakes': 0.8,
-    'Consumables': 0.2,
     'Electrical': 0.7,
     'Engine': 1.2,
     'Exhaust': 0.6,
-    'Maintenance': 0.4,
-    'Suspension': 1.0,
-    'Transmission': 1.5,
+    'Interior': 0.4,
+    'Steering': 1.0,
+    'Suspension': 1.5,
   };
 
   static const int _maxNotesLen = 500;
