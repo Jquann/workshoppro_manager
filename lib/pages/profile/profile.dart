@@ -85,25 +85,31 @@ class _ProfileState extends State<Profile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return WillPopScope(
+      onWillPop: () async {
+        // Return whether any changes were made
+        Navigator.pop(context, _userData != widget.currentUserData);
+        return false;
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0.2,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.2,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context, _userData != widget.currentUserData),
           ),
+          title: const Text(
+            'Profile',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -138,6 +144,7 @@ class _ProfileState extends State<Profile> {
                                          _userData!['profileImagePath'].toString().isNotEmpty)
                                       ? Image.file(
                                           File(_userData!['profileImagePath']),
+                                          key: ValueKey(_userData!['profileImagePath']), // Force rebuild when image changes
                                           width: 120,
                                           height: 120,
                                           fit: BoxFit.cover,
@@ -260,6 +267,7 @@ class _ProfileState extends State<Profile> {
                   ),
           ),
         ),
+      ),
       ),
     );
   }

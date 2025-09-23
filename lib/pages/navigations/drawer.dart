@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'navigation.dart';
 import '../../services/auth_service.dart';
-import '../../services/image_service.dart';
 import '../auth/login.dart';
 import '../admin/manage_users.dart';
 import '../settings/settings.dart';
+import '../profile/profile.dart';
 
 class MainAppWithDrawer extends StatelessWidget {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -48,7 +48,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   Future<void> _loadUserData() async {
     try {
       final userData = await _authService.getUserData();
-      final profileImagePath = await ImageService.getLocalProfileImagePath();
+      // Use the profile image path from user data instead of local search
+      final profileImagePath = userData?['profileImagePath'] as String?;
       
       if (mounted) {
         setState(() {
@@ -66,17 +67,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
     }
   }
 
-  /// Refresh profile image - can be called when returning from profile page
-  Future<void> _refreshProfileImage() async {
+  /// Refresh profile image and user data - can be called when returning from profile page
+  Future<void> _refreshProfileData() async {
     try {
-      final profileImagePath = await ImageService.getLocalProfileImagePath();
+      // Refresh both user data and profile image
+      final userData = await _authService.getUserData();
+      // Use the profile image path from user data instead of local search
+      final profileImagePath = userData?['profileImagePath'] as String?;
+      
       if (mounted) {
         setState(() {
+          _userData = userData;
           _profileImagePath = profileImagePath;
         });
       }
     } catch (e) {
-      print('Error refreshing profile image: $e');
+      print('Error refreshing profile data: $e');
     }
   }
 
@@ -95,6 +101,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   children: [
                     // Profile Avatar
                     CircleAvatar(
+                      key: ValueKey(_profileImagePath ?? 'no_image'), // Force rebuild when image changes
                       radius: 40,
                       backgroundColor: Color(0xFF007AFF),
                       child: _isLoading
@@ -171,9 +178,17 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       title: 'Profile',
                       onTap: () async {
                         Navigator.pop(context);
-                        // Navigate to profile and refresh image when returning
-                        await Navigator.pushNamed(context, '/view_profile');
-                        _refreshProfileImage();
+                        // Navigate to profile with current user data and refresh data when returning
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Profile(currentUserData: _userData),
+                          ),
+                        );
+                        // Refresh profile data if changes were made
+                        if (result == true) {
+                          _refreshProfileData();
+                        }
                       },
                     ),
                     // Admin-only features

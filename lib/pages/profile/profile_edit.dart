@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/image_service.dart';
 import '../../utils/image_picker_utils.dart';
@@ -76,6 +77,7 @@ class _ProfileEditState extends State<ProfileEdit> {
   File? _selectedImageFile;
   String? _currentProfileImageUrl;
   double _uploadProgress = 0.0;
+  int _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Force image refresh
 
   @override
   void initState() {
@@ -256,11 +258,19 @@ class _ProfileEditState extends State<ProfileEdit> {
   }
 
   Widget _buildProfileHeader() {
+    // Debug print to track state
+    print('_buildProfileHeader called');
+    print('_selectedImageFile: ${_selectedImageFile?.path}');
+    print('_currentProfileImageUrl: $_currentProfileImageUrl');
+    print('_imageUpdateTimestamp: $_imageUpdateTimestamp');
+    
     return Column(
+      key: ValueKey('profile_header_$_imageUpdateTimestamp'), // Force entire header rebuild
       children: [
         Stack(
           children: [
             Container(
+              key: ValueKey('profile_image_container_$_imageUpdateTimestamp'), // Force container rebuild
               width: 120,
               height: 120,
               decoration: BoxDecoration(
@@ -271,62 +281,7 @@ class _ProfileEditState extends State<ProfileEdit> {
                 ),
               ),
               child: ClipOval(
-                child: _selectedImageFile != null
-                    ? Image.file(
-                        _selectedImageFile!,
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
-                      )
-                    : (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty)
-                        ? Image.file(
-                            File(_currentProfileImageUrl!),
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 120,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFF007AFF),
-                                      Color(0xFF5856D6),
-                                    ],
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.white,
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF007AFF),
-                                  Color(0xFF5856D6),
-                                ],
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Colors.white,
-                            ),
-                          ),
+                child: _buildProfileImage(), // Extract to separate method for better control
               ),
             ),
             Positioned(
@@ -414,6 +369,80 @@ class _ProfileEditState extends State<ProfileEdit> {
             ),
           ),
       ],
+    );
+  }
+
+  // Force refresh the entire page
+  void _forceRefresh() {
+    print('_forceRefresh called');
+    if (mounted) {
+      setState(() {
+        _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
+      });
+      
+      // Additional force refresh using Navigator replacement
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
+  }
+
+  // Separate method to build profile image with better control
+  Widget _buildProfileImage() {
+    print('_buildProfileImage called - _selectedImageFile: ${_selectedImageFile?.path}');
+    
+    // Always prioritize _selectedImageFile over current profile image
+    final File? imageToShow = _selectedImageFile ?? 
+        (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty 
+            ? File(_currentProfileImageUrl!) 
+            : null);
+    
+    if (imageToShow != null && imageToShow.existsSync()) {
+      print('Showing image: ${imageToShow.path}');
+      return Image.file(
+        imageToShow,
+        key: ValueKey('image_${imageToShow.path}_$_imageUpdateTimestamp'), // Unique key every time
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        gaplessPlayback: false, // Disable smooth transitions to ensure immediate update
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          // Force immediate display without animation
+          return child;
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading image ${imageToShow.path}: $error');
+          return _buildDefaultAvatar();
+        },
+      );
+    } else {
+      print('Showing default avatar - no valid image found');
+      return _buildDefaultAvatar();
+    }
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF007AFF),
+            Color(0xFF5856D6),
+          ],
+        ),
+      ),
+      child: Icon(
+        Icons.person,
+        size: 60,
+        color: Colors.white,
+      ),
     );
   }
 
@@ -693,14 +722,12 @@ class _ProfileEditState extends State<ProfileEdit> {
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      // Add profile image path if exists
+      // Add profile image path if exists, or explicitly remove it if deleted
       if (profileImagePath != null && profileImagePath.isNotEmpty) {
         updatedData['profileImagePath'] = profileImagePath;
       } else {
-        // If image was removed, remove the field from Firestore
-        if (_currentProfileImageUrl != null && _selectedImageFile == null) {
-          updatedData['profileImagePath'] = null;
-        }
+        // If image was removed, explicitly set to null to remove from Firestore
+        updatedData['profileImagePath'] = null;
       }
 
       // Save to Firestore
@@ -814,12 +841,34 @@ class _ProfileEditState extends State<ProfileEdit> {
         }
 
         print('Setting selected image file in state (no crop)...');
+        
+        // Create a unique copy of the selected image to avoid caching issues
+        final Directory tempDir = await getTemporaryDirectory();
+        final String uniqueFileName = 'profile_temp_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final File uniqueTempFile = File('${tempDir.path}/$uniqueFileName');
+        await imageFile.copy(uniqueTempFile.path);
+        
         setState(() {
-          _selectedImageFile = imageFile;
+          _selectedImageFile = uniqueTempFile;
           _hasChanges = true;
+          _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp
         });
-        print('State updated successfully');
+        print('State updated successfully with unique temp file: ${uniqueTempFile.path}');
+        print('_selectedImageFile is now: ${_selectedImageFile?.path}');
+        print('_imageUpdateTimestamp is now: $_imageUpdateTimestamp');
         _showSnackBar('Image selected successfully!');
+        
+        // Immediate force rebuild
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              // Force another rebuild to ensure UI updates
+            });
+          }
+        });
+        
+        // Additional force refresh
+        _forceRefresh();
       } else {
         print('No image file selected');
       }
@@ -878,12 +927,33 @@ class _ProfileEditState extends State<ProfileEdit> {
 
           if (croppedFile != null) {
             print('Setting cropped image file in state...');
+            
+            // Create a unique copy of the cropped image to avoid caching issues
+            final Directory tempDir = await getTemporaryDirectory();
+            final String uniqueFileName = 'profile_cropped_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final File uniqueTempFile = File('${tempDir.path}/$uniqueFileName');
+            await File(croppedFile.path).copy(uniqueTempFile.path);
+            
             setState(() {
-              _selectedImageFile = File(croppedFile.path);
+              _selectedImageFile = uniqueTempFile;
               _hasChanges = true;
+              _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp
             });
-            print('State updated successfully');
+            print('State updated successfully with unique temp file: ${uniqueTempFile.path}');
+            print('_selectedImageFile is now: ${_selectedImageFile?.path}');
             _showSnackBar('Image cropped and selected successfully!');
+            
+            // Immediate force rebuild
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  // Force another rebuild to ensure UI updates
+                });
+              }
+            });
+            
+            // Additional force refresh
+            _forceRefresh();
           } else {
             print('Image cropping was cancelled');
             _showSnackBar('Image cropping cancelled');
@@ -896,8 +966,16 @@ class _ProfileEditState extends State<ProfileEdit> {
           setState(() {
             _selectedImageFile = imageFile;
             _hasChanges = true;
+            _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp
           });
           _showSnackBar('Image selected successfully (cropping skipped)');
+          
+          // Force UI rebuild after a short delay to ensure image displays
+          Future.delayed(Duration(milliseconds: 100), () {
+            if (mounted) {
+              setState(() {});
+            }
+          });
         }
       } else {
         print('No image file selected');
@@ -955,12 +1033,27 @@ class _ProfileEditState extends State<ProfileEdit> {
 
         if (croppedFile != null) {
           print('Setting cropped image file in state...');
+          
+          // Create a unique copy of the edited image to avoid caching issues
+          final Directory tempDir = await getTemporaryDirectory();
+          final String uniqueFileName = 'profile_edited_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final File uniqueTempFile = File('${tempDir.path}/$uniqueFileName');
+          await File(croppedFile.path).copy(uniqueTempFile.path);
+          
           setState(() {
-            _selectedImageFile = File(croppedFile.path);
+            _selectedImageFile = uniqueTempFile;
             _hasChanges = true;
+            _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp
           });
-          print('State updated successfully');
+          print('State updated successfully with unique temp file: ${uniqueTempFile.path}');
           _showSnackBar('Image cropped successfully!');
+          
+          // Force UI rebuild after a short delay to ensure image displays
+          Future.delayed(Duration(milliseconds: 100), () {
+            if (mounted) {
+              setState(() {});
+            }
+          });
         } else {
           print('Image cropping was cancelled');
           _showSnackBar('Image cropping cancelled');
@@ -979,12 +1072,26 @@ class _ProfileEditState extends State<ProfileEdit> {
     setState(() {
       _selectedImageFile = null;
       _hasChanges = true;
+      _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp
     });
 
-    // If there's a current profile image URL, mark it for deletion when saving
+    // If there's a current profile image, mark it for deletion when saving
     if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
-      _currentProfileImageUrl = null;
+      // We'll handle the deletion in the save method
+      setState(() {
+        _currentProfileImageUrl = null;
+        _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch; // Update timestamp again
+      });
     }
+    
+    _showSnackBar('Profile image will be removed when you save');
+    
+    // Force UI rebuild after a short delay to ensure image removal displays
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   void _resetFields() {
@@ -997,6 +1104,9 @@ class _ProfileEditState extends State<ProfileEdit> {
     
     setState(() {
       _hasChanges = false;
+      _selectedImageFile = null;
+      // Reset to original profile image path
+      _currentProfileImageUrl = widget.currentUserData?['profileImagePath'];
     });
     
     _showSnackBar('Changes reset to original values');
