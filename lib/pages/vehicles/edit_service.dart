@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
@@ -66,6 +67,8 @@ class _EditServiceState extends State<EditService>
     'Transmission': 1.5,
   };
 
+  static const int _maxNotesLen = 500;
+
   final _form = GlobalKey<FormState>();
   late final TextEditingController _date = TextEditingController(
     text: _fmt(widget.record.date),
@@ -98,6 +101,8 @@ class _EditServiceState extends State<EditService>
   // Inventory indices
   final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
   late final List<PartLine> _originalParts = List.of(widget.record.parts);
+
+  String? _partsError; // inline error for parts section
 
   // animations
   late final AnimationController _fadeAnimationController;
@@ -148,10 +153,10 @@ class _EditServiceState extends State<EditService>
   }
 
   // ---------- utils ----------
-  bool get _isEditable => 
-      widget.record.status != ServiceRecordModel.statusCompleted && 
-      widget.record.status != ServiceRecordModel.statusCancel;
-  
+  bool get _isEditable =>
+      widget.record.status != ServiceRecordModel.statusCompleted &&
+          widget.record.status != ServiceRecordModel.statusCancel;
+
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
 
   String? _req(String? v) =>
@@ -161,45 +166,48 @@ class _EditServiceState extends State<EditService>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   InputDecoration _input(
-    String hint, {
-    IconData? icon,
-    String? suffix,
-  }) => InputDecoration(
-    hintText: hint,
-    hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
-    prefixIcon: icon != null
-        ? Container(
-            padding: const EdgeInsets.all(12),
-            child: Icon(icon, size: 20, color: _kGrey),
-          )
-        : null,
-    suffixText: suffix,
-    suffixStyle: TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    filled: true,
-    fillColor: Colors.white,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kPrimary, width: 2),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kError, width: 1),
-    ),
-    focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kError, width: 2),
-    ),
-  );
+      String hint, {
+        IconData? icon,
+        String? suffix,
+      }) =>
+      InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
+        prefixIcon: icon != null
+            ? Container(
+          padding: const EdgeInsets.all(12),
+          child: Icon(icon, size: 20, color: _kGrey),
+        )
+            : null,
+        suffixText: suffix,
+        suffixStyle:
+        TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
+        isDense: true,
+        contentPadding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _kDivider.withValues(alpha: 0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kPrimary, width: 2),
+        ),
+        errorBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: _kError, width: 1),
+        ),
+        focusedErrorBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: _kError, width: 2),
+        ),
+      );
 
   // ----- inventory helpers -----
   Future<void> _preloadInventory(List<String> categories) async {
@@ -220,7 +228,6 @@ class _EditServiceState extends State<EditService>
     }
   }
 
-
   Future<List<InventoryPartVM>> _fetchParts(String category) async {
     final rows = await FirestoreService().getPartsByCategory(category);
     final list = <InventoryPartVM>[];
@@ -240,7 +247,6 @@ class _EditServiceState extends State<EditService>
   }
 
   InventoryPartVM? _lookupInventory(PartLine p) {
-    // Strict match: same name and (almost) same price.
     for (final vm in _invIndex.values) {
       if (vm.name == p.name && (vm.price - p.unitPrice).abs() < 0.01) return vm;
     }
@@ -262,15 +268,52 @@ class _EditServiceState extends State<EditService>
   }
 
   double get _laborAuto => _computedHours * _hourlyRate;
-
   double get _grandTotal => _partsTotal + _laborAuto;
+
+  // ---------- validation gate ----------
+  bool _validateBeforeSave() {
+    _partsError = null;
+
+    final ok = _form.currentState?.validate() ?? false;
+    if (!ok) {
+      setState(() {}); // show field errors
+      return false;
+    }
+
+    // Date sanity
+    try {
+      final d = DateTime.parse(_date.text);
+      if (d.isAfter(DateTime.now().add(const Duration(days: 1)))) {
+        _showSnackBar('Date cannot be in the far future', _kError);
+        return false;
+      }
+    } catch (_) {
+      _showSnackBar('Invalid date format', _kError);
+      return false;
+    }
+
+    // Mechanic (dropdown already validates, double-check here)
+    if ((_selectedMechanicId == null || _selectedMechanicId!.isEmpty) &&
+        (widget.record.mechanic.isEmpty)) {
+      _showSnackBar('Please select a mechanic', _kError);
+      return false;
+    }
+
+    // Require at least one part (align with AddService behavior)
+    if (_parts.isEmpty) {
+      setState(() => _partsError = 'Add at least one part to continue');
+      _showSnackBar('Please add at least one part', _kError);
+      return false;
+    }
+
+    return true;
+  }
 
   // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
-    
-    // Show read-only view for completed/cancelled services
+
     if (!_isEditable) {
       return Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
@@ -355,7 +398,7 @@ class _EditServiceState extends State<EditService>
         ),
       );
     }
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       body: CustomScrollView(
@@ -445,7 +488,7 @@ class _EditServiceState extends State<EditService>
     );
   }
 
-  // ----- sections (same card style as AddService) -----
+  // ----- sections -----
   Widget _buildCard({
     required IconData icon,
     required String title,
@@ -543,8 +586,16 @@ class _EditServiceState extends State<EditService>
                 'Enter service description',
                 icon: Icons.description_rounded,
               ),
-              validator: _req,
               textCapitalization: TextCapitalization.sentences,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'This field is required';
+                }
+                if (v.trim().length < 3) {
+                  return 'Please enter at least 3 characters';
+                }
+                return null;
+              },
             ),
           ),
           const SizedBox(height: 20),
@@ -552,84 +603,95 @@ class _EditServiceState extends State<EditService>
             label: 'Mechanic',
             child: _mechanicsLoading
                 ? Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _kDivider.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 16, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: _kDivider.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.person_rounded, size: 20, color: _kGrey),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                      AlwaysStoppedAnimation<Color>(_kPrimary),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.person_rounded, size: 20, color: _kGrey),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(_kPrimary),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Loading mechanics...',
-                          style: TextStyle(color: _kGrey, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  )
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading mechanics...',
+                    style: TextStyle(color: _kGrey, fontSize: 14),
+                  ),
+                ],
+              ),
+            )
                 : _mechanics.isEmpty
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.warning, color: Colors.orange),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'No mechanics found. Please add mechanics in User Management.',
-                                style: TextStyle(color: _kGrey, fontSize: 14),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : DropdownButtonFormField<String>(
-                        decoration: _input('Select mechanic', icon: Icons.person_rounded),
-                        value: _selectedMechanicId,
-                        hint: const Text('Select mechanic'),
-                        isExpanded: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please select a mechanic';
-                          }
-                          return null;
-                        },
-                        items: _mechanics.map((mechanic) {
-                          return DropdownMenuItem<String>(
-                            value: mechanic['id'],
-                            child: Text(
-                              mechanic['name'] ?? 'Unknown',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedMechanicId = value;
-                            final selectedMechanic = _mechanics.firstWhere(
-                              (m) => m['id'] == value,
-                              orElse: () => <String, dynamic>{},
-                            );
-                            _selectedMechanicName = selectedMechanic['name'];
-                          });
-                        },
-                      ),
+                ? Container(
+              padding: const EdgeInsets.symmetric(
+                  vertical: 16, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color:
+                    Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No mechanics found. Please add mechanics in User Management.',
+                      style:
+                      TextStyle(color: _kGrey, fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            )
+                : DropdownButtonFormField<String>(
+              decoration: _input('Select mechanic',
+                  icon: Icons.person_rounded),
+              value: _selectedMechanicId,
+              hint: const Text('Select mechanic'),
+              isExpanded: true,
+              validator: (value) {
+                if ((value == null || value.isEmpty) &&
+                    widget.record.mechanic.isEmpty) {
+                  return 'Please select a mechanic';
+                }
+                return null;
+              },
+              items: _mechanics.map((mechanic) {
+                return DropdownMenuItem<String>(
+                  value: mechanic['id'],
+                  child: Text(
+                    mechanic['name'] ?? 'Unknown',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedMechanicId = value;
+                  final selectedMechanic =
+                  _mechanics.firstWhere(
+                        (m) => m['id'] == value,
+                    orElse: () => <String, dynamic>{},
+                  );
+                  _selectedMechanicName =
+                  selectedMechanic['name'];
+                });
+              },
+            ),
           ),
         ],
       ),
@@ -646,6 +708,19 @@ class _EditServiceState extends State<EditService>
           if (_parts.isNotEmpty) ...[
             const SizedBox(height: 16),
             ..._parts.map((part) => _buildPartPill(part)),
+          ],
+          if (_partsError != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _partsError!,
+                style: const TextStyle(
+                    color: _kError,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
         ],
       ),
@@ -691,6 +766,15 @@ class _EditServiceState extends State<EditService>
         controller: _notes,
         decoration: _input('Enter any additional notes'),
         maxLines: 4,
+        maxLength: _maxNotesLen,
+        buildCounter: (_, {currentLength = 0, isFocused = false, maxLength}) =>
+        null,
+        validator: (v) {
+          if (v != null && v.length > _maxNotesLen) {
+            return 'Notes must be <= $_maxNotesLen characters';
+          }
+          return null;
+        },
         textCapitalization: TextCapitalization.sentences,
       ),
     );
@@ -751,7 +835,6 @@ class _EditServiceState extends State<EditService>
     );
   }
 
-
   Widget _buildTotalsCard() => Container(
     decoration: BoxDecoration(
       gradient: LinearGradient(
@@ -802,7 +885,8 @@ class _EditServiceState extends State<EditService>
             ],
           ),
           const SizedBox(height: 20),
-          _totalRow('Parts', _partsTotal, icon: Icons.build_circle_rounded),
+          _totalRow('Parts', _partsTotal,
+              icon: Icons.build_circle_rounded),
           const SizedBox(height: 12),
           _totalRow('Labor', _laborAuto, icon: Icons.work_rounded),
           const SizedBox(height: 16),
@@ -898,27 +982,29 @@ class _EditServiceState extends State<EditService>
     final stockLine = (_selectedPart == null)
         ? null
         : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _kSuccess.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _kSuccess.withValues(alpha: 0.3)),
+      padding:
+      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kSuccess.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _kSuccess.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.inventory_rounded,
+              size: 16, color: _kSuccess),
+          const SizedBox(width: 8),
+          Text(
+            'Stock: ${_selectedPart!.quantity} ${_selectedPart!.unit ?? "pcs"}',
+            style: const TextStyle(
+              color: _kSuccess,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.inventory_rounded, size: 16, color: _kSuccess),
-                const SizedBox(width: 8),
-                Text(
-                  'Stock: ${_selectedPart!.quantity} ${_selectedPart!.unit ?? "pcs"}',
-                  style: const TextStyle(
-                    color: _kSuccess,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          );
+          ),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -926,7 +1012,8 @@ class _EditServiceState extends State<EditService>
         _buildFormField(
           label: 'Category',
           child: DropdownButtonFormField<String>(
-            decoration: _input('Select category', icon: Icons.category_rounded),
+            decoration:
+            _input('Select category', icon: Icons.category_rounded),
             value: _selectedCategory,
             isExpanded: true,
             items: _categories
@@ -950,28 +1037,29 @@ class _EditServiceState extends State<EditService>
         _buildFormField(
           label: 'Part',
           child: DropdownButtonFormField<InventoryPartVM>(
-            decoration: _input('Select part', icon: Icons.build_circle_rounded),
+            decoration:
+            _input('Select part', icon: Icons.build_circle_rounded),
             value: _selectedPart,
             isExpanded: true,
             items: _availableParts
                 .map(
                   (p) => DropdownMenuItem(
-                    value: p,
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(p.name)),
-                        Text(
-                          _currency.format(p.price),
-                          style: TextStyle(
-                            color: _kGrey,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                value: p,
+                child: Row(
+                  children: [
+                    Expanded(child: Text(p.name)),
+                    Text(
+                      _currency.format(p.price),
+                      style: TextStyle(
+                        color: _kGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                )
+                  ],
+                ),
+              ),
+            )
                 .toList(),
             onChanged: (p) {
               if (p == null) return;
@@ -990,10 +1078,31 @@ class _EditServiceState extends State<EditService>
               flex: 2,
               child: _buildFormField(
                 label: 'Quantity',
-                child: TextField(
+                child: TextFormField(
                   controller: _partQty,
                   decoration: _input('Qty'),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  validator: (_) {
+                    // validate only when a part is selected and qty is non-empty
+                    if (_selectedPart == null) return null;
+                    if (_partQty.text.trim().isEmpty) return null;
+                    final q = _toInt(_partQty.text);
+                    if (q <= 0) return 'Enter a quantity > 0';
+                    final stock = _selectedPart!.quantity;
+                    // count existing of this line in _parts
+                    final currentUsed = _parts
+                        .where((p) =>
+                    p.name == _selectedPart!.name &&
+                        (p.unitPrice - _selectedPart!.price).abs() < 0.01)
+                        .fold<int>(0, (s, p) => s + p.quantity);
+                    final allowed = stock - currentUsed;
+                    if (q > allowed) return 'Only $allowed left in stock';
+                    return null;
+                  },
                 ),
               ),
             ),
@@ -1002,13 +1111,12 @@ class _EditServiceState extends State<EditService>
               flex: 3,
               child: _buildFormField(
                 label: 'Price',
-                child: TextField(
+                child: TextFormField(
                   controller: _partPrice,
                   readOnly: true,
                   decoration: _input('Price', suffix: 'RM'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
+                  keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
             ),
@@ -1060,6 +1168,9 @@ class _EditServiceState extends State<EditService>
       return;
     }
 
+    // run validators to show qty issues if any
+    _form.currentState?.validate();
+
     final q = _toInt(_partQty.text);
     if (q <= 0) {
       _showSnackBar('Quantity must be greater than 0', _kError);
@@ -1069,11 +1180,9 @@ class _EditServiceState extends State<EditService>
     final part = _selectedPart!;
     final stock = part.quantity;
 
-    // Determine how many of THIS exact part (name+price) already in list
+    // current used of this exact line (name+price)
     final currentUsed = _parts
-        .where(
-          (p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01,
-        )
+        .where((p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01)
         .fold<int>(0, (s, p) => s + p.quantity);
 
     if (currentUsed + q > stock) {
@@ -1087,7 +1196,7 @@ class _EditServiceState extends State<EditService>
 
     setState(() {
       final idx = _parts.indexWhere(
-        (p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01,
+            (p) => p.name == part.name && (p.unitPrice - part.price).abs() < 0.01,
       );
       if (idx >= 0) {
         final cur = _parts[idx];
@@ -1097,12 +1206,20 @@ class _EditServiceState extends State<EditService>
           unitPrice: cur.unitPrice,
         );
       } else {
-        _parts.add(
-          PartLine(name: part.name, quantity: q, unitPrice: part.price),
-        );
+        _parts.add(PartLine(name: part.name, quantity: q, unitPrice: part.price));
       }
+
+      // clear inputs & selection to avoid lingering red border
       _partQty.clear();
+      _selectedPart = null;
+      _partPrice.clear();
+
+      _partsError = null;
     });
+
+    // refresh validators to clear error border
+    _form.currentState?.validate();
+    FocusScope.of(context).unfocus();
 
     _showSnackBar('Part added successfully', _kSuccess);
   }
@@ -1183,7 +1300,6 @@ class _EditServiceState extends State<EditService>
   // ----- sync to schedules -----
   Future<void> _syncToSchedules(ServiceRecordModel serviceRecord) async {
     try {
-      // Find schedules that match this service record
       final schedules = await FirebaseFirestore.instance
           .collection('schedules')
           .where('vehicleId', isEqualTo: widget.vehicleId)
@@ -1192,8 +1308,7 @@ class _EditServiceState extends State<EditService>
 
       for (final doc in schedules.docs) {
         final scheduleData = doc.data();
-        
-        // Map service status to schedule status
+
         String scheduleStatus;
         switch (serviceRecord.status) {
           case ServiceRecordModel.statusCompleted:
@@ -1206,7 +1321,6 @@ class _EditServiceState extends State<EditService>
             scheduleStatus = scheduleData['status'] ?? 'pending';
         }
 
-        // Update schedule with service data
         await doc.reference.update({
           'status': scheduleStatus,
           'mechanic': serviceRecord.mechanic,
@@ -1220,7 +1334,7 @@ class _EditServiceState extends State<EditService>
 
   // ----- save -----
   Future<void> _onSave() async {
-    if (!_form.currentState!.validate()) return;
+    if (!_validateBeforeSave()) return;
     FocusScope.of(context).unfocus();
 
     final hours = _computedHours;
@@ -1240,7 +1354,6 @@ class _EditServiceState extends State<EditService>
       partsCategory: _selectedCategory,
     );
 
-    // loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1260,42 +1373,34 @@ class _EditServiceState extends State<EditService>
     );
 
     try {
-      // 1) Update service
       await FirestoreService().updateService(widget.vehicleId, updated);
-
-      // 1.1) Sync to related schedules
       await _syncToSchedules(updated);
 
-      // 1.2) update Invoice if completed
+      // If completed: try to create invoice
       if (updated.status == ServiceRecordModel.statusCompleted) {
-        // Get vehicle information for invoice creation
         final vehicle = await FirestoreService().getVehicle(widget.vehicleId);
-
-        // Create invoice from the service record
         if (vehicle != null) {
           try {
-            final invoiceId = await FirestoreService().addInvoice(
+            await FirestoreService().addInvoice(
               widget.vehicleId,
               updated,
               vehicle.customerName,
               vehicle.carPlate,
               updated.mechanic,
-              updated.mechanic, // createdBy is the mechanic
+              updated.mechanic,
             );
-            print('Invoice created: $invoiceId');
           } catch (invoiceError) {
             print('Failed to create invoice: $invoiceError');
-            // Continue even if invoice creation fails
           }
         }
       }
 
-      // 2) Compute inventory delta vs original and apply
+      // Inventory delta vs original
       Map<String, int> countByKey(List<PartLine> parts) {
         final m = <String, int>{};
         for (final p in parts) {
           final vm = _lookupInventory(p);
-          if (vm == null) continue; // skip parts not from inventory
+          if (vm == null) continue;
           m[vm.key] = (m[vm.key] ?? 0) + p.quantity;
         }
         return m;
@@ -1303,35 +1408,28 @@ class _EditServiceState extends State<EditService>
 
       final before = countByKey(_originalParts);
       final after = countByKey(_parts);
-
-      // For each key union, calc delta = after - before
       final keys = <String>{...before.keys, ...after.keys};
       for (final k in keys) {
         final b = before[k] ?? 0;
         final a = after[k] ?? 0;
         final d = a - b;
         if (d == 0) continue;
-
         final parts = k.split('|'); // [category, partId]
-
         if (parts.length != 2) continue;
-
         if (d > 0) {
-          // used more -> reduce stock
           await FirestoreService().reduceStock(parts[0], parts[1], d);
         } else {
-          // used less -> restock (-d)
           await FirestoreService().increaseStock(parts[0], parts[1], -d);
         }
       }
 
       if (!mounted) return;
-      Navigator.pop(context); // close loading dialog
-      Navigator.pop(context, true); // close edit page & signal "updated"
+      Navigator.pop(context);
+      Navigator.pop(context, true);
       _showSnackBar('Service updated successfully!', _kSuccess);
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // close loading
+      Navigator.pop(context);
       _showSnackBar('Failed to update service: $e', _kError);
     }
   }
@@ -1391,33 +1489,30 @@ class _EditServiceState extends State<EditService>
     FocusScope.of(context).unfocus();
 
     setState(() {
-      // restore text fields
-      _date.text  = _fmt(widget.record.date);
-      _desc.text  = widget.record.description;
+      _date.text = _fmt(widget.record.date);
+      _desc.text = widget.record.description;
       _notes.text = widget.record.notes ?? '';
 
-      // restore parts (deep copy)
       _parts
         ..clear()
         ..addAll(widget.record.parts.map((p) =>
             PartLine(name: p.name, quantity: p.quantity, unitPrice: p.unitPrice)));
 
-      // clear inventory pickers & temp inputs
-      _selectedCategory = null;
+      _selectedCategory = widget.record.partsCategory;
       _selectedPart = null;
       _availableParts = [];
       _partQty.clear();
       _partPrice.clear();
+      _partsError = null;
     });
 
     _showSnackBar('Restored original service data', _kSuccess);
   }
 
-
   Future<void> _loadMechanics() async {
     try {
       setState(() => _mechanicsLoading = true);
-      
+
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('role', isEqualTo: 'mechanic')
@@ -1428,19 +1523,17 @@ class _EditServiceState extends State<EditService>
         data['id'] = doc.id;
         return data;
       }).toList();
-      
-      // Sort locally by name
+
       mechanicsList.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
 
       if (!mounted) return;
       setState(() {
         _mechanics = mechanicsList;
         _mechanicsLoading = false;
-        
-        // If current mechanic name exists, try to find and select it
+
         if (_selectedMechanicName != null && _selectedMechanicName!.isNotEmpty) {
           final matchingMechanic = mechanicsList.firstWhere(
-            (m) => m['name'] == _selectedMechanicName,
+                (m) => m['name'] == _selectedMechanicName,
             orElse: () => {},
           );
           if (matchingMechanic.isNotEmpty) {
@@ -1472,5 +1565,4 @@ class _EditServiceState extends State<EditService>
       _showSnackBar('Failed to load categories: $e', _kError);
     }
   }
-
 }

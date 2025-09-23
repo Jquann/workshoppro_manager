@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
@@ -33,9 +34,9 @@ class AddService extends StatefulWidget {
   final String? mechanicName;
   final String? serviceType;
   final String? partsCategory;
-  
+
   const AddService({
-    super.key, 
+    super.key,
     required this.vehicleId,
     this.scheduleId,
     this.customerName,
@@ -74,6 +75,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     'Transmission': 1.5,
   };
 
+  static const int _maxNotesLen = 500;
+
   final _form = GlobalKey<FormState>();
   final _date = TextEditingController();
   final _desc = TextEditingController();
@@ -101,7 +104,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   List<InventoryPartVM> _availableParts = [];
   InventoryPartVM? _selectedPart;
   final Map<String, InventoryPartVM> _invIndex = {}; // key -> vm
-  final Map<String, int> _stockDeltas = {}; // "cat|name" -> qty used (to reduce)
+  final Map<String, int> _stockDeltas = {}; // "cat|partId" -> qty used
+  String? _partsError; // inline error for parts section
 
   @override
   void initState() {
@@ -109,7 +113,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     _date.text = _fmt(DateTime.now());
     _loadCategories();
     _loadMechanics();
-    
+
     // Auto-populate fields from schedule data if provided
     if (widget.mechanicName != null) {
       _selectedMechanicName = widget.mechanicName!;
@@ -119,20 +123,19 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     }
     if (widget.partsCategory != null) {
       _selectedCategory = widget.partsCategory;
-      // Load parts for the selected category
       _fetchParts(widget.partsCategory!).then((parts) {
         setState(() {
           _availableParts = parts;
         });
       });
     }
-    
+
     _fadeAnimationController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _slideAnimationController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut));
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
+    _fadeAnimation =
+        Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeOut));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _slideAnimationController, curve: Curves.easeOut));
     _fadeAnimationController.forward();
     _slideAnimationController.forward();
   }
@@ -152,15 +155,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   // utils
   int _toInt(String s) => int.tryParse(s.trim()) ?? 0;
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'This field is required' : null;
-  String _fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   InputDecoration _input(String hint, {IconData? icon, String? suffix}) => InputDecoration(
     hintText: hint,
     hintStyle: TextStyle(fontSize: 14, color: _kGrey.withValues(alpha: 0.8)),
-    prefixIcon: icon != null
-        ? Container(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: _kGrey))
-        : null,
+    prefixIcon:
+    icon != null ? Container(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: _kGrey)) : null,
     suffixText: suffix,
     suffixStyle: TextStyle(color: _kGrey.withValues(alpha: 0.8), fontSize: 13),
     isDense: true,
@@ -179,13 +180,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: _kPrimary, width: 2),
     ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kError, width: 1),
+    errorBorder: const OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(12)),
+      borderSide: BorderSide(color: _kError, width: 1),
     ),
-    focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kError, width: 2),
+    focusedErrorBorder: const OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(12)),
+      borderSide: BorderSide(color: _kError, width: 2),
     ),
   );
 
@@ -245,7 +246,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [Colors.white, _kLightGrey.withValues(alpha: 0.3)],
                   ),
                 ),
@@ -316,8 +318,12 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             child: TextFormField(
               controller: _desc,
               decoration: _input('Enter service description', icon: Icons.description_rounded),
-              validator: _req,
               textCapitalization: TextCapitalization.sentences,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'This field is required';
+                if (v.trim().length < 3) return 'Please enter at least 3 characters';
+                return null;
+              },
             ),
           ),
           const SizedBox(height: 20),
@@ -325,61 +331,61 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             label: 'Mechanic',
             child: _mechanicsLoading
                 ? TextFormField(
-                    enabled: false,
-                    decoration: _input('Loading mechanics...', icon: Icons.person_rounded),
-                  )
+              enabled: false,
+              decoration: _input('Loading mechanics...', icon: Icons.person_rounded),
+            )
                 : _mechanics.isEmpty
                 ? Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _kDivider),
-                      color: _kLightGrey.withValues(alpha: 0.5),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kDivider),
+                color: _kLightGrey.withValues(alpha: 0.5),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No mechanics found. Please add mechanics in User Management.',
+                      style: TextStyle(color: _kGrey.withValues(alpha: 0.9), fontSize: 14),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning, color: Colors.orange),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'No mechanics found. Please add mechanics in User Management.',
-                            style: TextStyle(color: _kGrey, fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : DropdownButtonFormField<String>(
-                    decoration: _input('Select mechanic', icon: Icons.person_rounded),
-                    value: _selectedMechanicId,
-                    hint: const Text('Select mechanic'),
-                    isExpanded: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select a mechanic';
-                      }
-                      return null;
-                    },
-                    items: _mechanics.map((mechanic) {
-                      return DropdownMenuItem<String>(
-                        value: mechanic['id'],
-                        child: Text(
-                          mechanic['name'] ?? 'Unknown',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedMechanicId = value;
-                        final selectedMechanic = _mechanics.firstWhere(
-                          (m) => m['id'] == value,
-                          orElse: () => <String, dynamic>{},
-                        );
-                        _selectedMechanicName = selectedMechanic['name'];
-                      });
-                    },
                   ),
+                ],
+              ),
+            )
+                : DropdownButtonFormField<String>(
+              decoration: _input('Select mechanic', icon: Icons.person_rounded),
+              value: _selectedMechanicId,
+              hint: const Text('Select mechanic'),
+              isExpanded: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please select a mechanic';
+                }
+                return null;
+              },
+              items: _mechanics.map((mechanic) {
+                return DropdownMenuItem<String>(
+                  value: mechanic['id'],
+                  child: Text(
+                    mechanic['name'] ?? 'Unknown',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedMechanicId = value;
+                  final selectedMechanic = _mechanics.firstWhere(
+                        (m) => m['id'] == value,
+                    orElse: () => <String, dynamic>{},
+                  );
+                  _selectedMechanicName = selectedMechanic['name'];
+                });
+              },
+            ),
           ),
         ],
       ),
@@ -396,6 +402,16 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           if (_parts.isNotEmpty) ...[
             const SizedBox(height: 16),
             ..._parts.map((part) => _buildPartPill(part)).toList(),
+          ],
+          if (_partsError != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _partsError!,
+                style: const TextStyle(color: _kError, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
         ],
       ),
@@ -425,6 +441,14 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         controller: _notes,
         decoration: _input('Enter any additional notes'),
         maxLines: 4,
+        maxLength: _maxNotesLen,
+        buildCounter: (_, {currentLength = 0, isFocused = false, maxLength}) => null,
+        validator: (v) {
+          if (v != null && v.length > _maxNotesLen) {
+            return 'Notes must be <= $_maxNotesLen characters';
+          }
+          return null;
+        },
         textCapitalization: TextCapitalization.sentences,
       ),
     );
@@ -533,7 +557,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   Widget _buildTotalsCard() => Container(
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
         colors: [_kPrimary.withValues(alpha: 0.05), _kSecondary.withValues(alpha: 0.05)],
       ),
       borderRadius: BorderRadius.circular(16),
@@ -548,8 +573,8 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration:
-                BoxDecoration(color: _kPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                    color: _kPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.receipt_rounded, color: _kPrimary, size: 20),
               ),
               const SizedBox(width: 12),
@@ -562,9 +587,13 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
           const SizedBox(height: 12),
           _totalRow('Labor', _laborAuto, icon: Icons.work_rounded),
           const SizedBox(height: 16),
-          Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [
-            _kPrimary.withValues(alpha: 0.3), _kSecondary.withValues(alpha: 0.3),
-          ]))),
+          Container(
+              height: 1,
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    _kPrimary.withValues(alpha: 0.3),
+                    _kSecondary.withValues(alpha: 0.3),
+                  ]))),
           const SizedBox(height: 16),
           _totalRow('Total', _grandTotal, bold: true, icon: Icons.account_balance_wallet_rounded),
         ],
@@ -636,9 +665,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
             decoration: _input('Select category', icon: Icons.category_rounded),
             value: _selectedCategory,
             isExpanded: true,
-            items: _categories
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
+            items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (cat) async {
               if (cat == null) return;
               setState(() {
@@ -689,10 +716,26 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               flex: 2,
               child: _buildFormField(
                 label: 'Quantity',
-                child: TextField(
+                child: TextFormField(
                   controller: _partQty,
                   decoration: _input('Qty'),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  validator: (_) {
+                    if (_selectedPart == null) return null;
+                    if (_partQty.text.trim().isEmpty) return null; // don't show error when blank
+                    final q = _toInt(_partQty.text);
+                    if (q <= 0) return 'Enter a quantity > 0';
+                    final stock = _selectedPart!.quantity;
+                    final key = _selectedPart!.key;
+                    final alreadyUsed = _stockDeltas[key] ?? 0;
+                    final allowed = stock - alreadyUsed;
+                    if (q > allowed) return 'Only $allowed left in stock';
+                    return null;
+                  },
                 ),
               ),
             ),
@@ -701,7 +744,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
               flex: 3,
               child: _buildFormField(
                 label: 'Price',
-                child: TextField(
+                child: TextFormField(
                   controller: _partPrice,
                   readOnly: true,
                   decoration: _input('Price', suffix: 'RM'),
@@ -752,7 +795,6 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     );
   }
 
-
   Future<List<InventoryPartVM>> _fetchParts(String category) async {
     final rows = await FirestoreService().getPartsByCategory(category);
     final list = <InventoryPartVM>[];
@@ -772,6 +814,9 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
   }
 
   void _onAddPartFromInventory() {
+    // run validators to show quantity error if any
+    _form.currentState?.validate();
+
     if (_selectedPart == null) {
       _showSnackBar('Please select a part', _kWarning);
       return;
@@ -806,8 +851,18 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         _parts.add(PartLine(name: part.name, quantity: q, unitPrice: part.price));
       }
       _stockDeltas[key] = alreadyUsed + q;
+
       _partQty.clear();
+
+      _selectedPart = null;
+      _partPrice.clear();
+
+      _partsError = null;
     });
+
+    _form.currentState?.validate();
+    FocusScope.of(context).unfocus();
+
 
     _showSnackBar('Part added successfully', _kSuccess);
   }
@@ -876,9 +931,50 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
     ),
   );
 
+  // ----- validation gate before save
+  bool _validateBeforeSave() {
+    _partsError = null;
+
+    // 1) Run all field validators
+    final ok = _form.currentState?.validate() ?? false;
+    if (!ok) {
+      setState(() {}); // show field errors
+      return false;
+    }
+
+    // 2) Date sanity (avoid far future)
+    try {
+      final d = DateTime.parse(_date.text);
+      final today = DateTime.now();
+      if (d.isAfter(today.add(const Duration(days: 1)))) {
+        _showSnackBar('Date cannot be in the far future', _kError);
+        return false;
+      }
+    } catch (_) {
+      _showSnackBar('Invalid date format', _kError);
+      return false;
+    }
+
+    // 3) Mechanic required (double check)
+    if (_selectedMechanicId == null || (_selectedMechanicName ?? '').isEmpty) {
+      _showSnackBar('Please select a mechanic', _kError);
+      return false;
+    }
+
+    // 4) At least one part required (you can relax this if labor-only jobs are allowed)
+    if (_parts.isEmpty) {
+      setState(() => _partsError = 'Add at least one part to continue');
+      // scroll hint is optional; snackbar for visibility
+      _showSnackBar('Please add at least one part', _kError);
+      return false;
+    }
+
+    return true;
+  }
+
   // ----- save
   Future<void> _onSave() async {
-    if (!_form.currentState!.validate()) return;
+    if (!_validateBeforeSave()) return;
     FocusScope.of(context).unfocus();
 
     final hours = _computedHours;
@@ -997,7 +1093,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
 
     setState(() {
       // text fields
-      _date.clear();
+      _date.text = _fmt(DateTime.now());
       _desc.clear();
       _notes.clear();
       _partQty.clear();
@@ -1015,6 +1111,7 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
       // parts & stock deltas
       _parts.clear();
       _stockDeltas.clear();
+      _partsError = null;
     });
 
     _showSnackBar('Form cleared', _kSuccess);
@@ -1055,18 +1152,18 @@ class _AddServiceState extends State<AddService> with TickerProviderStateMixin {
         data['id'] = doc.id;
         return data;
       }).toList();
-      
+
       // Sort locally by name
       mechanicsList.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
 
       setState(() {
         _mechanics = mechanicsList;
         _mechanicsLoading = false;
-        
+
         // If mechanic name was provided, try to find and select the mechanic
         if (widget.mechanicName != null) {
           final matchingMechanic = _mechanics.firstWhere(
-            (m) => m['name'] == widget.mechanicName,
+                (m) => m['name'] == widget.mechanicName,
             orElse: () => <String, dynamic>{},
           );
           if (matchingMechanic.isNotEmpty) {
