@@ -663,13 +663,13 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
               ),
             ),
           ),
-          // Date booking info (updated to allow today)
+          // Date booking info (updated to show time restrictions)
           if (widget.schedule == null) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'Emergency appointments can be scheduled for today',
+                'For appointments today, minimum 30 minutes advance booking required',
                 style: TextStyle(
                   fontSize: 13,
                   color: _kSuccess,
@@ -1157,7 +1157,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
   }
 
   Future<void> _selectDate() async {
-    final today = DateTime.now();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
@@ -1167,6 +1168,42 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
+        
+        // If selected date is today, ensure start time is not in the past
+        final selectedDateOnly = DateTime(picked.year, picked.month, picked.day);
+        final todayOnly = DateTime(now.year, now.month, now.day);
+        
+        if (selectedDateOnly.isAtSameMomentAs(todayOnly)) {
+          // If today is selected, ensure start time is at least current time + 30 minutes
+          final minStartTime = now.add(const Duration(minutes: 30));
+          final currentStartDateTime = DateTime(
+            _selectedDate.year,
+            _selectedDate.month, 
+            _selectedDate.day,
+            _startTime.hour,
+            _startTime.minute,
+          );
+          
+          if (currentStartDateTime.isBefore(minStartTime)) {
+            // Update start time to be at least 30 minutes from now
+            _startTime = TimeOfDay(
+              hour: minStartTime.hour >= 17 ? 16 : minStartTime.hour,
+              minute: minStartTime.hour >= 17 ? 30 : minStartTime.minute,
+            );
+            
+            // Update end time accordingly
+            int nextHour = _startTime.hour + 1;
+            if (nextHour >= 17) {
+              nextHour = 16;
+              _endTime = TimeOfDay(hour: nextHour, minute: 30);
+            } else {
+              _endTime = TimeOfDay(
+                hour: nextHour,
+                minute: _startTime.minute,
+              );
+            }
+          }
+        }
       });
     }
   }
@@ -1181,6 +1218,34 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       if (picked.hour < 8 || picked.hour >= 17) {
         _showSnackBar('Working hours are from 8:00 AM to 5:00 PM only', Colors.red);
         return;
+      }
+
+      // Additional check for new schedules: if date is today, time cannot be in the past
+      if (widget.schedule == null) {
+        final now = DateTime.now();
+        final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+        final todayOnly = DateTime(now.year, now.month, now.day);
+        
+        if (selectedDateOnly.isAtSameMomentAs(todayOnly)) {
+          final selectedDateTime = DateTime(
+            _selectedDate.year,
+            _selectedDate.month,
+            _selectedDate.day,
+            picked.hour,
+            picked.minute,
+          );
+          
+          // Require at least 30 minutes from current time
+          final minAllowedTime = now.add(const Duration(minutes: 30));
+          
+          if (selectedDateTime.isBefore(minAllowedTime)) {
+            _showSnackBar(
+              'For appointments today, please select a time at least 30 minutes from now (${TimeOfDay.fromDateTime(minAllowedTime).format(context)})',
+              _kError,
+            );
+            return;
+          }
+        }
       }
 
       setState(() {
@@ -1241,15 +1306,37 @@ class _AddSchedulePageState extends State<AddSchedulePage> with TickerProviderSt
       return;
     }
 
-    // Validate date - allow booking from today onwards
-    if (widget.schedule == null) { // Only check for new schedules, not when editing
-      final today = DateTime.now();
+    // Validate date and time - for new schedules, cannot be in the past
+    if (widget.schedule == null) { 
+      final now = DateTime.now();
       final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-      final todayOnly = DateTime(today.year, today.month, today.day);
+      final todayOnly = DateTime(now.year, now.month, now.day);
 
       if (selectedDateOnly.isBefore(todayOnly)) {
-        _showSnackBar('Cannot schedule appointments for past dates', Colors.red);
+        _showSnackBar('Cannot schedule appointments for past dates', _kError);
         return;
+      }
+      
+      // If date is today, check if time is not in the past
+      if (selectedDateOnly.isAtSameMomentAs(todayOnly)) {
+        final selectedDateTime = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        
+        // Require at least 30 minutes from current time
+        final minAllowedTime = now.add(const Duration(minutes: 30));
+        
+        if (selectedDateTime.isBefore(minAllowedTime)) {
+          _showSnackBar(
+            'For appointments today, please select a time at least 30 minutes from now (after ${TimeOfDay.fromDateTime(minAllowedTime).format(context)})',
+            _kError,
+          );
+          return;
+        }
       }
     }
 
