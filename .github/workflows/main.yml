@@ -1,0 +1,78 @@
+name: "WorkshopProManager CI/CD"
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Build APK
+        run: flutter build apk --release
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.0
+          name: WorkshopPro Manager v1.0.0 - First Release
+          body: |
+            🎉 **First Release of WorkshopPro Manager**
+            
+            This is the initial release of the WorkshopPro Manager mobile application - a comprehensive workshop management system designed for automotive service centers.
+            
+            ## ✨ Features
+            - 🚗 **Vehicle Management** - Track customer vehicles and service history
+            - 👥 **Customer Relationship Management (CRM)** - Manage customer information and interactions
+            - 📋 **Service Scheduling** - Schedule and manage workshop appointments
+            - 📦 **Inventory Control** - Track spare parts and inventory levels
+            - 🧾 **Invoice Management** - Generate and manage service invoices
+            - 👨‍💼 **User Management** - Admin controls for workshop staff
+            - 📊 **Analytics & Reports** - Business insights and performance tracking
+            
+            ## 🛠️ Technical Details
+            - Built with Flutter for cross-platform compatibility
+            - Firebase backend integration
+            - Material Design UI/UX
+            - Supports Android devices (API level 23+)
+            
+            ## 📱 Installation
+            Download the APK file and install on your Android device. Make sure to enable "Install from unknown sources" if prompted.
+            
+            ## 🔧 Requirements
+            - Android 6.0 (API level 23) or higher
+            - Internet connection for cloud features
+            - Camera permission for document scanning
+            
+            ---
+            **Package Name**: `my.edu.tarumt.workshoppro_manager`  
+            **Version**: 1.0.0  
+            **Build Date**: ${{ github.event.head_commit.timestamp }}
+          files: build/app/outputs/flutter-apk/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
