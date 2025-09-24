@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'navigation.dart';
 import '../../services/auth_service.dart';
 import '../auth/login.dart';
 import '../admin/manage_users.dart';
 import '../settings/settings.dart';
 import '../profile/profile.dart';
+import '../../widgets/cached_profile_image.dart';
 
 class MainAppWithDrawer extends StatelessWidget {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -100,30 +100,23 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 child: Column(
                   children: [
                     // Profile Avatar
-                    CircleAvatar(
-                      key: ValueKey(_profileImagePath ?? 'no_image'), // Force rebuild when image changes
-                      radius: 40,
-                      backgroundColor: Color(0xFF007AFF),
-                      child: _isLoading
-                          ? SizedBox(
+                    _isLoading
+                        ? CircleAvatar(
+                            radius: 40,
+                            backgroundColor: Color(0xFF007AFF),
+                            child: SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
-                            )
-                          : (_profileImagePath != null && _profileImagePath!.isNotEmpty)
-                              ? null // When we have a profile image, don't show the child icon
-                              : Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.white,
-                                ),
-                      backgroundImage: (_profileImagePath != null && _profileImagePath!.isNotEmpty)
-                          ? FileImage(File(_profileImagePath!))
-                          : null,
-                    ),
+                            ),
+                          )
+                        : ProfileImageWidget(
+                            imagePath: _profileImagePath,
+                            size: 80,
+                          ),
                     SizedBox(height: 12),
                     Text(
                       _userData?['name'] ?? 'Loading...',

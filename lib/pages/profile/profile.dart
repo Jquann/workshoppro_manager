@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import '../../services/auth_service.dart';
+import '../../widgets/cached_profile_image.dart';
 import 'profile_edit.dart';
 
 class Profile extends StatefulWidget {
@@ -140,57 +140,10 @@ class _ProfileState extends State<Profile> {
                                   ),
                                 ),
                                 child: ClipOval(
-                                  child: (_userData?['profileImagePath'] != null && 
-                                         _userData!['profileImagePath'].toString().isNotEmpty)
-                                      ? Image.file(
-                                          File(_userData!['profileImagePath']),
-                                          key: ValueKey(_userData!['profileImagePath']), // Force rebuild when image changes
-                                          width: 120,
-                                          height: 120,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              width: 120,
-                                              height: 120,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  colors: [
-                                                    Color(0xFF007AFF),
-                                                    Color(0xFF5856D6),
-                                                  ],
-                                                ),
-                                              ),
-                                              child: Icon(
-                                                Icons.person,
-                                                size: 60,
-                                                color: Colors.white,
-                                              ),
-                                            );
-                                          },
-                                        )
-                                      : Container(
-                                          width: 120,
-                                          height: 120,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                              colors: [
-                                                Color(0xFF007AFF),
-                                                Color(0xFF5856D6),
-                                              ],
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 60,
-                                            color: Colors.white,
-                                          ),
-                                        ),
+                                  child: ProfileImageWidget(
+                                    imagePath: _userData?['profileImagePath'],
+                                    size: 120,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),

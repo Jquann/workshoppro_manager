@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,43 @@ import 'package:path/path.dart' as path;
 class ImageService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final ImagePicker _picker = ImagePicker();
+  
+  // Global notifier for profile image updates
+  static final ValueNotifier<int> profileImageUpdateNotifier = ValueNotifier<int>(0);
+  static final Map<String, Uint8List> _imageCache = {};
+  
+  /// Force refresh all profile images across the app
+  static void forceProfileImageRefresh() {
+    profileImageUpdateNotifier.value++;
+    _imageCache.clear();
+    print('Profile image refresh triggered: ${profileImageUpdateNotifier.value}');
+  }
+  
+  /// Get image as Uint8List for immediate display
+  static Future<Uint8List?> getImageBytes(String imagePath) async {
+    try {
+      if (_imageCache.containsKey(imagePath)) {
+        return _imageCache[imagePath];
+      }
+      
+      final file = File(imagePath);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        _imageCache[imagePath] = bytes;
+        return bytes;
+      }
+      return null;
+    } catch (e) {
+      print('Error reading image bytes: $e');
+      return null;
+    }
+  }
+  
+  /// Clear specific image from cache
+  static void clearImageFromCache(String imagePath) {
+    _imageCache.remove(imagePath);
+    print('Cleared image from cache: $imagePath');
+  }
 
   /// Save profile image to local storage
   /// Returns the local file path of the saved image
@@ -27,18 +65,41 @@ class ImageService {
         await profileImagesDir.create(recursive: true);
       }
 
-      // Create a unique filename for the profile image
-      final String fileName = 'profile_${user.uid}.jpg';
+      // Create a unique filename for the profile image with timestamp
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName = 'profile_${user.uid}_$timestamp.jpg';
       final String localPath = path.join(profileImagesDir.path, fileName);
+      
+      // Delete old profile image if exists
+      await _deleteOldProfileImages(user.uid, profileImagesDir);
       
       // Copy the selected image to the local directory
       final File localImageFile = await imageFile.copy(localPath);
+      
+      // Clear cache and trigger refresh
+      clearImageFromCache(localPath);
+      forceProfileImageRefresh();
       
       print('Image saved locally at: $localPath');
       return localImageFile.path;
     } catch (e) {
       print('Error saving profile image locally: $e');
       throw Exception('Failed to save image locally: ${e.toString()}');
+    }
+  }
+  
+  /// Delete old profile images for the user
+  static Future<void> _deleteOldProfileImages(String userId, Directory profileImagesDir) async {
+    try {
+      final List<FileSystemEntity> files = await profileImagesDir.list().toList();
+      for (final file in files) {
+        if (file is File && file.path.contains('profile_$userId')) {
+          await file.delete();
+          print('Deleted old profile image: ${file.path}');
+        }
+      }
+    } catch (e) {
+      print('Error deleting old profile images: $e');
     }
   }
 
@@ -263,10 +324,24 @@ class ImageService {
       if (user == null) return false;
 
       final Directory appDocDir = await getApplicationDocumentsDirectory();
-      final String localPath = path.join(appDocDir.path, 'profile_images', 'profile_${user.uid}.jpg');
-      final File imageFile = File(localPath);
+      final Directory profileImagesDir = Directory(path.join(appDocDir.path, 'profile_images'));
       
-      return await imageFile.exists();
+      if (!await profileImagesDir.exists()) {
+        return false;
+      }
+
+      // Check if any profile image file exists for this user
+      final List<FileSystemEntity> files = await profileImagesDir.list().toList();
+      for (final entity in files) {
+        if (entity is File) {
+          final fileName = path.basename(entity.path);
+          if (fileName.startsWith('profile_${user.uid}_')) {
+            return true;
+          }
+        }
+      }
+
+      return false;
     } catch (e) {
       print('Error checking local profile image: $e');
       return false;
@@ -280,13 +355,37 @@ class ImageService {
       if (user == null) return null;
 
       final Directory appDocDir = await getApplicationDocumentsDirectory();
-      final String localPath = path.join(appDocDir.path, 'profile_images', 'profile_${user.uid}.jpg');
-      final File imageFile = File(localPath);
+      final Directory profileImagesDir = Directory(path.join(appDocDir.path, 'profile_images'));
       
-      if (await imageFile.exists()) {
-        return localPath;
+      if (!await profileImagesDir.exists()) {
+        return null;
       }
-      return null;
+
+      // Find the most recent profile image for this user
+      final List<FileSystemEntity> files = await profileImagesDir.list().toList();
+      String? latestImagePath;
+      int latestTimestamp = 0;
+
+      for (final entity in files) {
+        if (entity is File) {
+          final fileName = path.basename(entity.path);
+          if (fileName.startsWith('profile_${user.uid}_')) {
+            // Extract timestamp from filename
+            final timestampStr = fileName.substring('profile_${user.uid}_'.length).replaceAll('.jpg', '');
+            try {
+              final timestamp = int.parse(timestampStr);
+              if (timestamp > latestTimestamp) {
+                latestTimestamp = timestamp;
+                latestImagePath = entity.path;
+              }
+            } catch (e) {
+              // Ignore files with invalid timestamp format
+            }
+          }
+        }
+      }
+
+      return latestImagePath;
     } catch (e) {
       print('Error getting local profile image path: $e');
       return null;

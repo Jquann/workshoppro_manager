@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/image_service.dart';
 import '../../utils/image_picker_utils.dart';
+import '../../widgets/cached_profile_image.dart';
 
 class MalaysianPhoneFormatter extends TextInputFormatter {
   @override
@@ -394,28 +395,21 @@ class _ProfileEditState extends State<ProfileEdit> {
     print('_buildProfileImage called - _selectedImageFile: ${_selectedImageFile?.path}');
     
     // Always prioritize _selectedImageFile over current profile image
-    final File? imageToShow = _selectedImageFile ?? 
+    final String? imagePath = _selectedImageFile?.path ?? 
         (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty 
-            ? File(_currentProfileImageUrl!) 
+            ? _currentProfileImageUrl 
             : null);
     
-    if (imageToShow != null && imageToShow.existsSync()) {
-      print('Showing image: ${imageToShow.path}');
-      return Image.file(
-        imageToShow,
-        key: ValueKey('image_${imageToShow.path}_$_imageUpdateTimestamp'), // Unique key every time
+    if (imagePath != null) {
+      print('Showing image: $imagePath');
+      return CachedProfileImage(
+        imagePath: imagePath,
         width: 120,
         height: 120,
+        borderRadius: BorderRadius.circular(60),
         fit: BoxFit.cover,
-        gaplessPlayback: false, // Disable smooth transitions to ensure immediate update
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          // Force immediate display without animation
-          return child;
-        },
-        errorBuilder: (context, error, stackTrace) {
-          print('Error loading image ${imageToShow.path}: $error');
-          return _buildDefaultAvatar();
-        },
+        placeholder: _buildDefaultAvatar(),
+        errorWidget: _buildDefaultAvatar(),
       );
     } else {
       print('Showing default avatar - no valid image found');
@@ -740,6 +734,9 @@ class _ProfileEditState extends State<ProfileEdit> {
           _selectedImageFile = null;
           _currentProfileImageUrl = profileImagePath;
         });
+        
+        // Trigger global profile image refresh
+        ImageService.forceProfileImageRefresh();
         
         // Return success indicator to previous screen
         Navigator.of(context).pop(true);
