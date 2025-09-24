@@ -4,6 +4,7 @@ import 'add_customer.dart';
 import 'customer_profile.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'crm_dashboard_widget.dart';
 
 
 class CRMPage extends StatefulWidget {
@@ -151,6 +152,12 @@ class _CRMPageState extends State<CRMPage> {
                 final s = (c.maxWidth / base).clamp(0.95, 1.15);
                 return Column(
                   children: [
+                    // CRM Dashboard Widget
+                    if (q.isEmpty) // Only show dashboard when not searching
+                      Container(
+                        padding: EdgeInsets.all(16 * s),
+                        child: CRMDashboardWidget(),
+                      ),
                     Padding(
                       padding: EdgeInsets.fromLTRB(16 * s, 10 * s, 16 * s, 10 * s),
                       child: TextField(
@@ -555,7 +562,7 @@ class _CRMPageState extends State<CRMPage> {
         if (mounted) {
           setState(() => _listening = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Speech error: ${e.errorMsg ?? e.toString()}')),
+            SnackBar(content: Text('Speech error: ${e.errorMsg}')),
           );
         }
       },

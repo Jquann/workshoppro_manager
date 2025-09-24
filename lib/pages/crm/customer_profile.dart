@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../vehicles/view_vehicle.dart';
 import '../vehicles/add_vehicle.dart';
 import 'add_customer.dart';
+import 'communication_history.dart';
+import '../../services/communication_service.dart';
 
 class CustomerProfilePage extends StatefulWidget {
   final String customerId;
@@ -22,6 +24,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   static const _kError = Color(0xFFFF3B30);
   
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CommunicationService _communicationService = CommunicationService();
 
   // Format phone number for display
   String _formatPhoneNumber(String phoneNumber) {
@@ -610,6 +613,108 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     );
   }
 
+  Widget _buildCommunicationSection(String customerName, String? phoneNumber, String? emailAddress) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Communication',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          color: Colors.white,
+          child: Column(
+            children: [
+              // View Communication History
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CommunicationHistoryPage(
+                        customerId: widget.customerId,
+                        customerName: customerName,
+                        customerPhone: phoneNumber,
+                        customerEmail: emailAddress,
+                      ),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(0xFF007AFF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.history,
+                          color: Color(0xFF007AFF),
+                          size: 20,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Communication History',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            StreamBuilder<int>(
+                              stream: _communicationService.getCustomerCommunications(widget.customerId)
+                                  .map((communications) => communications.length),
+                              builder: (context, snapshot) {
+                                int count = snapshot.data ?? 0;
+                                return Text(
+                                  count == 0 ? 'No communications yet' :
+                                  count == 1 ? '1 communication' :
+                                  '$count communications',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black45,
+                                  ),
+                                );
+                              },
+                            ),
+                          ], 
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.black26,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Remove the "New Communication" section - only keep history
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -804,6 +909,12 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 ),
                 SizedBox(height: 20),
                 _buildContactSection(customerData),
+                SizedBox(height: 20),
+                _buildCommunicationSection(
+                  customerData['customerName'] ?? 'Unknown',
+                  customerData['phoneNumber'],
+                  customerData['emailAddress'],
+                ),
                 SizedBox(height: 20),
                 _buildVehicleSection(vehicleIds, customerData['customerName'] ?? 'Unknown'),
                 SizedBox(height: 20),
