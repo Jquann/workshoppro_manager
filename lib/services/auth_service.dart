@@ -37,6 +37,9 @@ class AuthService {
     try {
       print('Starting Google Sign-In process...');
       
+      // Sign out from any previous sessions to ensure clean state
+      await _googleSignIn.signOut();
+      
       // Trigger the Google authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
