@@ -74,7 +74,7 @@ class _InvoiceDashboardState extends State<InvoiceDashboard> {
       invoices.where((invoice) => invoice.paymentStatus == 'Paid').length;
 
   int get unpaidCount =>
-      invoices.where((invoice) => invoice.paymentStatus == 'Unpaid').length;
+      invoices.where((invoice) => invoice.paymentStatus == 'Unpaid'  && invoice.status != 'Rejected').length;
 
   double get totalRevenue => invoices
       .where((invoice) => invoice.paymentStatus == 'Paid')
