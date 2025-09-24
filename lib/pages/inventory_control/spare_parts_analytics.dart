@@ -149,7 +149,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
         int totalCategoryParts = partsList.length;
         int lowStockParts = 0;
         int requestedParts = 0;
-        int totalCategoryStock = 0;
+        int totalCategoryStock = 0; // This is already being calculated
         int totalCategoryUsed = 0;
         for (var part in partsList) {
           String normalizedName = part['normalizedName'] ?? '';
@@ -164,6 +164,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
         double utilizationRate = (totalCategoryUsed + totalCategoryStock) > 0 ? (totalCategoryUsed / (totalCategoryUsed + totalCategoryStock)) * 100 : 0.0;
         categoryAnalyticsMap[category] = {
           'totalParts': totalCategoryParts,
+          'totalStock': totalCategoryStock, // ADD THIS LINE - store the total stock
           'usedParts': totalCategoryUsed,
           'lowStockParts': lowStockParts,
           'requestedParts': requestedParts,
@@ -499,7 +500,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: 600), // Ensure minimum width for table
+          constraints: BoxConstraints(minWidth: 700), // Increase minimum width for additional column
           child: DataTable(
             columnSpacing: 20,
             horizontalMargin: 16,
@@ -512,6 +513,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
             columns: const [
               DataColumn(label: Text('Category', overflow: TextOverflow.ellipsis)),
               DataColumn(label: Text('Total', overflow: TextOverflow.ellipsis)),
+              DataColumn(label: Text('Total Stock', overflow: TextOverflow.ellipsis)), // NEW COLUMN
               DataColumn(label: Text('Used', overflow: TextOverflow.ellipsis)),
               DataColumn(label: Text('Low Stock', overflow: TextOverflow.ellipsis)),
               DataColumn(label: Text('Requested', overflow: TextOverflow.ellipsis)),
@@ -523,6 +525,7 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
               return DataRow(cells: [
                 DataCell(Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                 DataCell(Text(hasParts ? data['totalParts'].toString() : '-', style: TextStyle(fontSize: 13))),
+                DataCell(Text(hasParts ? data['totalStock'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.blue[700], fontWeight: FontWeight.w600))), // NEW CELL
                 DataCell(Text(hasParts ? data['usedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.green[700], fontWeight: FontWeight.w600))),
                 DataCell(Text(hasParts ? data['lowStockParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.orange[700], fontWeight: FontWeight.w600))),
                 DataCell(Text(hasParts ? data['requestedParts'].toString() : '-', style: TextStyle(fontSize: 13, color: Colors.red[700], fontWeight: FontWeight.w600))),
@@ -573,50 +576,50 @@ class _SparePartsAnalyticsScreenState extends State<SparePartsAnalyticsScreen>
             ),
             SizedBox(height: 12),
 
-            // Time Filter for Category Breakdown Table
-            Container(
-              width: double.infinity,
-              child: DropdownButtonFormField<String>(
-                value: _selectedTimeFilter,
-                decoration: InputDecoration(
-                  labelText: 'Time Filter',
-                  prefixIcon: Icon(Icons.filter_list, color: Colors.blue),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.blue, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                items: _timeFilterOptions.map((String option) {
-                  return DropdownMenuItem<String>(
-                    value: option,
-                    child: Text(
-                      option,
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  if (newValue != null) {
-                    setState(() {
-                      _selectedTimeFilter = newValue;
-                      // Apply time filtering to category analytics
-                      _applyTimeFilterToCategoryAnalytics();
-                    });
-                  }
-                },
-              ),
-            ),
+            // // Time Filter for Category Breakdown Table
+            // Container(
+            //   width: double.infinity,
+            //   child: DropdownButtonFormField<String>(
+            //     value: _selectedTimeFilter,
+            //     decoration: InputDecoration(
+            //       labelText: 'Time Filter',
+            //       prefixIcon: Icon(Icons.filter_list, color: Colors.blue),
+            //       border: OutlineInputBorder(
+            //         borderRadius: BorderRadius.circular(12),
+            //         borderSide: BorderSide(color: Colors.grey[300]!),
+            //       ),
+            //       enabledBorder: OutlineInputBorder(
+            //         borderRadius: BorderRadius.circular(12),
+            //         borderSide: BorderSide(color: Colors.grey[300]!),
+            //       ),
+            //       focusedBorder: OutlineInputBorder(
+            //         borderRadius: BorderRadius.circular(12),
+            //         borderSide: BorderSide(color: Colors.blue, width: 2),
+            //       ),
+            //       filled: true,
+            //       fillColor: Colors.grey[50],
+            //       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            //     ),
+            //     items: _timeFilterOptions.map((String option) {
+            //       return DropdownMenuItem<String>(
+            //         value: option,
+            //         child: Text(
+            //           option,
+            //           style: TextStyle(fontSize: 14),
+            //         ),
+            //       );
+            //     }).toList(),
+            //     onChanged: (String? newValue) {
+            //       if (newValue != null) {
+            //         setState(() {
+            //           _selectedTimeFilter = newValue;
+            //           // Apply time filtering to category analytics
+            //           _applyTimeFilterToCategoryAnalytics();
+            //         });
+            //       }
+            //     },
+            //   ),
+            // ),
 
             SizedBox(height: 16),
             _buildCategoryBreakdownTableAll(),
